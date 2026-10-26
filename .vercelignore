@@ -1,0 +1,8 @@
+.apex
+.claude
+.env
+.env.*
+!.env.example
+eval/data
+*.mp4
+!public/**/*.mp4

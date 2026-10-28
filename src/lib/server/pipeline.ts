@@ -63,6 +63,8 @@ export type PipelineOptions = {
   maxPagesRead?: number;
   /** Below this sharpness (intake.ts), warn that the photo looks blurred. */
   blurThreshold?: number;
+  /** Updated with the model spend as it happens (so a failed run's cost is still counted). */
+  meter?: { usd: number };
 };
 
 const SEAM_JPEG_QUALITY = 90;
@@ -100,8 +102,12 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
       send({ type: "stage", stage: s, status, ms });
     }
   };
+  const spend = (usd: number) => {
+    cost.usd += usd;
+    if (opts.meter) opts.meter.usd += usd;
+  };
   const museCost = (o: MuseOutcome<unknown>) => {
-    cost.usd += o.meta.costUsd;
+    spend(o.meta.costUsd);
     cost.museCalls += 1;
   };
   const checkAbort = () => {
@@ -141,7 +147,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     checkAbort();
     throw new RunError("model-error", `SAM 3.1 didn't answer: ${short(e)}`);
   }
-  cost.usd += seg.costUsd;
+  spend(seg.costUsd);
   cost.samCalls += seg.samCalls;
   if (!seg.fragments.length) throw new RunError("no-pieces");
   if (seg.fragments.length > MAX_PIECES) throw new RunError("too-many");

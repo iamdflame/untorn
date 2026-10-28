@@ -53,3 +53,6 @@ export const DEFAULT_SAMPLE: string = M.default;
 export const HEALTH_SAMPLE: string = M.health;
 
 export const sampleOrDefault = (name: string | null | undefined): Sample => (name && SAMPLES[name]) || SAMPLES[DEFAULT_SAMPLE];
+
+/** The stage photo's display width: the photo covers the stage (the right 58% on a laptop, full-bleed on a phone). */
+export const PHOTO_SIZES = "(max-width: 760px) 190vw, 86vw";

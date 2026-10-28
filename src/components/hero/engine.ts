@@ -12,7 +12,7 @@
 import { buildScene, splitWords, statedSplit, type Scene, type SceneSeam } from "@/lib/run/scene";
 import type { StackTrial } from "@/lib/run/samples";
 import type { JoinOut, PageOut, PieceOut, ReadOut } from "@/lib/run/types";
-import { inkNear, makeCutouts, type Cutout } from "./cutouts";
+import { cutoutKey, makeCutouts, readPoint, sharedCutouts, type Cutout } from "./cutouts";
 import {
   COL,
   TAU,
@@ -272,7 +272,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   /* ---------------- cut-outs, then where text crosses each seam ---------------- */
   function startCutouts() {
     if (!photoOk || !scene || !input?.photo) return;
-    const key = `${input.photo.src}|${scene.pieces.map((p) => p.id).join(",")}`;
+    const key = cutoutKey(input.photo.src, scene.pieces);
     if (key === cutKey) return;
     cutKey = key;
     cutSignal.cancelled = true;
@@ -281,13 +281,18 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     cutsReady = false;
     cuts = new Map();
     const ps = scene.pieces;
-    makeCutouts(photo, input.photo.width, ps, (i, c) => {
-      if (sig.cancelled) return;
-      cuts.set(ps[i].id, c);
-      litScale = c.scale;
-      dirty = true;
-    }, sig).then(() => {
-      if (sig.cancelled) return;
+    const worldW = input.photo.width;
+    sharedCutouts(key, () =>
+      makeCutouts(photo, worldW, ps, (i, c) => {
+        if (sig.cancelled || cutKey !== key) return;
+        cuts.set(ps[i].id, c);
+        litScale = c.scale;
+        dirty = true;
+      }).then((list) => new Map(list.map((c, i) => [ps[i].id, c] as const))),
+    ).then((m) => {
+      if (sig.cancelled || cutKey !== key) return;
+      cuts = m;
+      litScale = m.values().next().value?.scale ?? 1;
       cutsReady = true;
       readAtDone = false;
       dirty = true;
@@ -297,33 +302,13 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   function findReadPoints() {
     if (readAtDone || !cutsReady || !assembled) return;
     readAtDone = true;
-    const r = 13 * K;
     for (const s of seams) {
       const ca = cuts.get(pieces[s.a].id);
       const cb = cuts.get(pieces[s.b].id);
-      if (!ca || !cb || s.line.length < 4) continue;
+      if (!ca || !cb) continue;
       const pa = pieces[s.a];
       const pb = pieces[s.b];
-      // sample along the shared edge every few px; the read point is where the most ink crosses it
-      const pts: [number, number][] = [];
-      for (let j = 2; j < s.line.length; j += 2) {
-        const x0 = s.line[j - 2];
-        const y0 = s.line[j - 1];
-        const L = Math.hypot(s.line[j] - x0, s.line[j + 1] - y0);
-        const k = Math.max(1, Math.floor(L / 4));
-        for (let q = 0; q < k; q++) pts.push([x0 + ((s.line[j] - x0) * q) / k, y0 + ((s.line[j + 1] - y0) * q) / k]);
-      }
-      const ink = pts.map(([x, y]) => inkNear(ca, pa.home[0], pa.home[1], pa.ang, x, y, r) + inkNear(cb, pb.home[0], pb.home[1], pb.ang, x, y, r));
-      const sm = ink.map((_, i) => ink.slice(Math.max(0, i - 3), i + 4).reduce((a, b) => a + b, 0));
-      let bi = -1;
-      let bv = 0;
-      sm.forEach((v, i) => {
-        if (v > bv) {
-          bv = v;
-          bi = i;
-        }
-      });
-      if (bi >= 0) s.readAt = pts[bi];
+      s.readAt = readPoint(s.line, s.mid, { cut: ca, x: pa.home[0], y: pa.home[1], ang: pa.ang }, { cut: cb, x: pb.home[0], y: pb.home[1], ang: pb.ang }, K);
     }
     const pageSrcPx = (scene?.pages[0]?.width ?? 844) / litScale;
     ZOOM = clamp(Math.round(2400 / pageSrcPx), 2, 3);
@@ -644,6 +629,10 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
     // balloons: only while SAM finds the pieces (and in the join map)
     const bc = { x: lerp(PHC.x, PCX || PHC.x, assembled ? expl : 0), y: lerp(PHC.y, PCY || PHC.y, assembled ? expl : 0) };
+    g.save();
+    g.beginPath();
+    g.rect(R.area.x, R.area.y, R.area.w, R.area.h);
+    g.clip();
     pieces.forEach((p, i) => {
       const ps = poses[i];
       const done = T.trace0 + i * T.traceStag + T.traceDur;
@@ -671,6 +660,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       g.fill();
       balloon(g, bx, by, p.k, a, fonts, phone ? 10 : 12);
     });
+    g.restore();
     g.globalAlpha = 1;
     if (j > 0.02) drawJoinLabels(g, c, poses, j);
 
@@ -1467,6 +1457,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       twPick = k;
       dirty = true;
     },
+    beats: () => beats.map((b) => ({ t0: b.t0, t1: b.t1, seam: seams[b.seam]?.join.candidate, lead: b.lead })),
     state: () => ({ t, gate: gate(), cutsReady, assembled, climax: scene?.climax ? { word: scene.climax.word, split: scene.climax.split, seam: scene.seams[scene.climax.seam].join.candidate } : null }),
   };
 

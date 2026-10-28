@@ -5,6 +5,7 @@
 // unplaced, and the downloads.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "../hooks";
 import { WARNINGS } from "@/lib/run/errors";
 import { buildScene, splitWords, statedSplit, type Scene, type SceneSeam } from "@/lib/run/scene";
 import type { RunResult } from "@/lib/run/types";
@@ -38,8 +39,27 @@ function Plate({ scene, cuts, J, hl, label }: { scene: Scene; cuts: Map<string, 
   const ref = useRef<HTMLCanvasElement>(null);
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const jRef = useRef(0);
-  const [, force] = useState(0);
+  const reduced = usePrefersReducedMotion();
+  const [jAnim, setJAnim] = useState(J);
+  const jNow = useRef(J);
+
+  // ease the pull-apart (a still with reduced motion)
+  useEffect(() => {
+    if (reduced) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const d = J - jNow.current;
+      jNow.current = Math.abs(d) > 0.002 ? jNow.current + d * (1 - Math.exp(-dt * 7)) : J;
+      setJAnim(jNow.current);
+      if (jNow.current !== J) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [J, reduced]);
+  const rJ = reduced ? J : jAnim;
 
   useEffect(() => {
     const el = ref.current?.parentElement;
@@ -48,30 +68,6 @@ function Plate({ scene, cuts, J, hl, label }: { scene: Scene; cuts: Map<string, 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  // ease the pull-apart
-  useEffect(() => {
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      const d = J - jRef.current;
-      if (Math.abs(d) > 0.002) {
-        jRef.current += d * (1 - Math.exp(-dt * 7));
-        force((n) => n + 1);
-        raf = requestAnimationFrame(tick);
-      } else if (jRef.current !== J) {
-        jRef.current = J;
-        force((n) => n + 1);
-      }
-    };
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      jRef.current = J;
-      force((n) => n + 1);
-    } else raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [J]);
 
   const K = (scene.pages[0]?.width ?? 820) / 820;
   const [bx0, by0, bx1, by1] = scene.pagesBox;
@@ -111,7 +107,6 @@ function Plate({ scene, cuts, J, hl, label }: { scene: Scene; cuts: Map<string, 
     });
     const fa = fit({ x0: bx0 - 60 * K, y0: by0 - 56 * K, x1: bx1 + 60 * K, y1: by1 + 60 * K }, box);
     const fj = fit({ x0: jb.x0 - 10, y0: jb.y0 - 10, x1: jb.x1 + 10, y1: jb.y1 + 10 }, box);
-    const rJ = jRef.current;
     const c: Cam = lerpCam(fa, fj, easeIO(rJ));
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
     g.clearRect(0, 0, size.w, size.h);

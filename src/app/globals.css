@@ -1740,8 +1740,7 @@ h2 {
     line-height: 1.38;
   }
   .tx-more {
-    font-size: 13px;
-    margin-top: 2px;
+    display: none;
   }
   .stagebar {
     left: 16px;
@@ -1754,11 +1753,13 @@ h2 {
     gap: 8px;
   }
   .stagebar .honest {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 13.5px;
+    line-height: 1.2;
+    white-space: normal;
     min-width: 0;
+  }
+  .ctrl .btn-prev {
+    display: none;
   }
   .stagebar .honest .linkish,
   .stagebar .honest a {
@@ -1774,9 +1775,9 @@ h2 {
   .twins {
     left: 0;
     right: 0;
-    top: 52px;
+    top: 0;
     bottom: 80px;
-    padding: 0 12px;
+    padding: 52px 12px 0;
     align-content: center;
     background: var(--room);
   }

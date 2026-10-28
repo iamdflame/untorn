@@ -23,7 +23,6 @@ export function Permalink({ runId }: { runId: string }) {
   const [result, setResult] = useState<RunResult | null>(null);
   const [missing, setMissing] = useState<"not-found" | "network" | null>(null);
   const [J, setJ] = useState(0);
-  const [seq, setSeq] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +43,6 @@ export function Permalink({ runId }: { runId: string }) {
   useEffect(() => {
     if (!result) return;
     replay(result, { instant: true });
-    setSeq((n) => n + 1);
   }, [result, replay]);
 
   const onAction = (r: Recovery) => {
@@ -81,7 +79,7 @@ export function Permalink({ runId }: { runId: string }) {
       <Hero
         state={run.state}
         mode="replay"
-        runKey={`replay-${seq}`}
+        runKey={`replay-${result?.runId ?? "none"}`}
         sample={sample}
         twins={null}
         reduced={reduced}

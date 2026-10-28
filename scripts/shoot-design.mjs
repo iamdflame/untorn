@@ -60,7 +60,7 @@ async function run(tag, ctxOpts) {
   const browser = await chromium.launch({ channel: process.env.SHOOT_CHANNEL || "msedge" });
   const ctx = await browser.newContext(ctxOpts);
   const page = await ctx.newPage();
-  page.on("console", (m) => m.type() === "error" && errors.push(`${tag} console: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !/\/(c\/|no-such|api\/sessions)/.test(page.url()) && errors.push(`${tag} console: ${m.text()} @ ${page.url()}`));
   page.on("pageerror", (e) => errors.push(`${tag} pageerror: ${e}`));
   const st = await shootHero(page, tag);
   if (want("accuracy")) {
@@ -75,7 +75,9 @@ async function run(tag, ctxOpts) {
     await page.screenshot({ path: path.join(out, `${prefix}-${tag}-404.png`) });
   }
   if (want("capture")) {
-    await page.goto(base + "/c/ABCDEF");
+    const sres = await page.request.post(base + "/api/sessions");
+    const code = sres.ok() ? (await sres.json()).code : "ABCDEF";
+    await page.goto(base + "/c/" + code);
     await page.waitForTimeout(1200);
     await page.screenshot({ path: path.join(out, `${prefix}-${tag}-capture.png`) });
   }

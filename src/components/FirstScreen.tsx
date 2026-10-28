@@ -5,7 +5,7 @@
 // photo or an upload. Live and recorded runs fold through the same reducer and are drawn by the same hero.
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Recovery } from "@/lib/run/errors";
 import { SAMPLES, STACKS, type Sample } from "@/lib/run/samples";
 import type { RunResult } from "@/lib/run/types";
@@ -20,19 +20,20 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
   const run = useRun();
   const { state } = run;
   const reduced = usePrefersReducedMotion();
-  const [sample, setSample] = useState(initial);
+  // a sample can be named in the address (/?sample=<name>)
+  const search = useSyncExternalStore(
+    () => () => {},
+    () => location.search,
+    () => "",
+  );
+  const named = new URLSearchParams(search).get("sample");
+  const sample = (named && SAMPLES[named]) || initial;
   const [recorded, setRecorded] = useState<RunResult | null>(null);
   const [recordingMissing, setRecordingMissing] = useState(false);
   const [seq, setSeq] = useState(0);
   const [J, setJ] = useState(0);
   const [liveSample, setLiveSample] = useState(false);
   const lastInput = useRef<LiveInput | null>(null);
-
-  // a sample can be named in the address (/?sample=<name>)
-  useEffect(() => {
-    const name = new URLSearchParams(location.search).get("sample");
-    if (name && SAMPLES[name] && name !== initial.name) setSample(SAMPLES[name]);
-  }, [initial.name]);
 
   // warm the functions, then load the recording
   useEffect(() => {

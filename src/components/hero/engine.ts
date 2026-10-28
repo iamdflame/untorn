@@ -388,7 +388,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       if (climaxSeam) {
         const [fx, fy0] = climaxSeam.readAt;
         const fy = fy0 + (phone ? 4 : 10) * K;
-        const z = ZOOM / litScale;
+        const z = zoomNow() / litScale;
         F.climax = { s: z, wx: fx, wy: fy, sx: Math.round(R.full.x + R.full.w / 2), sy: Math.round(R.full.y + R.full.h * (phone ? 0.4 : 0.36)) };
       }
     } else {
@@ -405,6 +405,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     dirty = true;
   }
 
+  /** Whole-number zoom of the photo's own pixels: one step less on a phone's narrow stage. */
+  const zoomNow = () => (phone ? Math.max(2, ZOOM - 1) : ZOOM);
   function liveFrame(poses: Pose[]): Cam {
     const b = posesBox(poses.map((ps, i) => [pieces[i], ps.x, ps.y, ps.a]));
     b.x0 -= 20 * K;
@@ -645,8 +647,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       dx /= dl;
       dy /= dl;
       const off = p.r * c.s * 0.42 + 22;
-      const bx = sx + dx * off;
-      const by = sy + dy * off;
+      const bx = clamp(sx + dx * off, R.area.x + 16, R.area.x + R.area.w - 16);
+      const by = clamp(sy + dy * off, R.area.y + 16, R.area.y + R.area.h - (phone ? 16 : 70));
       g.globalAlpha = a;
       g.strokeStyle = COL.ink;
       g.lineWidth = 1.2;
@@ -806,7 +808,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     const [fx, fy] = s.readAt;
     // the read point follows the moving piece until it seats
     const [px, py] = w2s(c, fx, fy);
-    const Z = ZOOM / litScale;
+    const Z = zoomNow() / litScale;
     const open = 0.9 + 0.1 * easeOut(clamp((t - b.t0) / 0.3));
     const RR = R.proof.w / 2 - 2;
     const cx0 = Math.round(R.proof.x + R.proof.w / 2);

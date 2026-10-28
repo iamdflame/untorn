@@ -7,9 +7,11 @@
 // - empty or unparseable output retries at once, and an output cut off by the token budget retries with a larger one
 //   (the spike's empty k-way answers were reasoning that used up max_output_tokens);
 // - 400/401/402/403/404/413 fail at once: the same request would fail again;
-// - each attempt has its own timeout and the call has an overall deadline; the caller's AbortSignal cancels both.
+// - each attempt has its own timeout and the call has an overall deadline; the caller's AbortSignal cancels both;
+// - a call slower than its hedge delay gets a second identical request beside it; the first good answer wins.
 // Every attempt is logged with its latency, tokens and estimated cost; the totals ride on the outcome's meta.
 
+import { hedge } from "./hedge";
 import {
   choiceSchema,
   DEFAULT_PROMPT,
@@ -85,6 +87,8 @@ export type CallMeta = {
   /** Estimated over every attempt, failed ones included (they still bill their tokens). */
   costUsd: number;
   responseId: string | null;
+  /** Requests run side by side: 2 when a hedge fired because the first was slow. */
+  lanes: number;
 };
 
 export type MuseOutcome<T> = { ok: true; value: T; meta: CallMeta } | { ok: false; error: MuseFailure; meta: CallMeta };
@@ -114,6 +118,8 @@ export type MuseOptions = {
   timeoutMs?: number;
   /** Overall budget for the call, retries included. */
   deadlineMs?: number;
+  /** Start a second identical request when the first has not answered after this long (0: never). */
+  hedgeAfterMs?: number;
   maxAttempts?: number;
   signal?: AbortSignal;
   /** Called after every attempt. Defaults to one compact console line; pass () => {} to silence. */
@@ -132,7 +138,7 @@ export type StructuredRequest<T> = {
   /** Validate and normalise the parsed JSON; return null to treat it as unparseable (and retry). */
   check: (json: unknown) => T | null;
   promptVersion?: string;
-  defaults: { model: MuseModel; effort: ReasoningEffort; maxOutputTokens: number; timeoutMs: number; deadlineMs: number };
+  defaults: { model: MuseModel; effort: ReasoningEffort; maxOutputTokens: number; timeoutMs: number; deadlineMs: number; hedgeAfterMs: number };
 };
 
 const BACKOFF_BASE_MS = 600;
@@ -247,8 +253,48 @@ const addUsage = (a: Usage, b: Usage): Usage => ({
 
 const ZERO: Usage = { inputTokens: 0, cachedTokens: 0, outputTokens: 0, reasoningTokens: 0 };
 
-/** Run one structured call with the retry policy above. Exported for the bench scripts' prompt variants. */
+/**
+ * Run one structured call with the retry policy above, hedged: when the first request is slower than hedgeAfterMs a
+ * second identical one starts beside it and the first good answer wins. Exported for the bench's prompt variants.
+ */
 export async function museCall<T>(req: StructuredRequest<T>, opts: MuseOptions = {}): Promise<MuseOutcome<T>> {
+  const hedgeAfterMs = opts.hedgeAfterMs ?? req.defaults.hedgeAfterMs;
+  if (!hedgeAfterMs) return museCallOnce(req, opts);
+  const t0 = Date.now();
+  const deadlineMs = opts.deadlineMs ?? req.defaults.deadlineMs;
+  try {
+    const h = await hedge(
+      (signal, lane) => museCallOnce(req, { ...opts, signal, deadlineMs: Math.max(1, deadlineMs - (Date.now() - t0)), ...(lane ? { onLog: opts.onLog ?? defaultLog } : {}) }),
+      {
+        afterMs: hedgeAfterMs,
+        lanes: 2,
+        signal: opts.signal,
+        ok: (r) => r.ok,
+        final: (r) => !r.ok && !r.error.retryable,
+      },
+    );
+    const costUsd = h.results.reduce((s, r) => s + r.meta.costUsd, 0);
+    const usage = h.results.reduce((u, r) => addUsage(u, r.meta.usage), ZERO);
+    return { ...h.result, meta: { ...h.result.meta, ms: Date.now() - t0, costUsd, usage, lanes: h.lanesStarted } } as MuseOutcome<T>;
+  } catch {
+    const meta: CallMeta = {
+      fn: req.fn,
+      model: opts.model ?? req.defaults.model,
+      effort: opts.effort ?? req.defaults.effort,
+      promptVersion: req.promptVersion ?? PROMPTS_VERSION,
+      attempts: 0,
+      ms: Date.now() - t0,
+      lastAttemptMs: 0,
+      usage: ZERO,
+      costUsd: 0,
+      responseId: null,
+      lanes: 1,
+    };
+    return { ok: false, error: { code: "aborted", message: "aborted by the caller", status: null, retryable: false }, meta };
+  }
+}
+
+async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Promise<MuseOutcome<T>> {
   const model = opts.model ?? req.defaults.model;
   const effort = opts.effort ?? req.defaults.effort;
   let maxOutputTokens = opts.maxOutputTokens ?? req.defaults.maxOutputTokens;
@@ -278,6 +324,7 @@ export async function museCall<T>(req: StructuredRequest<T>, opts: MuseOptions =
     usage,
     costUsd: cost,
     responseId,
+    lanes: 1,
   });
   const fail = (error: MuseFailure): MuseOutcome<T> => ({ ok: false, error, meta: meta() });
 
@@ -442,7 +489,7 @@ export async function verifySeam(
       schema: SEAM_SCHEMA,
       content,
       promptVersion: `${PROMPTS_VERSION}/seam.${version}${opts.rotated ? "+rot" : ""}`,
-      defaults: { model: "muse-spark-1.3", effort: "low", maxOutputTokens: 4000, timeoutMs: 45_000, deadlineMs: 90_000 },
+      defaults: { model: "muse-spark-1.3", effort: "low", maxOutputTokens: 4000, timeoutMs: 45_000, deadlineMs: 90_000, hedgeAfterMs: 20_000 },
       check: (j) => {
         if (!isObj(j) || typeof j.same_place !== "boolean") return null;
         const confidence = clamp01(j.confidence);
@@ -476,7 +523,7 @@ export async function chooseContinuation(
       schema,
       content,
       promptVersion: `${PROMPTS_VERSION}/choice.${version}${opts.rotated ? "+rot" : ""}`,
-      defaults: { model: "muse-spark-1.3", effort: "medium", maxOutputTokens: 8000, timeoutMs: 60_000, deadlineMs: 120_000 },
+      defaults: { model: "muse-spark-1.3", effort: "medium", maxOutputTokens: 8000, timeoutMs: 60_000, deadlineMs: 120_000, hedgeAfterMs: 25_000 },
       check: (j) => {
         if (!isObj(j)) return null;
         const choice = str(j.choice)?.trim().toUpperCase() ?? "";
@@ -503,7 +550,7 @@ export async function readPage(pageImage: ImageInput, opts: MuseOptions = {}): P
       schema: READ_SCHEMA,
       content: [textPart(PROMPTS.read.v1), imagePart(pageImage)],
       promptVersion: `${PROMPTS_VERSION}/read.v1`,
-      defaults: { model: "muse-spark-1.3", effort: "low", maxOutputTokens: 8000, timeoutMs: 90_000, deadlineMs: 150_000 },
+      defaults: { model: "muse-spark-1.3", effort: "low", maxOutputTokens: 8000, timeoutMs: 90_000, deadlineMs: 150_000, hedgeAfterMs: 45_000 },
       check: (j) => {
         if (!isObj(j)) return null;
         const text = str(j.text);
@@ -529,7 +576,7 @@ export async function translate(text: string, to: string, opts: MuseOptions = {}
       schema: TRANSLATE_SCHEMA,
       content: [textPart(PROMPTS.translate.v1(to)), textPart(text)],
       promptVersion: `${PROMPTS_VERSION}/translate.v1`,
-      defaults: { model: "muse-spark-1.3", effort: "minimal", maxOutputTokens: 8000, timeoutMs: 60_000, deadlineMs: 120_000 },
+      defaults: { model: "muse-spark-1.3", effort: "minimal", maxOutputTokens: 8000, timeoutMs: 60_000, deadlineMs: 120_000, hedgeAfterMs: 30_000 },
       check: (j) => {
         if (!isObj(j)) return null;
         const out = str(j.text);
@@ -564,7 +611,7 @@ export async function sortFragments(crops: ImageInput[], opts: MuseOptions = {})
     schema: SORT_SCHEMA,
     content,
     promptVersion: `${PROMPTS_VERSION}/sort.v1`,
-    defaults: { model: "muse-wonder-1.0", effort: "low", maxOutputTokens: 12000, timeoutMs: 90_000, deadlineMs: 150_000 },
+    defaults: { model: "muse-wonder-1.0", effort: "low", maxOutputTokens: 12000, timeoutMs: 90_000, deadlineMs: 150_000, hedgeAfterMs: 60_000 },
     check: (j) => (isObj(j) ? normaliseGroups(j.groups, n) : null),
   };
   if (n === 0 || n > MAX_SORT_IMAGES) {
@@ -579,6 +626,7 @@ export async function sortFragments(crops: ImageInput[], opts: MuseOptions = {})
       usage: ZERO,
       costUsd: 0,
       responseId: null,
+      lanes: 1,
     };
     if (n === 0) return { ok: true, value: { groups: [], repaired: { missing: [], duplicated: [] } }, meta };
     return { ok: false, error: { code: "bad_request", message: `at most ${MAX_SORT_IMAGES} fragments per call, got ${n}`, status: null, retryable: false }, meta };

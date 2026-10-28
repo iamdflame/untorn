@@ -17,6 +17,7 @@ import { openSamStream, samFrames, META_API_BASE } from "@/lib/sam/client";
 import { decodeMask } from "@/lib/sam/mask";
 import { UpstreamError, type RawObject } from "@/lib/sam/parse";
 import { buildBoxImageRequest, buildConceptImageRequest, jpegDataUrl, MAX_OBJECTS_PER_REQUEST, type SamRequestBody } from "@/lib/sam/request";
+import { hedge } from "./hedge";
 import { cropJpeg, decodePhoto, resizeJpeg, type DecodedPhoto } from "./images";
 import {
   cleanFragmentMask,
@@ -39,6 +40,8 @@ export const SNAP_MIN_SEPARATION = 6;
 /** USD per SAM 3.1 image request (docs: pricing-rate-limits, $2.50 per 1,000 images). */
 export const SAM_IMAGE_PRICE = 0.0025;
 export const DEFAULT_CONCEPTS = ["torn piece of paper", "piece of paper", "paper"] as const;
+/** A pass-1 SAM call normally answers in 2–5 s; past this, a second identical request starts beside it. */
+export const DEFAULT_SAM_HEDGE_MS = 7000;
 
 export type Fragment = {
   /** 0-based, in reading order of the photo (top to bottom, then left to right). */
@@ -93,6 +96,8 @@ export type SegmentOptions = {
   /** Per-request timeout for pass 1 / tiles, and for each refinement request. */
   pass1TimeoutMs?: number;
   refineTimeoutMs?: number;
+  /** Start a second identical SAM request when one has not answered after this long (0: never). */
+  hedgeAfterMs?: number;
   attempts?: number;
   onCall?: (c: SamCallLog) => void;
 };
@@ -135,8 +140,22 @@ export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (it
 
 type SamCtx = { apiKey: string; baseUrl: string; fetchImpl?: typeof fetch; signal?: AbortSignal; attempts: number; log: (c: SamCallLog) => void; billed: { n: number } };
 
-/** One SAM image request with retries on network errors, timeouts, 429 and 5xx. Returns frame 0's objects. */
-async function samImage(ctx: SamCtx, stage: string, body: SamRequestBody, timeoutMs: number): Promise<RawObject[]> {
+/**
+ * One SAM image request with retries on network errors, timeouts, 429 and 5xx, hedged: when it has not answered after
+ * `hedgeAfterMs`, an identical request starts beside it and the first answer wins. Returns frame 0's objects.
+ */
+async function samImage(ctx: SamCtx, stage: string, body: SamRequestBody, timeoutMs: number, hedgeAfterMs = 0): Promise<RawObject[]> {
+  const h = await hedge((signal, lane) => samImageOnce({ ...ctx, signal }, lane ? `${stage}#hedge` : stage, body, timeoutMs), {
+    afterMs: hedgeAfterMs,
+    lanes: 2,
+    signal: ctx.signal,
+    ok: () => true,
+    finalError: (e) => e instanceof UpstreamError && e.status !== null && e.status !== 429 && e.status < 500,
+  });
+  return h.result;
+}
+
+async function samImageOnce(ctx: SamCtx, stage: string, body: SamRequestBody, timeoutMs: number): Promise<RawObject[]> {
   const bytes = JSON.stringify(body).length;
   let lastErr: unknown = null;
   for (let attempt = 1; attempt <= ctx.attempts; attempt++) {
@@ -263,6 +282,7 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
   const minConf = opts.minConfidence ?? 0.4;
   const tileAbove = opts.tileAbove ?? 16;
   const concurrency = opts.concurrency ?? 8;
+  const hedgeMs = opts.hedgeAfterMs ?? DEFAULT_SAM_HEDGE_MS;
   const apiKey = opts.apiKey ?? process.env.MODEL_API_KEY;
   if (!apiKey) throw new Error("MODEL_API_KEY is not set");
   const calls: SamCallLog[] = [];
@@ -290,7 +310,7 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
   let concept: string | null = null;
   let dets: Detection[] = [];
   for (const c of concepts) {
-    const objects = await samImage(ctx, `pass1:${c}`, buildConceptImageRequest(c, jpegDataUrl(Buffer.from(small.jpeg).toString("base64"))), opts.pass1TimeoutMs ?? 45_000);
+    const objects = await samImage(ctx, `pass1:${c}`, buildConceptImageRequest(c, jpegDataUrl(Buffer.from(small.jpeg).toString("base64"))), opts.pass1TimeoutMs ?? 30_000, hedgeMs);
     dets = mergeDetections(detectionsFrom(objects, small.width, fullScale, 0, 0, W, H, minConf));
     if (dets.length) {
       concept = c;
@@ -324,7 +344,7 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
       tiles.map(async (t, i) => {
         const crop = await cropJpeg(photo.rgb, { ...t, width: tw, height: th }, 90, longSide);
         try {
-          const objects = await samImage(ctx, `tile${i}`, buildConceptImageRequest(concept!, jpegDataUrl(Buffer.from(crop.jpeg).toString("base64"))), opts.pass1TimeoutMs ?? 45_000);
+          const objects = await samImage(ctx, `tile${i}`, buildConceptImageRequest(concept!, jpegDataUrl(Buffer.from(crop.jpeg).toString("base64"))), opts.pass1TimeoutMs ?? 30_000, hedgeMs);
           const s = crop.width / crop.outW;
           // drop pieces cut by an inner tile edge; the neighbouring tile or pass 1 has them whole
           return detectionsFrom(objects, crop.outW, s, crop.left, crop.top, W, H, minConf).filter((d) => {
@@ -361,7 +381,7 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
     const pad = Math.ceil(2 * d.scale) + 2;
     const local = padBox([b[0] - crop.left, b[1] - crop.top, b[2] - crop.left, b[3] - crop.top], pad, crop.width, crop.height);
     try {
-      const objects = await samImage(ctx, `crop${i}`, buildBoxImageRequest([local], { width: crop.width, height: crop.height }, jpegDataUrl(Buffer.from(crop.jpeg).toString("base64"))), opts.refineTimeoutMs ?? 30_000);
+      const objects = await samImage(ctx, `crop${i}`, buildBoxImageRequest([local], { width: crop.width, height: crop.height }, jpegDataUrl(Buffer.from(crop.jpeg).toString("base64"))), opts.refineTimeoutMs ?? 30_000, hedgeMs);
       const o = objects.find((x) => x.id === 0) ?? objects[0];
       const m = o && objectMask(o);
       if (!m) return fallback(d, `piece ${i}: refinement returned no mask`);
@@ -396,7 +416,7 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
       chunks.map(async (idx, c) => {
         const boxes = idx.map((i) => padBox(maskBox(dets[i].full)!, Math.ceil(2 * dets[i].scale) + 2, W, H));
         try {
-          const objects = await samImage(ctx, `fullres${c}`, buildBoxImageRequest(boxes, { width: W, height: H }, url), opts.refineTimeoutMs ?? 120_000);
+          const objects = await samImage(ctx, `fullres${c}`, buildBoxImageRequest(boxes, { width: W, height: H }, url), opts.refineTimeoutMs ?? 120_000, 2 * hedgeMs);
           idx.forEach((i, k) => {
             const o = objects.find((x) => x.id === k);
             const m = o && objectMask(o);

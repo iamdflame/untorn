@@ -20,8 +20,8 @@ export type CutEdge = {
   rms: number;
 };
 
-export type CutOptions = { tolerance: number; minLength: number; maxRms: number; maxDev: number };
-export const CUT_DEFAULTS: CutOptions = { tolerance: 2.5, minLength: 40, maxRms: 1.6, maxDev: 4 };
+export type CutOptions = { tolerance: number; minLength: number; maxRms: number; maxDev: number; partnersPerEdge: number; maxCandidates: number };
+export const CUT_DEFAULTS: CutOptions = { tolerance: 2.5, minLength: 40, maxRms: 1.6, maxDev: 4, partnersPerEdge: 3, maxCandidates: 400 };
 
 /** Douglas–Peucker vertices of a closed outline (outline indices, ascending). */
 function simplifyClosed(X: Float64Array, Y: Float64Array, eps: number): number[] {
@@ -102,7 +102,11 @@ function alignAt(ea: CutEdge, eb: CutEdge, pa: [number, number], pb: [number, nu
 
 /** Candidate joins along straight cuts between every pair of fragments. */
 export function matchCuts(data: MatchData[], o: MatchOptions, co: CutOptions = CUT_DEFAULTS): Candidate[] {
-  const edges = data.map((d) => cutEdges(d, co));
+  // polygon tolerance and shortest edge grow with the piece: a curled or nicked cut must still read as one edge
+  const edges = data.map((d) => {
+    const size = Math.sqrt(d.f.area);
+    return cutEdges(d, { ...co, tolerance: Math.max(co.tolerance, 0.006 * size), minLength: Math.max(co.minLength, 0.08 * size) });
+  });
   const out: Candidate[] = [];
   for (let i = 0; i < data.length; i++) {
     for (let j = i + 1; j < data.length; j++) {
@@ -110,8 +114,15 @@ export function matchCuts(data: MatchData[], o: MatchOptions, co: CutOptions = C
       const B = data[j];
       let k = 0;
       for (const ea of edges[i]) {
-        for (const eb of edges[j]) {
-          const tol = Math.max(5, 0.04 * Math.max(ea.length, eb.length));
+        // bounded work: the few partners closest in length; T-junction alignments only when no full-length partner
+        const tolOf = (eb: CutEdge) => Math.max(5, 0.04 * Math.max(ea.length, eb.length));
+        const full = edges[j].filter((eb) => Math.abs(ea.length - eb.length) <= tolOf(eb));
+        const partners = (full.length ? full : edges[j])
+          .slice()
+          .sort((x, y) => Math.abs(ea.length - x.length) - Math.abs(ea.length - y.length))
+          .slice(0, co.partnersPerEdge);
+        for (const eb of partners) {
+          const tol = tolOf(eb);
           const dl = Math.abs(ea.length - eb.length);
           const hyps: { pose: Pose; full: boolean }[] = [];
           if (dl <= tol) {
@@ -158,5 +169,6 @@ export function matchCuts(data: MatchData[], o: MatchOptions, co: CutOptions = C
       }
     }
   }
-  return out;
+  out.sort((x, y) => y.score - x.score);
+  return out.slice(0, co.maxCandidates);
 }

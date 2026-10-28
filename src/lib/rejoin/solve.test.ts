@@ -44,6 +44,19 @@ describe("solve on one torn page (geometry only)", async () => {
     expect(placedCorrectly(res, inputs, truth)).toBe(6);
   });
 
+  it("reports seam appearance on strong candidates: one paper tone, ink correlation in range", () => {
+    const strong = res.candidates.filter((c) => c.score >= 25);
+    expect(strong.length).toBeGreaterThan(0);
+    for (const c of strong) {
+      expect(c.appearance).not.toBeNull();
+      expect(c.appearance!.tone).toBeLessThan(5); // one paper stock
+      if (c.appearance!.ink !== null) {
+        expect(c.appearance!.ink).toBeGreaterThanOrEqual(-1);
+        expect(c.appearance!.ink).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
   it("reports joins decided by geometry, a confident page, and renders it", () => {
     expect(res.joins.length).toBeGreaterThanOrEqual(5);
     expect(res.joins.every((j) => j.decidedBy === "geometry")).toBe(true);

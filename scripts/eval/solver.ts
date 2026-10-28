@@ -113,6 +113,9 @@ type CaseResult = {
   twinSeams: number;
   twinSeamsDetected: number;
   twinGroups: number;
+  /** Twin groups where pixel appearance alone (ink continuing, paper tone) ranks the true twin first. */
+  twinAppearanceHits: number;
+  twinAppearanceGroups: number;
   contentAsked: number;
   ms: { analyse: number; match: number; assemble: number; total: number };
 };
@@ -169,7 +172,23 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
       if (hit) detected++;
     }
   }
+  // can pixel appearance alone pick the true twin? (the baseline the reading clue has to beat)
+  let appHits = 0;
+  let appGroups = 0;
+  if (gt.kind === "stack") {
+    const cands = new Map(res.candidates.map((x) => [x.id, x] as const));
+    for (const tg of res.twinGroups) {
+      const members = tg.candidates.map((id) => cands.get(id)!).filter((x) => x.appearance?.ink !== null && x.appearance !== null);
+      const truth = members.filter((x) => isTrueJoin(gt, frags, x.a, x.b, x.pose, 6, 2));
+      if (members.length < 2 || truth.length !== 1) continue;
+      appGroups++;
+      const best = members.reduce((p, q) => (q.appearance!.score > p.appearance!.score ? q : p));
+      if (best === truth[0]) appHits++;
+    }
+  }
   return {
+    twinAppearanceHits: appHits,
+    twinAppearanceGroups: appGroups,
     name: c.name,
     family: gt.family,
     fragments: c.inputs.length,
@@ -269,7 +288,7 @@ async function main() {
       console.log(
         `${name.padEnd(12)} frags ${String(row.fragments).padStart(3)}  correct ${String(row.correct).padStart(3)}  split ${row.split}  misplaced ${row.misplaced}  unplaced ${row.unplaced}  ` +
           `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
-          (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups}  ` : "") +
+          (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups} appearance-picks ${row.twinAppearanceHits}/${row.twinAppearanceGroups}  ` : "") +
           (reqs.length ? `asked ${reqs.length}  ` : "") +
           `${row.ms.total.toFixed(0)} ms`,
       );

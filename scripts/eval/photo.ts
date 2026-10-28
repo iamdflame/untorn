@@ -1,6 +1,7 @@
 // Run the solver on any photo of torn pieces, once they are segmented, and write the rebuilt pages.
 //
 //   pnpm tsx scripts/eval/photo.ts <photo.jpg> [--masks labels.png | --segments segments.json | --threshold] [--out DIR]
+//                                  [--cuts] [--content module:<path>]
 //
 // Segmentation inputs:
 //   --masks FILE      label PNG, 0 = background, k = piece k (Bench-S format)
@@ -8,15 +9,18 @@
 //                     data: number[] | base64 string } }] }
 //   --threshold       a stand-in segmentation for light paper on a darker ground (Otsu + connected components);
 //                     the app uses SAM 3.1 (S2's segmentFragments) instead
-// Writes DIR/result.json (pages, joins, unplaced, twin groups), DIR/page-N.png and DIR/pieces.png (the masks).
+// --cuts                 also match straight cuts (scissor cuts, ShredBench's Voronoi cuts); only content accepts them
+// --content module:PATH  a module exporting createContentCheck() or a default ContentCheck (e.g. S2's Muse check)
+// Writes DIR/result.json (pages, joins, unplaced, twin groups) and DIR/page-N.png.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { decode as decodePng } from "fast-png";
 import { fragmentsFromSegments, type SegmentedFragment } from "../../src/lib/rejoin/adapters";
 import { encodePng, renderPage } from "../../src/lib/rejoin/render";
-import { finish, prepare } from "../../src/lib/rejoin/solve";
-import type { FragmentInput, Rgba } from "../../src/lib/rejoin/types";
+import { askAll, contentRequests, finish, prepare } from "../../src/lib/rejoin/solve";
+import type { ContentCheck, ContentRequest, ContentVerdict, FragmentInput, Rgba } from "../../src/lib/rejoin/types";
+import { pathToFileURL } from "node:url";
 import { fragmentsFromLabels, loadPhoto } from "./cases";
 
 /** Otsu threshold on luminance, then 8-connected components larger than 0.2% of the photo. */
@@ -123,9 +127,18 @@ async function main() {
   } else if (opt("--segments")) inputs = fragmentsFromSegments(photo, readSegments(opt("--segments")!));
   else inputs = fragmentsFromSegments(photo, thresholdSegments(photo));
   const t0 = performance.now();
-  const prep = prepare(inputs);
-  const res = finish(prep);
-  const ms = performance.now() - t0;
+  const prep = prepare(inputs, { match: { cuts: argv.includes("--cuts") } });
+  let reqs: ContentRequest[] = [];
+  let verdicts: (ContentVerdict | null)[] = [];
+  const contentSpec = opt("--content");
+  if (contentSpec?.startsWith("module:")) {
+    const mod = await import(pathToFileURL(path.resolve(contentSpec.slice(7))).href);
+    const check: ContentCheck = typeof mod.createContentCheck === "function" ? await mod.createContentCheck() : mod.default;
+    reqs = contentRequests(prep);
+    verdicts = await askAll(reqs, check, 8);
+  }
+  const res = finish(prep, reqs, verdicts);
+  const ms = performance.now() - t0 - (prep.timings.content ?? 0);
   res.pages.forEach((p, k) => writeFileSync(path.join(out, `page-${k}.png`), encodePng(renderPage(p, prep.fragments, { background: [255, 255, 255, 255] }))));
   const summary = {
     photo: photoFile,
@@ -136,6 +149,8 @@ async function main() {
     twinGroups: res.twinGroups.length,
     candidates: res.candidates.length,
     straightEdges: prep.fragments.map((f) => f.segments.filter((s) => s.kind === "straight").length),
+    cutCandidates: prep.match.candidates.filter((c) => c.edge === "cut").length,
+    contentAsked: reqs.length,
     ms: Math.round(ms),
   };
   writeFileSync(path.join(out, "result.json"), JSON.stringify(summary, null, 1));

@@ -10,6 +10,7 @@
 // fragments (stack tears) form twin groups.
 
 import { axialDiff, fitRigid, PointGrid, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
+import { seamAppearance } from "./appearance";
 import { matchCuts } from "./cuts";
 import type { Candidate, Fragment, TwinGroup } from "./types";
 
@@ -676,6 +677,9 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
     for (const c of possible) c.twinGroup = null;
     ranked = rank(possible, data, o);
   }
+  // seam appearance (paper tone, ink continuing) for every candidate worth a look: reported, and a free tie-break
+  const frag = new Map(frags.map((f) => [f.id, f] as const));
+  for (const c of ranked.candidates) if (c.score >= 25) c.appearance = seamAppearance(frag.get(c.a)!, frag.get(c.b)!, c);
   const { congruent, ...rest } = ranked;
   return { ...rest, data, twinClass: twinClassesOf([...ranked.congruent, ...congruent]), stats: { seeds: seeds.length, screened, icp: icpRuns } };
 }

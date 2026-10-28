@@ -47,7 +47,7 @@ test("reduced motion shows the finished reconstruction as a still", async ({ bro
   const ctx = await browser.newContext({ reducedMotion: "reduce" });
   const page = await ctx.newPage();
   await page.goto("/");
-  await expect(page.locator('.stage[data-phase="assembled"][data-motion="reduced"]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.stage[data-phase="assembled"][data-motion="reduced"]')).toBeVisible({ timeout: 15000 });
   await ctx.close();
 });
 

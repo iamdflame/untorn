@@ -165,6 +165,8 @@ export type RunResult = {
   /** ms per stage. */
   timings: Partial<Record<Stage, number>> & { total: number };
   cost: { usd: number; samCalls: number; museCalls: number };
+  /** How the seams were read (optional: recordings made before S6b lack it). */
+  stats?: { twinStrategy: "all" | "tree"; readRounds: number; twinGroups: number; twinClasses: number; pairReads: number; choiceReads: number };
   /** The event order and timing (ms from the start), for replay. */
   timeline: TimelineEntry[];
 };

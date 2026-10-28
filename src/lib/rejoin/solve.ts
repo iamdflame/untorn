@@ -11,7 +11,7 @@ import { assemble, ASSEMBLE_DEFAULTS, type AssembleOptions, type ContentEvidence
 import { permutationVotes, planQuestions, type QuestionPlan, type TwinStrategy } from "./plan";
 import { analyzeFragment, type FragmentOptions } from "./fragment";
 import { matchFragments, type MatchOptions, type MatchResult } from "./match";
-import { renderChoiceSheet, renderSeam, type SeamRenderOptions } from "./seam";
+import { medianPitch, renderChoiceSheet, renderSeam, type SeamRenderOptions } from "./seam";
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, FragmentInput, SolveResult, Unplaced } from "./types";
 
 export type SolveOptions = {
@@ -82,7 +82,7 @@ export function prepare(inputs: FragmentInput[], options: SolveOptions = {}): Pr
  * strongest plausible joins (two-clue joins), each with a `render()` that draws the image the model reads.
  */
 export function contentRequests(prep: Prepared): ContentRequest[] {
-  const o = prep.options;
+  const o = { ...prep.options, render: { pitchHint: medianPitch(prep.fragments), ...prep.options.render } };
   const minScore = (o.assemble?.minContentScore ?? ASSEMBLE_DEFAULTS.minContentScore);
   const byCand = new Map(prep.match.candidates.map((c) => [c.id, c] as const));
   const upKnown = (id: string) => {

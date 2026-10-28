@@ -126,7 +126,11 @@ export function textOrientation(
   return { angle, strength, confidence, pitch, up, upConfidence: conf, ink: xs.length };
 }
 
-/** The dominant period (px) of a projection profile, from its autocorrelation, or null. */
+/**
+ * The dominant period (px) of a projection profile, from its autocorrelation, or null: the first autocorrelation peak
+ * that comes close to the strongest one. (At high resolution a text line's own structure, the top and foot of the
+ * x-height band, makes early minor peaks; a later peak at twice the pitch is a harmonic.)
+ */
 function linePitch(p: Float64Array): number | null {
   const n = p.length;
   let lo = 0;
@@ -142,24 +146,21 @@ function linePitch(p: Float64Array): number | null {
   let a0 = 0;
   for (let i = 0; i < q.length; i++) a0 += q[i] * q[i];
   if (a0 <= 0) return null;
-  const maxLag = Math.min(160, Math.floor(q.length / 2));
-  let bestLag = 0;
-  let bestVal = 0.15;
-  let prev = 1;
-  let falling = true;
-  for (let lag = 6; lag <= maxLag; lag++) {
+  const maxLag = Math.min(320, Math.floor(q.length / 2));
+  const ac = new Float64Array(maxLag + 2);
+  for (let lag = 6; lag <= maxLag + 1 && lag < q.length; lag++) {
     let a = 0;
     for (let i = 0; i + lag < q.length; i++) a += q[i] * q[i + lag];
-    a /= a0;
-    if (falling && a > prev) falling = false;
-    if (!falling && a > bestVal) {
-      bestVal = a;
-      bestLag = lag;
-    }
-    if (!falling && bestLag && a < bestVal - 0.15) break;
-    prev = a;
+    ac[lag] = a / a0;
   }
-  return bestLag || null;
+  // local maxima after the autocorrelation first stops falling
+  const peaks: number[] = [];
+  let lag = 7;
+  while (lag <= maxLag && ac[lag] <= ac[lag - 1]) lag++;
+  for (; lag <= maxLag; lag++) if (ac[lag] > 0.15 && ac[lag] >= ac[lag - 1] && ac[lag] > ac[lag + 1]) peaks.push(lag);
+  if (!peaks.length) return null;
+  const top = Math.max(...peaks.map((k) => ac[k]));
+  return peaks.find((k) => ac[k] >= 0.8 * top) ?? null;
 }
 
 /** Ascender vs descender ink around each text line: more ink just above the x-height band means upright. */

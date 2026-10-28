@@ -5,6 +5,12 @@
 //     same frame (cw3: the true stack twin picked 9 of 9 times).
 // Pure TypeScript: RGBA rasters in, RGBA rasters out.
 
+/** The median line pitch over pieces with a confident text estimate (for `pitchHint`), or null. */
+export function medianPitch(frags: Fragment[]): number | null {
+  const ps = frags.filter((f) => f.text && f.text.confidence >= 0.4 && f.text.pitch).map((f) => f.text!.pitch!).sort((a, b) => a - b);
+  return ps.length ? ps[Math.floor(ps.length / 2)] : null;
+}
+
 import { drawText } from "./font";
 import { poseApply, poseInvert, type Pose } from "./geom";
 import { side } from "./match";
@@ -15,8 +21,13 @@ export type SeamRenderOptions = {
   /** Output window (px). */
   width?: number;
   height?: number;
-  /** Output px per photo px; default: about 32 px per text line, else 1.5. */
+  /** Output px per photo px; default: about 32 px per text line (between ×0.5 and ×3), else 1.5. */
   scale?: number;
+  /**
+   * The photo's typical line pitch (median over its pieces). A piece whose own estimate is far from it (a letterhead,
+   * a harmonic) is drawn at this pitch instead, so one odd estimate cannot zoom a seam onto a single word.
+   */
+  pitchHint?: number | null;
   /** Draw the tear as a dark line (pair images). */
   seamLine?: boolean;
   background?: [number, number, number];
@@ -65,8 +76,11 @@ function seamFrame(anchor: Fragment, seam: [number, number], partner: Fragment, 
   const n = anchor.outline.length / 2;
   const width = o.width ?? 420;
   const height = o.height ?? 150;
-  const pitch = anchor.text?.pitch ?? partner.text?.pitch ?? null;
-  const scale = o.scale ?? (pitch ? Math.max(1, Math.min(3, 32 / pitch)) : 1.5);
+  const hint = o.pitchHint ?? null;
+  const near = (p: number | null | undefined) => !!p && (!hint || (p >= 0.6 * hint && p <= 1.6 * hint));
+  const own = [anchor.text?.pitch, partner.text?.pitch].find(near);
+  const pitch = own ?? hint ?? anchor.text?.pitch ?? partner.text?.pitch ?? null;
+  const scale = o.scale ?? (pitch ? Math.max(0.5, Math.min(3, 32 / pitch)) : 1.5);
   const at = (q: number) => (seam[0] + Math.round(q)) % n;
   // outward normal at the seam middle (towards the partner)
   const mid = at(seam[1] / 2);

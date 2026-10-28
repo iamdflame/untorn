@@ -202,7 +202,7 @@ export function planQuestions(ctx: PlanContext, all: ContentRequest[], strategy:
   const touched = (s: SlotSeam, side: string) => (s.sides.get(side) ?? []).some((r) => asked.has(r.id));
 
   type Status = { settled: boolean; ask: ContentRequest[] };
-  const status = (s: SlotSeam, answers: Answers, joined: Set<string> | null): Status => {
+  const status = (s: SlotSeam, answers: Answers): Status => {
     const sides = s.ends.filter((id) => touched(s, id));
     if (!sides.length) {
       const side = firstSide(s);
@@ -249,7 +249,7 @@ export function planQuestions(ctx: PlanContext, all: ContentRequest[], strategy:
   const round = (answers: Answers): ContentRequest[] => {
     const known = askedList.filter((r) => answers.has(r.id));
     const joined = ctx.trial && known.length ? ctx.trial(known, known.map((r) => answers.get(r.id) ?? null)) : null;
-    const st = new Map(seams.map((s) => [s.key, status(s, answers, joined)] as const));
+    const st = new Map(seams.map((s) => [s.key, status(s, answers)] as const));
     const done = (s: SlotSeam) => st.get(s.key)!.settled && (!joined || joinedAcross(s, joined));
     const forest = new Forest();
     for (const s of seams) if (done(s)) forest.union(...s.ends);

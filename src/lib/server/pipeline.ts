@@ -5,7 +5,8 @@
 // timeline so any run can be replayed. Model calls are injected (tests mock them); S2's client does the retries.
 
 import sharp from "sharp";
-import { finish, prepare, contentRequests, askAll, type Prepared } from "@/lib/rejoin/solve";
+import { finish, prepare, questionPlan, askAll, type Prepared } from "@/lib/rejoin/solve";
+import type { TwinStrategy } from "@/lib/rejoin/plan";
 import { fragmentsFromSegments } from "@/lib/rejoin/adapters";
 import { renderPage } from "@/lib/rejoin/render";
 import type { ContentRequest, ContentVerdict, Rgba, SolveResult } from "@/lib/rejoin/types";
@@ -57,6 +58,8 @@ export type PipelineOptions = {
   readDeadlineMs?: number;
   /** Most pair checks to ask; default 3 per piece, at most 40. */
   maxPairChecks?: number;
+  /** Stack tears: read every twin seam ("all") or along a spanning tree of slots ("tree", fewer reads). */
+  twinStrategy?: TwinStrategy;
   /** Start a duplicate Muse request when a seam read hasn't answered after this long (median 7–9 s, p90 ~13 s). */
   readHedgeMs?: number;
   /** Translate transcripts that are not in this language. */
@@ -70,6 +73,8 @@ export type PipelineOptions = {
 };
 
 const SEAM_JPEG_QUALITY = 90;
+/** The read strategy for live runs (S6b measured both on Bench-S and on the real stack sample). */
+export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "all";
 const PAGE_MARGIN = 8;
 
 /** Run the whole pipeline on one photo. Emits events as it goes; returns the stored result. Throws RunError. */
@@ -171,14 +176,15 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   stage("match", "active");
   const rgba = rgbToRgba(photo.rgb);
   const inputs = fragmentsFromSegments(rgba, seg.fragments.map((f) => ({ id: pieceId(f.id), mask: f.mask })));
-  const prep: Prepared = prepare(inputs, { maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length) });
+  const strategy = opts.twinStrategy ?? DEFAULT_TWIN_STRATEGY;
+  const prep: Prepared = prepare(inputs, { maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length), twinStrategy: strategy });
   const textOf = new Map(prep.fragments.map((f) => [f.id, !!f.text && f.text.confidence >= 0.3] as const));
   for (const p of pieces) p.text = textOf.get(p.id) ?? false;
   const blank = pieces.filter((p) => !p.text).length;
   if (blank === pieces.length) warn("no-text");
   else if (blank > 0) warn("some-blank");
-  const reqs = contentRequests(prep);
-  const asks: AskOut[] = reqs.map((r) => askOut(r, prep));
+  const plan = questionPlan(prep);
+  const asks: AskOut[] = plan.first.map((r) => askOut(r, prep));
   const candidates: CandidateOut[] = [...prep.match.candidates]
     .sort((x, y) => y.score - x.score)
     .slice(0, 150)
@@ -235,9 +241,27 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     send({ type: "read", read });
     return verdict;
   };
-  let verdicts: (ContentVerdict | null)[];
+  // ask round by round: "all" has one round; "tree" re-reads only where reads disagree (rejoin/plan.ts)
+  const reqs: ContentRequest[] = [];
+  const verdicts: (ContentVerdict | null)[] = [];
+  const answers = new Map<string, ContentVerdict | null>();
+  let rounds = 0;
   try {
-    verdicts = await askAll(reqs, check, opts.concurrency ?? 16);
+    let round = plan.first;
+    while (round.length && !readAbort.signal.aborted && rounds < 12) {
+      if (rounds > 0) {
+        asks.push(...round.map((r) => askOut(r, prep)));
+        send({ type: "match", candidates, asks: [...asks] });
+      }
+      const vs = await askAll(round, check, opts.concurrency ?? 16);
+      round.forEach((r, i) => {
+        reqs.push(r);
+        verdicts.push(vs[i]);
+        answers.set(r.id, vs[i]);
+      });
+      rounds++;
+      round = plan.next(answers);
+    }
   } finally {
     clearTimeout(deadline);
     signal?.removeEventListener("abort", onOuterAbort);
@@ -329,6 +353,14 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     warnings,
     timings,
     cost: { ...cost, usd: Math.round(cost.usd * 10000) / 10000 },
+    stats: {
+      twinStrategy: strategy,
+      readRounds: rounds,
+      twinGroups: prep.match.twinGroups.length,
+      twinClasses: new Set([...prep.match.twinClass.values()]).size,
+      pairReads: reads.filter((r) => r.kind === "pair").length,
+      choiceReads: reads.filter((r) => r.kind === "choice").length,
+    },
     timeline,
   };
   // the done event is the last timeline entry; the result is stored with it

@@ -100,13 +100,13 @@ export async function admitRun(store: Store, ip: string, runId: string): Promise
     const recent = (today.byIp.get(ipKey) ?? []).filter((e) => Date.now() - e.at.getTime() < 3600_000);
     if (recent.length >= L.runsPerIpPerHour) throw new RunError("rate-limited");
   }
-  await store.put(`ledger/${day()}/${ipKey}/${runId}_${Math.round(L.estimateUsd * 1e6)}.s`, "", "text/plain");
+  await store.put(`ledger/${day()}/${ipKey}/${runId}_${Math.round(L.estimateUsd * 1e6)}.s`, "1", "text/plain") // Blob refuses empty bodies;
   return { ipKey };
 }
 
 /** Record a finished (or failed) run's real model cost. */
 export async function settleRun(store: Store, ipKey: string, runId: string, usd: number): Promise<void> {
-  await store.put(`ledger/${day()}/${ipKey}/${runId}_${Math.round(usd * 1e6)}.d`, "", "text/plain");
+  await store.put(`ledger/${day()}/${ipKey}/${runId}_${Math.round(usd * 1e6)}.d`, "1", "text/plain") // Blob refuses empty bodies;
 }
 
 // ── per-instance queue ───────────────────────────────────────────────────────────────────────────────────

@@ -25,6 +25,7 @@ export const ERRORS: Record<ErrorCode, ErrorInfo> = {
   timeout: { title: "This is taking too long", message: "The models are slow right now. Try again, or watch the recorded run.", recover: ["retry", "recorded"], status: 504 },
   "not-found": { title: "Nothing here", message: "This run or code doesn't exist. Runs and photos are deleted after 24 hours.", recover: ["recorded"], status: 404 },
   expired: { title: "This code has expired", message: "Codes last 20 minutes. Make a new one on the laptop.", recover: ["phone"], status: 410 },
+  network: { title: "The connection dropped", message: "The run may still be going on our side, but this page lost it. Try again.", recover: ["retry", "recorded"], status: 502 },
   internal: { title: "Something broke on our side", message: "It's been logged. Try again, or watch the recorded run.", recover: ["retry", "recorded"], status: 500 },
 };
 

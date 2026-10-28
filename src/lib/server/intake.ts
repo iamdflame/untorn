@@ -60,8 +60,8 @@ export async function normalisePhoto(bytes: Uint8Array): Promise<{ bytes: Uint8A
 }
 
 /**
- * Sharpness: the 99th percentile of the absolute Laplacian on a 1024 px grayscale copy. Paper edges and ink give
- * sharp photos values well above 40; a blurred photo stays low. Only used for a warning.
+ * Sharpness: the mean of the strongest 0.2% of absolute Laplacian responses on a 1024 px grayscale copy (paper
+ * edges and ink). A blurred photo's strongest edges are soft, so the value drops. Only used for a warning.
  */
 export async function sharpness(rgb: { width: number; height: number; data: Uint8Array }): Promise<number> {
   const s = Math.min(1, 1024 / Math.max(rgb.width, rgb.height));
@@ -77,15 +77,17 @@ export async function sharpness(rgb: { width: number; height: number; data: Uint
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const i = y * w + x;
-      const lap = Math.abs(4 * data[i] - data[i - 1] - data[i + 1] - data[i - w] - data[i + w]);
-      hist[lap]++;
+      hist[Math.abs(4 * data[i] - data[i - 1] - data[i + 1] - data[i - w] - data[i + w])]++;
       n++;
     }
   }
-  let acc = 0;
-  for (let v = 0; v < hist.length; v++) {
-    acc += hist[v];
-    if (acc >= 0.99 * n) return v;
+  const take = Math.max(1, Math.round(0.002 * n));
+  let got = 0;
+  let sum = 0;
+  for (let v = hist.length - 1; v >= 0 && got < take; v--) {
+    const k = Math.min(hist[v], take - got);
+    got += k;
+    sum += k * v;
   }
-  return 1020;
+  return sum / take;
 }

@@ -133,6 +133,7 @@ export type ErrorCode =
   | "timeout"
   | "not-found"
   | "expired"
+  | "network"
   | "internal";
 
 export type RunSource = "upload" | "phone" | "sample" | "health";

@@ -134,7 +134,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   if (Math.max(photo.width, photo.height) < 1600) warn("small-photo");
   const blur = sharpness(photo.rgb)
     .then((v) => {
-      if (v < (opts.blurThreshold ?? 24)) warn("blurry");
+      if (v < (opts.blurThreshold ?? 30)) warn("blurry");
     })
     .catch(() => {});
 

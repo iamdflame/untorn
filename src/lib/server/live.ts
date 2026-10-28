@@ -7,7 +7,8 @@ import { segmentFragments } from "./segment";
 
 export function liveDeps(putAsset: PipelineDeps["putAsset"]): PipelineDeps {
   return {
-    segment: (jpeg, { signal }) => segmentFragments(jpeg, { signal }),
+    // a pass-1 SAM call normally answers in 2–4 s: start the duplicate request at 5 s (S2 default: 7 s)
+    segment: (jpeg, { signal }) => segmentFragments(jpeg, { signal, hedgeAfterMs: 5000 }),
     verifySeam,
     chooseContinuation,
     readPage,

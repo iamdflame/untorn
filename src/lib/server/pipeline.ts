@@ -57,6 +57,8 @@ export type PipelineOptions = {
   readDeadlineMs?: number;
   /** Most pair checks to ask; default 3 per piece, at most 40. */
   maxPairChecks?: number;
+  /** Start a duplicate Muse request when a seam read hasn't answered after this long (median 7–9 s, p90 ~13 s). */
+  readHedgeMs?: number;
   /** Translate transcripts that are not in this language. */
   translateTo?: string;
   /** Most pages to transcribe. */
@@ -202,7 +204,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     const jpeg = await encodeJpeg(req.render(), SEAM_JPEG_QUALITY);
     const image = { data: jpeg, mime: "image/jpeg" as const };
     const rotated = req.uprightKnown ? undefined : { data: await rotate180Jpeg(jpeg), mime: "image/jpeg" as const };
-    const callOpts = { rotated, signal: readAbort.signal, onLog: quietLog };
+    const callOpts = { rotated, signal: readAbort.signal, onLog: quietLog, hedgeAfterMs: opts.readHedgeMs ?? 12_000 };
     const base = { id: req.id, image: `data:image/jpeg;base64,${Buffer.from(jpeg).toString("base64")}` };
     let read: ReadOut;
     let verdict: ContentVerdict | null = null;
@@ -287,7 +289,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   await Promise.all(
     toRead.map(async (p) => {
       const jpeg = pageJpegs.get(p.id)!;
-      const out = await deps.readPage({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog });
+      const out = await deps.readPage({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog, hedgeAfterMs: 25_000 });
       museCost(out);
       let tr: TranscriptOut;
       if (!out.ok) tr = { page: p.id, ok: false, text: "", language: "und", uncertain: [], translation: null, error: out.error.code };

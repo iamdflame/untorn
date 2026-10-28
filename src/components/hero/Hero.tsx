@@ -157,7 +157,7 @@ export function Hero({
       <div className="m-proof" aria-hidden="true" />
 
       <div className="stagebar">
-        <div className="honest">{honesty}</div>
+        {honesty}
         <div className="ctrl" role="group" aria-label="Run controls">
           <button type="button" className="ib btn-prev" aria-label="Previous step (left arrow)">
             <svg viewBox="0 0 20 20" aria-hidden="true">

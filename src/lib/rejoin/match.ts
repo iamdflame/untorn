@@ -287,16 +287,7 @@ export function correspond(A: MatchData, B: MatchData, pose: Pose, tau: number, 
   }
 }
 
-type IcpResult = {
-  pose: Pose;
-  rms: number;
-  shapeRms: number;
-  fineRms: number;
-  inliers: number;
-  matchedA: Int32Array;
-  matchedB: Int32Array;
-  conditioning: number;
-};
+type IcpResult = SeamStats & { pose: Pose };
 
 export function workspace(m: number): Matching {
   return { ai: new Int32Array(m), res: new Float64Array(m), qx: new Float64Array(m), qy: new Float64Array(m), inl: new Uint8Array(m) };
@@ -355,6 +346,23 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
     if (it >= 8 && Math.abs(dth) < 2e-5 && Math.hypot(x[1], x[2]) < 0.005) it = o.icpIters - 1;
   }
   if (!run) return null;
+  const seam = seamFromRun(A, B, w, run, minSamples);
+  return seam ? { pose, ...seam } : null;
+}
+
+type SeamStats = {
+  rms: number;
+  shapeRms: number;
+  fineRms: number;
+  inliers: number;
+  matchedA: Int32Array;
+  matchedB: Int32Array;
+  conditioning: number;
+};
+
+/** Residual statistics of a seam run: RMS, its coarse (18 px moving average) and fine parts, and conditioning. */
+function seamFromRun(A: MatchData, B: MatchData, w: Matching, run: [number, number, number], minSamples: number): SeamStats | null {
+  const m = B.sample.length;
   let ss = 0;
   let sxx = 0;
   let syy = 0;
@@ -376,7 +384,6 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
   });
   const cnt = seq.length;
   if (cnt < minSamples) return null;
-  // fine residual: the residual minus its 18 px moving average
   const half = 4;
   let ls = 0;
   let fs = 0;
@@ -397,7 +404,6 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
   const det = sxx * syy - sxy * sxy;
   const disc = Math.sqrt(Math.max(0, (tr * tr) / 4 - det));
   return {
-    pose,
     rms: Math.sqrt(ss / cnt),
     shapeRms: Math.sqrt(ls / cnt),
     fineRms: Math.sqrt(fs / cnt),
@@ -405,6 +411,42 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
     matchedA: Int32Array.from(mA),
     matchedB: Int32Array.from(mB),
     conditioning: tr > 0 ? (tr / 2 - disc) / (tr / 2 + disc) : 0,
+  };
+}
+
+export type SeamMeasure = {
+  overlap: number;
+  rms: number;
+  fineRms: number;
+  shapeRms: number;
+  conditioning: number;
+  areaOverlap: number;
+  score: number;
+  seamA: [number, number];
+  seamB: [number, number];
+};
+
+/** Measure the seam between A and B where a pose (B → A) puts them, without moving anything. */
+export function measureSeam(A: MatchData, B: MatchData, pose: Pose, options: Partial<MatchOptions> = {}): SeamMeasure | null {
+  const o = { ...MATCH_DEFAULTS, ...options };
+  const w = workspace(B.sample.length);
+  correspond(A, B, pose, o.inlier, w);
+  const run = bestRun(w.inl, B.brk, 15);
+  if (!run) return null;
+  const st = seamFromRun(A, B, w, run, Math.ceil(o.minOverlap / o.step));
+  if (!st) return null;
+  const overlap = st.inliers * o.step;
+  const areaOverlap = interpenetration(A, B, pose, o.deepPx, o.step);
+  return {
+    overlap,
+    rms: st.rms,
+    fineRms: st.fineRms,
+    shapeRms: st.shapeRms,
+    conditioning: st.conditioning,
+    areaOverlap,
+    score: geometryScore({ overlap, fineRms: st.fineRms, conditioning: st.conditioning, areaOverlap }, o),
+    seamA: coverRange(st.matchedA, A.n),
+    seamB: coverRange(st.matchedB, B.n),
   };
 }
 

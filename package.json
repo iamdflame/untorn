@@ -7,10 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "playwright test"
   },
   "dependencies": {
+    "@meta-sam/parser": "0.1.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",

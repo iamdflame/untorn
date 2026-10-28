@@ -22,3 +22,7 @@ next-env.d.ts
 !public/**/*.mp4
 .DS_Store
 Thumbs.db
+
+# Playwright artifacts
+test-results/
+playwright-report/

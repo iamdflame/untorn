@@ -1,0 +1,3 @@
+<0f>1<|box;x1=328;y1=17;x2=398;y2=106;w=640;h=360;c=0.73046875|><|mask;x=0;y=0;c=0.73046875;data=90,71,!!!!!fE-dpP:&F_r`W9_Ag.b2U-'*ZdKXiP^UL3r_8KY9ara=XDnm!o76i#t+Hnyj]ko1IAp@v6E!*5YdioB&|>
+<1f>1<|box;x1=335;y1=26;x2=405;y2=115;w=640;h=360;c=0.9765585660934448|><|mask;x=0;y=0;c=0.9765585660934448;data=90,71,!!!!!cE''%zZZ1wL#qdiqLF.nk5sB8b9hilws6(gWk92Hk)OGg(9JF+*:wqz271op%*1n!ct*qRWBe++g|>
+<2f>1<|box;x1=342;y1=40;x2=413;y2=131;w=640;h=360;c=0.9765560030937195|><|mask;x=0;y=0;c=0.9765560030937195;data=92,72,!!!!!fDkzvcuU3H#7[Bjva5wkO$_``2FPR5#qyWNpEjy`O.kA+Vb9i#RIsCzol4c6%LdMzDFc9ZvC+T=Pwvqf|>

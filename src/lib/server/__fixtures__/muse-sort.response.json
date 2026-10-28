@@ -1,0 +1,97 @@
+{
+ "top_logprobs": 0,
+ "temperature": 1,
+ "top_p": 1,
+ "service_tier": "auto",
+ "model": "muse-wonder-1.0",
+ "reasoning": {
+  "effort": "low"
+ },
+ "background": false,
+ "text": {
+  "format": {
+   "type": "json_schema",
+   "name": "fragment_groups",
+   "schema": {
+    "required": [
+     "groups"
+    ],
+    "additionalProperties": false,
+    "type": "object",
+    "properties": {
+     "groups": {
+      "items": {
+       "additionalProperties": false,
+       "properties": {
+        "fragments": {
+         "items": {
+          "type": "integer"
+         },
+         "type": "array"
+        },
+        "reason": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "fragments",
+        "reason"
+       ],
+       "type": "object"
+      },
+      "type": "array"
+     }
+    }
+   },
+   "strict": true
+  }
+ },
+ "tools": [],
+ "tool_choice": "auto",
+ "truncation": "disabled",
+ "id": "resp_6ae170d40c0f1f1fd3ff4df4",
+ "object": "response",
+ "status": "completed",
+ "created_at": 1793159380,
+ "completed_at": 1793159380,
+ "error": null,
+ "incomplete_details": null,
+ "output": [
+  {
+   "type": "reasoning",
+   "id": "rs_6ae170d40c0f1f1fd3ff4df4:rs_ddfa5e76-7028-4302-bb3b-8366b96a4898",
+   "encrypted_content": "(trimmed)",
+   "summary": [],
+   "status": "completed"
+  },
+  {
+   "type": "message",
+   "id": "msg_472fd699-37f4-44d2-bc80-d432f7459c9b",
+   "role": "assistant",
+   "content": [
+    {
+     "type": "output_text",
+     "text": "{ \"groups\": [\n  {\n    \"fragments\": [1, 4],\n    \"reason\": \"Both are typed in the same black monospaced typeface on identical unruled beige paper, in formal language about the harbour, lighthouse and fog bell.\"\n  },\n  {\n    \"fragments\": [2],\n    \"reason\": \"This alone uses larger, strongly slanted blue cursive on cream ruled paper with a red vertical margin, writing to Aunt about the children, mill and snowdrops.\"\n  },\n  {\n    \"fragments\": [3],\n    \"reason\": \"This alone uses smaller, more upright blue handwriting on cooler white paper ruled only in blue with no red margin, mentioning crocuses, Uncle Robert and a sign-off.\"\n  }\n] }",
+     "annotations": [],
+     "logprobs": []
+    }
+   ],
+   "status": "completed"
+  }
+ ],
+ "instructions": null,
+ "usage": {
+  "input_tokens": 510,
+  "input_tokens_details": {
+   "cached_tokens": 0
+  },
+  "output_tokens": 2024,
+  "output_tokens_details": {
+   "reasoning_tokens": 1853
+  },
+  "total_tokens": 2534
+ },
+ "parallel_tool_calls": true,
+ "store": false,
+ "max_output_tokens": 12000
+}

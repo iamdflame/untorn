@@ -14,8 +14,11 @@ import {
 } from "./muse";
 import { GAP } from "./prompts";
 
-// A real muse-spark-1.3 response to verifySeam (spike cw1 item 00, a true join), reasoning payload trimmed.
-const recorded = readFileSync(new URL("./__fixtures__/muse-seam.response.json", import.meta.url), "utf8");
+// Real responses (reasoning payload trimmed): verifySeam on spike cw1 item 00 (a true join); the live smoke run's
+// chooseContinuation (cw3 trial 00, truth B), readPage (the letter with a piece cut away), translate and
+// sortFragments (Muse Wonder, 2 typed + 2 handwritten crops).
+const fixture = (name: string) => readFileSync(new URL(`./__fixtures__/${name}.response.json`, import.meta.url), "utf8");
+const recorded = fixture("muse-seam");
 
 const img = { data: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), mime: "image/jpeg" as const };
 
@@ -107,6 +110,36 @@ describe("verifySeam", () => {
     const content = (f.calls[0].body.input as { content: { type: string }[] }[])[0].content;
     expect(content.map((c) => c.type)).toEqual(["input_text", "input_image", "input_text", "input_image"]);
     expect(r.meta.promptVersion).toMatch(/\+rot$/);
+  });
+});
+
+describe("recorded answers from the live smoke run", () => {
+  const replay = (name: string) => fakeFetch([new Response(fixture(name), { status: 200 })]);
+
+  it("chooseContinuation picks B on the stack-tear trial", async () => {
+    const r = await chooseContinuation(img, 3, opts({ fetchImpl: replay("muse-choice").impl }).o);
+    expect(r.ok && r.value).toMatchObject({ choice: "B", index: 1 });
+  });
+
+  it("readPage marks the cut-away text as gaps, normalised to one marker, and invents nothing there", async () => {
+    const r = await readPage(img, opts({ fetchImpl: replay("muse-read").impl }).o);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.language).toBe("en");
+    expect(r.value.text).not.toContain("[...]");
+    expect(r.value.text).toContain(`Lacle${GAP}`);
+    expect(r.value.text.split(GAP).length - 1).toBeGreaterThanOrEqual(8);
+    // the words under the hole ("Laclede's life was spent in a strug-") must not appear
+    expect(r.value.text).not.toMatch(/life was spent/);
+    expect(r.value.uncertain).toContain(`Lacle${GAP}`);
+  });
+
+  it("translate and sortFragments parse their recorded answers", async () => {
+    const t = await translate("Dear Miss Dalton", "de", opts({ fetchImpl: replay("muse-translate").impl }).o);
+    expect(t.ok && t.value).toMatchObject({ source_language: "en", to: "de" });
+    const s = await sortFragments([img, img, img, img], opts({ fetchImpl: replay("muse-sort").impl }).o);
+    expect(s.ok && s.value.groups.map((g) => g.fragments)).toEqual([[0, 3], [1], [2]]);
+    expect(s.meta.model).toBe("muse-wonder-1.0");
   });
 });
 
@@ -248,6 +281,12 @@ describe("readPage and translate", () => {
     const { o } = opts({ fetchImpl: f.impl });
     const r = await readPage(img, o);
     expect(r.ok && r.value).toEqual(page);
+  });
+
+  it("normalises gap markers written as [...]", async () => {
+    const f = fakeFetch([answer({ text: "Mary [...]\nSt. Lou[ ... ]", language: "en", uncertain: ["Lou[...]"] })]);
+    const r = await readPage(img, opts({ fetchImpl: f.impl }).o);
+    expect(r.ok && r.value).toEqual({ text: `Mary ${GAP}\nSt. Lou${GAP}`, language: "en", uncertain: [`Lou${GAP}`] });
   });
 
   it("retries a translation that drops a gap marker", async () => {

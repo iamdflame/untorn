@@ -549,6 +549,9 @@ export async function chooseContinuation(
 
 export type PageReading = { text: string; language: string; uncertain: string[] };
 
+/** The model writes the gap marker as "[…]" or "[...]" (seen live); normalise every spelling to GAP. */
+export const normaliseGaps = (s: string) => s.replace(/\[\s*(?:\.\s*\.\s*\.|…)\s*\]/g, GAP);
+
 /** Transcribe a reassembled page; missing or illegible text comes back as the gap marker, never invented. */
 export async function readPage(pageImage: ImageInput, opts: MuseOptions = {}): Promise<MuseOutcome<PageReading>> {
   return museCall(
@@ -565,7 +568,7 @@ export async function readPage(pageImage: ImageInput, opts: MuseOptions = {}): P
         const language = str(j.language);
         const uncertain = strArr(j.uncertain);
         if (text === null || language === null || !uncertain) return null;
-        return { text, language: language.trim() || "und", uncertain };
+        return { text: normaliseGaps(text), language: language.trim() || "und", uncertain: uncertain.map(normaliseGaps) };
       },
     },
     opts,
@@ -576,6 +579,7 @@ export type Translation = { text: string; source_language: string; to: string };
 
 /** Translate a transcription; gap markers pass through unchanged (checked: a translation that drops one is retried). */
 export async function translate(text: string, to: string, opts: MuseOptions = {}): Promise<MuseOutcome<Translation>> {
+  text = normaliseGaps(text);
   const gaps = text.split(GAP).length - 1;
   return museCall(
     {
@@ -587,9 +591,10 @@ export async function translate(text: string, to: string, opts: MuseOptions = {}
       defaults: { model: "muse-spark-1.3", effort: "minimal", maxOutputTokens: 8000, timeoutMs: 60_000, deadlineMs: 120_000, hedgeAfterMs: 30_000 },
       check: (j) => {
         if (!isObj(j)) return null;
-        const out = str(j.text);
+        const raw = str(j.text);
         const source_language = str(j.source_language);
-        if (out === null || source_language === null) return null;
+        if (raw === null || source_language === null) return null;
+        const out = normaliseGaps(raw);
         if (out.split(GAP).length - 1 < gaps) return null;
         return { text: out, source_language, to };
       },

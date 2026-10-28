@@ -1,0 +1,89 @@
+{
+ "top_logprobs": 0,
+ "temperature": 1,
+ "top_p": 1,
+ "service_tier": "auto",
+ "model": "muse-spark-1.3",
+ "reasoning": {
+  "effort": "low"
+ },
+ "background": false,
+ "text": {
+  "format": {
+   "type": "json_schema",
+   "name": "page_reading",
+   "schema": {
+    "required": [
+     "text",
+     "language",
+     "uncertain"
+    ],
+    "additionalProperties": false,
+    "type": "object",
+    "properties": {
+     "language": {
+      "type": "string"
+     },
+     "text": {
+      "type": "string"
+     },
+     "uncertain": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    }
+   },
+   "strict": true
+  }
+ },
+ "tools": [],
+ "tool_choice": "auto",
+ "truncation": "disabled",
+ "id": "resp_6ae170bbd3e95f7e008b4035",
+ "object": "response",
+ "status": "completed",
+ "created_at": 1793159355,
+ "completed_at": 1793159355,
+ "error": null,
+ "incomplete_details": null,
+ "output": [
+  {
+   "type": "reasoning",
+   "id": "rs_6ae170bbd3e95f7e008b4035:rs_6b821593-c691-414c-b511-544ffe752648",
+   "encrypted_content": "(trimmed)",
+   "summary": [],
+   "status": "completed"
+  },
+  {
+   "type": "message",
+   "id": "msg_431e79e0-4123-4ac4-8215-8f3fdac74eee",
+   "role": "assistant",
+   "content": [
+    {
+     "type": "output_text",
+     "text": "{\"language\": \"en\", \"text\": \"PIERRE CHOUTEAU\\nST. LOUIS.\\n\\nSept.5, 1903.\\n\\nMiss Mary Louise Dalton,\\nMissouri Historical Socy.,\\nSt.Louis.\\n\\nMy dear Miss Dalton:--\\nI think the following will fully answer\\nyour inquiries, but if locations, months and dates are desired,\\ndays\\nmany can be furnished.\\n\\nPierre Ligueste de Lacle[...]\\nLouisiana 1755, founded St.Louis 17[...]\\nquote from notes to which I referre[...]\\n\\n' The remainder of Laclede[...]\\ngle for existence.-- He was respecte[...]\\nwhom he came in contact. -- He gave h[...]\\naccumulation, for an enterprise that ha[...]\\n'in one of the finest cities of America!\\nat the mouth of the Arkansas river while en [...]\\nto St.Louis.\\nThe following year an expedition was sen[...] [...]cover his\\nbody; much to the chagrin of those who undertook this sad mission,\\nthey found the mighty Mississippi had eaten into its banks, and\\nclaimed the mortal remains of Laclede as being worthy to repose\\nunder its turbid waters,alongside [...] that of De Soto.\\n\\nVery truly yours,\\nPierre Chouteau\\nDictated.\\n\\nMissouri Historical\\nSociety\\nSaint Louis\\n\\nack\\nSept 7-03\", \"uncertain\": [\"days\", \"Lacle[...]\", \"17[...]\", \"referre[...]\", \"Laclede[...]\", \"respecte[...]\", \"h[...]\", \"ha[...]\", \"en [...]\", \"sen[...]\", \"[...]cover\", \"[...]\", \"that\", \"Pierre Chouteau\", \"ack\", \"Sept\", \"7-03\"]}",
+     "annotations": [],
+     "logprobs": []
+    }
+   ],
+   "status": "completed"
+  }
+ ],
+ "instructions": null,
+ "usage": {
+  "input_tokens": 1283,
+  "input_tokens_details": {
+   "cached_tokens": 0
+  },
+  "output_tokens": 2751,
+  "output_tokens_details": {
+   "reasoning_tokens": 2356
+  },
+  "total_tokens": 4034
+ },
+ "parallel_tool_calls": true,
+ "store": false,
+ "max_output_tokens": 8000
+}

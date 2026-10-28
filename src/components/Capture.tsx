@@ -68,7 +68,7 @@ export function Capture({ code }: { code: string }) {
 
   const camera = (
     <>
-      <label className="btn btn-primary btn-big">
+      <label className={step.kind === "preview" ? "btn btn-big" : "btn btn-primary btn-big"}>
         {step.kind === "preview" ? "Take it again" : "Take the photo"}
         <input
           ref={inputRef}

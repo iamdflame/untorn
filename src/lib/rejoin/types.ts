@@ -72,6 +72,10 @@ export type Candidate = {
   areaOverlap: number;
   /** How well the seam pins down all three degrees of freedom (0–1; a straight seam can slide). */
   conditioning: number;
+  /** RMS of the seam residual's 18 px moving average (px): coarse misfit, which mask noise blobs also cause. */
+  shapeRms: number;
+  /** RMS of the residual minus that average (px): fine misfit. Mask noise only on a true seam; the sharp clue. */
+  fineRms: number;
   /** Geometry score (px of well-fitting, well-conditioned seam, minus penalties). */
   score: number;
   /** Geometry confidence, 0–1, from the score and the competition. */

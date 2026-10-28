@@ -1,0 +1,3 @@
+# generated cases (python -I scripts/bench/generate.py); only sample/ is committed
+out/
+__pycache__/

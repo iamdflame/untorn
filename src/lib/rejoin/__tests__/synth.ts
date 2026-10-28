@@ -63,8 +63,9 @@ export function gridTear(width: number, height: number, cols: number, rows: numb
 export function paperColour(x: number, y: number, pitch = 22, seed = 1): [number, number, number] {
   const line = Math.floor(y / pitch);
   const inLine = y - line * pitch;
-  const word = Math.floor((x + line * 37) / 31);
-  const gap = (x + line * 37) % 31 < 5;
+  const shift = line * 37 + seed * 101;
+  const word = Math.floor((x + shift) / 31);
+  const gap = (((x + shift) % 31) + 31) % 31 < 5;
   const hash = Math.sin(word * 12.9898 + line * 78.233 + seed) * 43758.5453;
   const short = hash - Math.floor(hash) < 0.2;
   const ink = inLine >= 6 && inLine < 13 && !gap && !short && Math.floor(x) % 3 !== 0;
@@ -78,7 +79,7 @@ export function scatterPiece(
   page: SynthPage,
   k: number,
   pose: Pose,
-  opts: { noise?: number; seed?: number; colour?: boolean } = {},
+  opts: { noise?: number; seed?: number; colour?: boolean; textSeed?: number; id?: string } = {},
 ): FragmentInput {
   const inv = poseInvert(pose);
   // bounds of the piece in the photo: transform the page bbox of the piece
@@ -126,7 +127,7 @@ export function scatterPiece(
       const inside = page.label(px + jx, py + jy) === k;
       data[r * w + c] = inside ? 1 : 0;
       if (opts.colour !== false) {
-        const [R, G, B] = inside ? paperColour(px, py) : [120, 90, 60];
+        const [R, G, B] = inside ? paperColour(px, py, 22, opts.textSeed ?? 1) : [120, 90, 60];
         rgba[4 * (r * w + c)] = R;
         rgba[4 * (r * w + c) + 1] = G;
         rgba[4 * (r * w + c) + 2] = B;
@@ -136,18 +137,18 @@ export function scatterPiece(
   }
   const mask: Mask = { width: w, height: h, data };
   const img: Rgba = { width: w, height: h, data: rgba };
-  return { id: `p${k}`, mask, x0, y0, rgba: opts.colour === false ? undefined : img };
+  return { id: opts.id ?? `p${k}`, mask, x0, y0, rgba: opts.colour === false ? undefined : img };
 }
 
 /** Scatter all pieces with random poses on a wide desk; returns inputs and true poses (page → photo). */
-export function scatterPage(page: SynthPage, seed: number, opts: { noise?: number; spacing?: number } = {}) {
+export function scatterPage(page: SynthPage, seed: number, opts: { noise?: number; spacing?: number; textSeed?: number; prefix?: string; row?: number } = {}) {
   const rand = rng(seed);
   const spacing = opts.spacing ?? 1.6 * Math.max(page.width, page.height);
   const inputs: FragmentInput[] = [];
   const poses: Pose[] = [];
   for (let k = 0; k < page.pieces; k++) {
     const theta = (rand() * 2 - 1) * Math.PI;
-    const pose: Pose = { theta, tx: 200 + (k % 4) * spacing + rand() * 30, ty: 200 + Math.floor(k / 4) * spacing + rand() * 30 };
+    const pose: Pose = { theta, tx: 200 + (k % 4) * spacing + rand() * 30, ty: 200 + (Math.floor(k / 4) + (opts.row ?? 0)) * spacing + rand() * 30 };
     // rotate about the page centre so pieces stay near their slot
     const c = Math.cos(theta);
     const s = Math.sin(theta);
@@ -155,7 +156,7 @@ export function scatterPage(page: SynthPage, seed: number, opts: { noise?: numbe
     const cy = page.height / 2;
     pose.tx -= c * cx - s * cy;
     pose.ty -= s * cx + c * cy;
-    inputs.push(scatterPiece(page, k, pose, { noise: opts.noise, seed: seed * 31 + k }));
+    inputs.push(scatterPiece(page, k, pose, { noise: opts.noise, seed: seed * 31 + k, textSeed: opts.textSeed, id: `${opts.prefix ?? "p"}${k}` }));
     poses.push(pose);
   }
   return { inputs, poses };

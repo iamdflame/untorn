@@ -112,6 +112,8 @@ export type ContentRequest =
       candidate: string;
       a: string;
       b: string;
+      /** False when the solver could not tell which way is up: the model should also read the image turned 180°. */
+      uprightKnown: boolean;
       render: () => Rgba;
     }
   | {
@@ -122,6 +124,7 @@ export type ContentRequest =
       twinGroup: string | null;
       /** Candidate ids in sheet order (labels A, B, C, …). */
       candidates: string[];
+      uprightKnown: boolean;
       render: () => Rgba;
     };
 

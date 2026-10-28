@@ -74,6 +74,10 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
   const o = prep.options;
   const minScore = (o.assemble?.minContentScore ?? ASSEMBLE_DEFAULTS.minContentScore);
   const byCand = new Map(prep.match.candidates.map((c) => [c.id, c] as const));
+  const upKnown = (id: string) => {
+    const t = prep.byId.get(id)?.text;
+    return !!t && t.confidence >= 0.4 && t.up !== 0;
+  };
   const reqs: ContentRequest[] = [];
   for (const g of prep.match.twinGroups) {
     const cands = g.candidates.map((id) => byCand.get(id)!).filter(Boolean);
@@ -83,6 +87,7 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
       anchor: g.anchor,
       twinGroup: g.id,
       candidates: cands.map((c) => c.id),
+      uprightKnown: upKnown(g.anchor),
       render: () => renderChoiceSheet(prep.byId, g.anchor, cands, o.render),
     });
   }
@@ -91,7 +96,15 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
       .filter((c) => !c.twinGroup && c.score >= minScore && c.margin >= 0.7)
       .slice(0, o.maxPairChecks ?? 48);
     for (const c of pairs) {
-      reqs.push({ kind: "pair", id: `pair:${c.id}`, candidate: c.id, a: c.a, b: c.b, render: () => renderSeam(prep.byId, c, o.render) });
+      reqs.push({
+        kind: "pair",
+        id: `pair:${c.id}`,
+        candidate: c.id,
+        a: c.a,
+        b: c.b,
+        uprightKnown: upKnown(c.a),
+        render: () => renderSeam(prep.byId, c, o.render),
+      });
     }
   }
   return reqs;

@@ -1,10 +1,13 @@
 // Record a real run of the pipeline on a sample photo, for the first screen's replay (and as a test fixture).
 //
 //   pnpm tsx scripts/record-run.ts [sample=chouteau-1903] [--photo FILE] [--out DIR] [--events FILE]
+//                                  [--strategy all|tree] [--read-deadline MS] [--concurrency N]
 //
-// Runs the same pipeline as POST /api/runs with the real models (about $0.10), and writes DIR (default
-// public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
+// Runs the same pipeline as POST /api/runs with the real models (about $0.10 for a 10-piece page), and writes DIR
+// (default public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
 // --events also saves the raw NDJSON event stream with its timing. Prints stage timings, joins and cost.
+// --strategy, --read-deadline and --concurrency override the live defaults (a stack recording may read for longer).
+// scripts/sample-assets.ts then sizes the images for the web; scripts/score-sample.ts scores the run.
 
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import path from "node:path";
@@ -50,7 +53,22 @@ async function main() {
     else if (e.type === "transcribe") console.log(`${t}s  transcript ${e.transcript.page}: ${e.transcript.ok ? e.transcript.text.slice(0, 80).replace(/\n/g, " ") : e.transcript.error}`);
     else if (e.type === "warning") console.log(`${t}s  warning ${e.warning.code}`);
   };
-  const result = await runPipeline(new Uint8Array(readFileSync(photoFile)), deps, { runId, source: "sample", sample: name, caption: sample?.caption }, log);
+  const strategy = opt("--strategy");
+  if (strategy && strategy !== "all" && strategy !== "tree") throw new Error("--strategy all|tree");
+  const result = await runPipeline(
+    new Uint8Array(readFileSync(photoFile)),
+    deps,
+    {
+      runId,
+      source: "sample",
+      sample: name,
+      caption: sample?.caption,
+      twinStrategy: strategy as "all" | "tree" | undefined,
+      readDeadlineMs: opt("--read-deadline") ? Number(opt("--read-deadline")) : undefined,
+      concurrency: opt("--concurrency") ? Number(opt("--concurrency")) : undefined,
+    },
+    log,
+  );
   console.log(
     JSON.stringify({
       runId,
@@ -61,6 +79,7 @@ async function main() {
       joins: result.joins.map((j) => `${j.a}-${j.b}:${j.decidedBy}${j.read ? (j.read.agrees ? "+read" : "-read") : ""}`),
       unplaced: result.unplaced,
       cost: result.cost,
+      stats: result.stats,
       out,
     }),
   );

@@ -12,9 +12,12 @@ import type { RunResult } from "@/lib/run/types";
 import { Hero } from "./hero/Hero";
 import { ErrorNote, Note } from "./hero/LeadNote";
 import { useNearOrIdle, usePrefersReducedMotion } from "./hooks";
-import { ResultSection } from "./result/ResultSection";
+import dynamic from "next/dynamic";
 import { useRun, type LiveInput } from "./run/useRun";
 import { openPicker, TearYourOwn } from "./TearYourOwn";
+
+// below the fold: its code loads when it is needed
+const ResultSection = dynamic(() => import("./result/ResultSection").then((m) => m.ResultSection), { ssr: false });
 
 export function FirstScreen({ sample: initial }: { sample: Sample }) {
   const run = useRun();

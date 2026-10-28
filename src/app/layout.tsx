@@ -2,11 +2,10 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-// Self-hosted type: Gambetta (Fontshare, ITF free licence) for the headline, mark and section titles; Schibsted
+// Self-hosted type: Gambetta 500 and 600 (Fontshare, ITF free licence) for the headline, mark, reads and titles; Schibsted
 // Grotesk for UI and body; IBM Plex Mono only for machine output (Google Fonts, OFL). Latin subsets.
 const gambetta = localFont({
   src: [
-    { path: "./fonts/gambetta-400.woff2", weight: "400", style: "normal" },
     { path: "./fonts/gambetta-500.woff2", weight: "500", style: "normal" },
     { path: "./fonts/gambetta-600.woff2", weight: "600", style: "normal" },
   ],

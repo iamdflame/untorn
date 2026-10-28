@@ -11,8 +11,11 @@ import type { RunResult } from "@/lib/run/types";
 import { Hero } from "./hero/Hero";
 import { ErrorNote } from "./hero/LeadNote";
 import { usePrefersReducedMotion } from "./hooks";
-import { ResultSection } from "./result/ResultSection";
+import dynamic from "next/dynamic";
 import { useRun } from "./run/useRun";
+
+// below the fold: its code loads when it is needed
+const ResultSection = dynamic(() => import("./result/ResultSection").then((m) => m.ResultSection), { ssr: false });
 
 const SOURCE: Record<RunResult["source"], string> = { sample: "a sample run", phone: "a phone run", upload: "an uploaded run", health: "a health-check run" };
 

@@ -1,5 +1,5 @@
 {
-  "note": "The fixed samples. The first screen replays `default`'s recorded run (switch with /?sample=<name>); the hourly health run checks `health` against its answer key. A sample needs data/samples/<name>/photo.jpg (server, live runs) and public/samples/<name>/ (recorded run, photos). `twins` names a stack trial for the twins beat.",
+  "note": "The fixed samples. The first screen replays `default`'s recorded run (switch with /?sample=<name>); the hourly health run checks `health` against its answer key. A sample needs data/samples/<name>/photo.jpg (server, live runs) and public/samples/<name>/ (recorded run: result.json, and result-lite.json for the first screen made by scripts/make-lite-recording.mjs; photos). `twins` names a stack trial for the twins beat.",
   "default": "chouteau-1903",
   "health": "chouteau-1903",
   "samples": {
@@ -9,7 +9,7 @@
       "caption": "Simulated tear of a real public-domain letter (Pierre Chouteau to Mary Louise Dalton, 5 September 1903, Missouri Historical Society via DPLA). The outlines, seam readings and joins are the real pipeline's.",
       "honesty": "Simulated tear of a real 1903 letter, recorded run.",
       "credit": "The letter is a simulated tear of a real public-domain letter (Pierre Chouteau to Mary Louise Dalton, 1903, Missouri Historical Society via DPLA).",
-      "recorded": "/samples/chouteau-1903/result.json",
+      "recorded": "/samples/chouteau-1903/result-lite.json",
       "file": "data/samples/chouteau-1903/photo.jpg",
       "photo": {
         "url": "/samples/chouteau-1903/photo.jpg",
@@ -35,7 +35,8 @@
         ],
         "hires": "/samples/chouteau-1903/photo-2400.webp"
       },
-      "twins": "stack-cw3"
+      "twins": "stack-cw3",
+      "download": "/samples/chouteau-1903/result.json"
     }
   },
   "stacks": {

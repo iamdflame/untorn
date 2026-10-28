@@ -3,7 +3,6 @@
 // "Tear your own": a QR code (and the code in text) for the phone, polled every 1.5 s, plus a drop zone for a photo
 // already on this computer. Either way, the parent starts a live run.
 
-import QRCode from "qrcode";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ERRORS } from "@/lib/run/errors";
 import type { ErrorCode } from "@/lib/run/types";
@@ -27,6 +26,7 @@ export function TearYourOwn({ onPhoto, onFile, onSample, disabled, footer }: { o
         return setPhase({ kind: "error", code: j?.error?.code ?? "internal" });
       }
       const session = (await res.json()) as Session;
+      const { default: QRCode } = await import("qrcode");
       const svg = await QRCode.toString(session.url, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
       setPhase({ kind: "waiting", session, svg });
     } catch {

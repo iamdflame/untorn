@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { PHOTO_SIZES, type Sample, type StackTrial } from "@/lib/run/samples";
 import { currentStage, type RunState } from "@/lib/run/state";
-import { createHero, type EngineInput, type HeroApi } from "./engine";
+import type { EngineInput, HeroApi } from "./engine";
 
 export type HeroMode = "recorded" | "live" | "replay";
 
@@ -52,18 +52,28 @@ export function Hero({
   const root = useRef<HTMLElement>(null);
   const api = useRef<HeroApi | null>(null);
 
+  const latest = useRef<EngineInput | null>(null);
+  const reducedRef = useRef(reduced);
+  // the engine loads after the first paint (the server-rendered photo and headline are the first screen)
   useEffect(() => {
-    if (!root.current) return;
-    const h = createHero(root.current, { reduced });
-    api.current = h;
+    let h: HeroApi | null = null;
+    let gone = false;
+    import("./engine").then(({ createHero }) => {
+      if (gone || !root.current) return;
+      h = createHero(root.current, { reduced: reducedRef.current });
+      api.current = h;
+      if (latest.current) h.update(latest.current);
+    });
     return () => {
-      h.destroy();
+      gone = true;
+      h?.destroy();
       api.current = null;
     };
-    // the engine is created once; motion preference changes go through setReduced
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => api.current?.setReduced(reduced), [reduced]);
+  useEffect(() => {
+    reducedRef.current = reduced;
+    api.current?.setReduced(reduced);
+  }, [reduced]);
 
   // the photo the paper is cut from: the sample's full-resolution copy when this run is of a sample, else the run's
   const fromSample = !!sample && samplePhoto;
@@ -88,7 +98,10 @@ export function Hero({
     }),
     [runKey, mode, photoSrc, pw, ph, state.pieces, state.pages, state.joins, state.reads, transcript, stage, state.asks.length, state.status, twins],
   );
-  useEffect(() => api.current?.update(input), [input]);
+  useEffect(() => {
+    latest.current = input;
+    api.current?.update(input);
+  }, [input]);
 
   const showPlaceholder = mode === "recorded" && sample;
   return (
@@ -219,11 +232,11 @@ function Twins({ d }: { d: StackTrial }) {
       </figcaption>
       <div className="tw-stage">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="tw tw-L" src={d.images.L.url} alt="The piece on the page, its torn edge waiting for a scrap" width={d.images.L.w} height={d.images.L.h} />
+        <img className="tw tw-L" loading="lazy" src={d.images.L.url} alt="The piece on the page, its torn edge waiting for a scrap" width={d.images.L.w} height={d.images.L.h} />
         {(["A", "B", "C"] as const).map((k) => (
           <button key={k} type="button" className="tw tw-c" data-k={k} aria-label={`Scrap ${k}`} tabIndex={-1} style={{ width: d.images[k].w, height: d.images[k].h }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={d.images[k].url} alt="" width={d.images[k].w} height={d.images[k].h} />
+            <img src={d.images[k].url} loading="lazy" alt="" width={d.images[k].w} height={d.images[k].h} />
             <svg viewBox={`0 0 ${d.images[k].w} ${d.images[k].h}`} aria-hidden="true">
               <path className="strike" d={`M6 ${d.images[k].h - 10} 58 8`} />
             </svg>

@@ -38,6 +38,22 @@ async function shootHero(page, tag) {
   if (T.tw1 > T.tw0) {
     await seek(T.tw0 + 2.2, "hero-twins-ask");
     await seek(T.tw1 - 0.8, "hero-twins");
+    if (want("hero-twins-pickB")) {
+      // the visitor picks B during the ask: B is tried first, struck, then the true scrap
+      await page.evaluate((v) => window.untorn.seek(v), T.tw0 + 1.5);
+      await page.waitForTimeout(200);
+      await page.evaluate(() => document.querySelector('.tw-c[data-k="B"]').click());
+      await page.waitForTimeout(1300);
+      await shot("hero-twins-pickB");
+      await page.waitForTimeout(1700);
+      await shot("hero-twins-pickB-2");
+    }
+  }
+  if (want("fps")) {
+    await page.evaluate((v) => window.untorn.seek(v), T.stepT[0]);
+    await page.evaluate(() => window.untorn.play());
+    const fps = await page.evaluate(() => new Promise((res) => { const ts = []; const f = (n) => { ts.push(n); if (ts.length < 180) requestAnimationFrame(f); else { const d = ts.slice(1).map((x, i) => x - ts[i]).sort((a, b) => a - b); res({ median: 1000 / d[d.length >> 1], p95: 1000 / d[Math.floor(d.length * 0.95)] }); } }; requestAnimationFrame(f); }));
+    console.log(`${tag} fps during assembly: median ${fps.median.toFixed(0)}, p95 frame ${fps.p95.toFixed(0)} fps`);
   }
   await seek(T.end, "hero-end");
   await page.evaluate(() => window.untorn.J(1));

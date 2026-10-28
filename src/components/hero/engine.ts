@@ -217,11 +217,40 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     order.forEach((o, i) => (orderIdx[o.piece] = i));
     LAST = order.length - 1;
     climaxSeam = sc.climax ? seams[sc.climax.seam] : null;
+    setHover();
     readAtDone = false;
     computeT();
     setClimaxText();
     setHeadline();
     layout();
+  }
+
+  /** The climax piece hovers short of home across its seam: along the seam's normal, away from its partner. */
+  let hover: [number, number] = [0, 0];
+  function setHover() {
+    if (!climaxSeam || LAST < 0) return;
+    const last = order[LAST].piece;
+    const partner = climaxSeam.a === last ? climaxSeam.b : climaxSeam.a;
+    const L = climaxSeam.line;
+    const [rx, ry] = climaxSeam.readAt;
+    let bi = 0;
+    for (let j = 0; j < L.length; j += 2) if (Math.hypot(L[j] - rx, L[j + 1] - ry) < Math.hypot(L[bi] - rx, L[bi + 1] - ry)) bi = j;
+    const j0 = Math.max(0, bi - 4);
+    const j1 = Math.min(L.length - 2, bi + 4);
+    let tx = L[j1] - L[j0];
+    let ty = L[j1 + 1] - L[j0 + 1];
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl;
+    ty /= tl;
+    let nx = -ty;
+    let ny = tx;
+    const p = pieces[last];
+    const q = pieces[partner];
+    if ((p.home[0] - q.home[0]) * nx + (p.home[1] - q.home[1]) * ny < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    hover = [nx, ny];
   }
 
   function computeT() {
@@ -322,6 +351,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     }
     const pageSrcPx = (scene?.pages[0]?.width ?? 844) / litScale;
     ZOOM = clamp(Math.round(2400 / pageSrcPx), 2, 3);
+    setHover();
     layout();
   }
 
@@ -484,8 +514,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
         let toY = p.home[1];
         const climaxPiece = i === LAST && !!climaxSeam;
         if (climaxPiece) {
-          const hvx = p.home[0] + p.ux * 34 * K;
-          const hvy = p.home[1] + p.uy * 34 * K;
+          const hvx = p.home[0] + hover[0] * 34 * K;
+          const hvy = p.home[1] + hover[1] * 34 * K;
           if (t < T.seat) {
             toX = hvx;
             toY = hvy;
@@ -535,9 +565,14 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   function drawHero(t: number, j: number) {
     const g = ctx;
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const ph = photoOk ? photo : placeholder && placeholder.complete && placeholder.naturalWidth ? placeholder : null;
+    if (!input?.photo || !ph) {
+      // nothing to draw yet: let the server-rendered photo show through
+      g.clearRect(0, 0, W, H);
+      return;
+    }
     g.fillStyle = COL.room;
     g.fillRect(0, 0, W, H);
-    if (!input?.photo) return;
     const poses = pieces.map((p) => poseAt(p, t, j));
     const c = camAt(t, j, pieces.map((p) => poseAt(p, t, 0)));
     const z = climaxZoom(t);
@@ -558,14 +593,14 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       g.rect(cr.x, cr.y, cr.w, cr.h);
       g.clip();
     }
-    if (photoA > 0.002 && photoOk) {
+    if (photoA > 0.002) {
       g.save();
       g.beginPath();
       g.rect(R.area.x, R.area.y, R.area.w, R.area.h);
       g.clip();
       g.globalAlpha = photoA;
       setCam(g, c, DPR);
-      g.drawImage(photo, 0, 0, input.photo.width, input.photo.height);
+      g.drawImage(ph, 0, 0, input.photo.width, input.photo.height);
       g.restore();
       g.globalAlpha = 1;
       if (placeholder && !placeholderHidden) {
@@ -578,7 +613,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     setCam(g, c, DPR);
     const crisp = z >= 0.999;
     g.imageSmoothingEnabled = !crisp;
-    const zo = pieces.map((_, i) => i).sort((a, b) => poses[a].lift - poses[b].lift || (orderIdx[a] ?? 99) - (orderIdx[b] ?? 99));
+    const under = climaxSeam && z > 0 && t < T.seat + T.fly ? order[LAST].piece : -1;
+    const zo = pieces.map((_, i) => i).sort((a, b) => Number(b === under) - Number(a === under) || poses[a].lift - poses[b].lift || (orderIdx[a] ?? 99) - (orderIdx[b] ?? 99));
     const dimA = (i: number) => (assembled && !pieces[i].placed ? 1 - 0.55 * expl : 1);
     if (shadowA > 0) zo.forEach((i) => drawShadow(g, cuts.get(pieces[i].id) ?? null, poses[i], c, shadowA * (1 - z) * dimA(i)));
     if (litA > 0.001)
@@ -1253,7 +1289,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
 
   /** How far the clock may run on what has arrived so far. */
   function gate(): number {
-    if (!input?.photo || !photoOk) return 0;
+    if (!input?.photo || !(photoOk || (placeholder?.complete && placeholder.naturalWidth))) return 0;
     if (!pieces.length) return T.trace0 - 0.01;
     if (!cutsReady) return T.lift0;
     if (!assembled) return input.mode === "live" ? HOLD : T.exp0;
@@ -1423,6 +1459,26 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   });
   if (!playing) root.classList.add("paused");
 
+  /** The full-resolution photo waits until the page has loaded (the stage shows the server-rendered photo meanwhile). */
+  let photoWant = "";
+  function loadPhoto(src: string) {
+    photoWant = src;
+    const go = () => {
+      if (photoWant === src) photo.src = src;
+    };
+    if (document.readyState === "complete" || !placeholder) go();
+    else
+      addEventListener(
+        "load",
+        () => {
+          const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+          if (ric) ric(go, { timeout: 600 });
+          else setTimeout(go, 50);
+        },
+        { once: true },
+      );
+  }
+
   function update(next: EngineInput) {
     const prev = input;
     input = next;
@@ -1448,7 +1504,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     if (next.photo && (newRun || prev?.photo?.src !== next.photo.src)) {
       if (photo.src !== new URL(next.photo.src, location.href).href) {
         photoOk = false;
-        photo.src = next.photo.src;
+        loadPhoto(next.photo.src);
       }
     }
     const piecesChanged = newRun || prev?.pieces !== next.pieces || prev?.pages !== next.pages || prev?.joins !== next.joins;

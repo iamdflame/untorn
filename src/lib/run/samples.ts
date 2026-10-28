@@ -15,8 +15,10 @@ export type Sample = {
   honesty: string;
   /** Where the page comes from, for the footer. */
   credit: string;
-  /** The recorded run (a stored RunResult) the first screen replays. */
+  /** The recorded run (a stored RunResult) the first screen replays: without the seam images, for a light first load. */
   recorded: string;
+  /** The full recorded run, for the download. */
+  download?: string;
   /** Full-resolution photo, bundled with the server functions (repo path). */
   file: string;
   /** The display photo of the recorded run, for the first paint (before the recording loads). */

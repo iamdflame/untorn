@@ -206,4 +206,4 @@ export type SeamPromptVersion = keyof typeof PROMPTS.seam;
 export type ChoicePromptVersion = keyof typeof PROMPTS.choice;
 
 /** The wording each function uses by default, chosen from the measured runs in docs/MODELS.md. */
-export const DEFAULT_PROMPT = { seam: "v1" as SeamPromptVersion, choice: "v1" as ChoicePromptVersion };
+export const DEFAULT_PROMPT = { seam: "v2" as SeamPromptVersion, choice: "v1" as ChoicePromptVersion };

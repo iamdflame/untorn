@@ -84,7 +84,7 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
     return !!t && t.confidence >= 0.4 && t.up !== 0;
   };
   const reqs: ContentRequest[] = [];
-  const cls = twinClasses(prep);
+  const cls = prep.match.twinClass;
   const asked = new Map<string, number>(); // anchor + partner class → best score already asked
   const groups = [...prep.match.twinGroups].sort((x, y) => (byCand.get(y.candidates[0])?.score ?? 0) - (byCand.get(x.candidates[0])?.score ?? 0));
   for (const g of groups) {
@@ -110,8 +110,10 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
     });
   }
   if (o.pairChecks ?? true) {
+    // torn joins first (geometry already strong), then straight cuts (only content can confirm them)
     const pairs = prep.match.candidates
       .filter((c) => !c.twinGroup && c.score >= minScore && c.margin >= 0.7)
+      .sort((x, y) => (x.edge === y.edge ? y.score - x.score : x.edge === "torn" ? -1 : 1))
       .slice(0, o.maxPairChecks ?? 48);
     for (const c of pairs) {
       reqs.push({
@@ -126,32 +128,6 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
     }
   }
   return reqs;
-}
-
-/** Classes of twins: the partners on one twin group share an outline. Class id = smallest member index. */
-function twinClasses(prep: Prepared): Map<string, number> {
-  const parent = new Map<string, string>();
-  const find = (x: string): string => {
-    while (parent.get(x) !== x) x = parent.get(x)!;
-    return x;
-  };
-  const byCand = new Map(prep.match.candidates.map((c) => [c.id, c] as const));
-  for (const g of prep.match.twinGroups) {
-    const partners = g.candidates.map((id) => {
-      const c = byCand.get(id)!;
-      return c.a === g.anchor ? c.b : c.a;
-    });
-    for (const p of partners) if (!parent.has(p)) parent.set(p, p);
-    for (const p of partners.slice(1)) parent.set(find(p), find(partners[0]));
-  }
-  const out = new Map<string, number>();
-  for (const id of parent.keys()) {
-    const root = find(id);
-    const idx = prep.byId.get(id)?.index ?? 0;
-    out.set(root, Math.min(out.get(root) ?? Infinity, idx));
-  }
-  for (const id of parent.keys()) out.set(id, out.get(find(id))!);
-  return out;
 }
 
 const logit = (p: number) => Math.log(Math.max(1e-3, p) / Math.max(1e-3, 1 - p));

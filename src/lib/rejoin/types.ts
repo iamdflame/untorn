@@ -91,6 +91,11 @@ export type Candidate = {
   appearance: Appearance | null;
   /** Set when this candidate belongs to a twin group (geometrically indistinguishable alternatives). */
   twinGroup: string | null;
+  /**
+   * "torn": ragged edges fitted by shape. "cut": straight edges aligned end to end; geometry is weak there, so a cut
+   * join is only ever accepted with the content clue.
+   */
+  edge: "torn" | "cut";
 };
 
 /** Candidates from different fragments that fit the same stretch of edge equally well (stack tears). */

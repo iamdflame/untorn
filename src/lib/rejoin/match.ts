@@ -10,6 +10,7 @@
 // fragments (stack tears) form twin groups.
 
 import { axialDiff, fitRigid, PointGrid, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
+import { matchCuts } from "./cuts";
 import type { Candidate, Fragment, TwinGroup } from "./types";
 
 export type MatchOptions = {
@@ -46,6 +47,11 @@ export type MatchOptions = {
   twinRatio: number;
   twinFootprint: number;
   twinMinScore: number;
+  /**
+   * Also propose joins along straight cuts (scissors, shredders, ShredBench's Voronoi cuts). Opt-in: on torn pages every
+   * cut candidate is a coincidence of straight page edges, and only the content clue can accept one.
+   */
+  cuts: boolean;
 };
 
 export const MATCH_DEFAULTS: MatchOptions = {
@@ -69,6 +75,7 @@ export const MATCH_DEFAULTS: MatchOptions = {
   twinRatio: 0.5,
   twinFootprint: 0.8,
   twinMinScore: 40,
+  cuts: false,
 };
 
 /** Matching data for one fragment. */
@@ -571,6 +578,8 @@ export function geometryScore(
 export type MatchResult = {
   candidates: Candidate[];
   twinGroups: TwinGroup[];
+  /** Pieces sharing an outline (stack tears): fragment id → class id (the class's smallest fragment id). */
+  twinClass: Map<string, string>;
   data: MatchData[];
   stats: { seeds: number; screened: number; icp: number };
 };
@@ -645,13 +654,30 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
       seamB,
       appearance: null,
       twinGroup: null,
+      edge: "torn",
     };
     known.push(cand);
     perPair.set(key, known);
     raw.push(cand);
   }
-  const { candidates, twinGroups } = rank(raw, data, o);
-  return { candidates, twinGroups, data, stats: { seeds: seeds.length, screened, icp: icpRuns } };
+  if (o.cuts) {
+    for (const c of matchCuts(data, o)) {
+      const B = data.find((d) => d.f.id === c.b)!;
+      const known = raw.filter((x) => x.a === c.a && x.b === c.b);
+      if (!known.some((x) => samePose(x.pose, c.pose, B.f.centroid, 1.5, 4))) raw.push(c);
+    }
+  }
+  let ranked = rank(raw, data, o);
+  // Twins come from different pages, so two pieces of one twin class can never be joined. A chance fit between two
+  // edges of the same shape is dropped, and the rest re-ranked without it.
+  const cls = twinClassesOf(ranked.congruent);
+  const possible = raw.filter((c) => cls.get(c.a) === undefined || cls.get(c.a) !== cls.get(c.b));
+  if (possible.length < raw.length) {
+    for (const c of possible) c.twinGroup = null;
+    ranked = rank(possible, data, o);
+  }
+  const { congruent, ...rest } = ranked;
+  return { ...rest, data, twinClass: twinClassesOf([...ranked.congruent, ...congruent]), stats: { seeds: seeds.length, screened, icp: icpRuns } };
 }
 
 function samePose(p: Pose, q: Pose, at: [number, number], deg: number, px: number): boolean {
@@ -722,15 +748,18 @@ export function competitors(cands: Candidate[], data: MatchData[]): Map<string, 
 }
 
 /** Margins, geometry confidences and twin groups. */
-function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candidates: Candidate[]; twinGroups: TwinGroup[] } {
+function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candidates: Candidate[]; twinGroups: TwinGroup[]; congruent: [string, string][] } {
   const byId = new Map(data.map((d) => [d.f.id, d] as const));
   const rivals = competitors(cands, data);
   const twinEdges: [Candidate, Candidate, string][] = [];
+  const congruent: [string, string][] = [];
   for (const c of cands) {
     let margin = Infinity;
     for (const d of rivals.get(c.id) ?? []) {
+      if (d.edge !== c.edge) continue;
       margin = Math.min(margin, c.score / Math.max(d.score, 1e-9));
-      if (c.id >= d.id || c.score < o.twinMinScore || d.score < o.twinMinScore) continue;
+      // twins are a torn-edge notion; straight cuts are ambiguous by nature and go to pair checks
+      if (c.edge === "cut" || c.id >= d.id || c.score < o.twinMinScore || d.score < o.twinMinScore) continue;
       // twins: same anchor fragment, different partners, footprints that coincide
       const anchor = c.a === d.a || c.a === d.b ? c.a : c.b;
       if ((d.a !== anchor && d.b !== anchor)) continue;
@@ -744,8 +773,12 @@ function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candida
       const Q = byId.get(other.partner)!;
       const area = Math.min(P.f.area, Q.f.area) / Math.max(P.f.area, Q.f.area);
       if (area < 0.85) continue;
-      if (footprint(P, mine.pose, Q, other.pose) >= o.twinFootprint && footprint(Q, other.pose, P, mine.pose) >= o.twinFootprint) {
+      const fpq = footprint(P, mine.pose, Q, other.pose);
+      const fqp = footprint(Q, other.pose, P, mine.pose);
+      if (fpq >= o.twinFootprint && fqp >= o.twinFootprint) {
         twinEdges.push([c, d, anchor]);
+        // same outline (stack twins): nearly full mutual cover and equal area
+        if (fpq >= 0.92 && fqp >= 0.92 && area >= 0.93) congruent.push([P.f.id, Q.f.id]);
       }
     }
     c.margin = margin;
@@ -786,7 +819,30 @@ function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candida
     }
   }
   cands.sort((x, y) => y.score - x.score);
-  return { candidates: cands, twinGroups: groups };
+  return { candidates: cands, twinGroups: groups, congruent };
+}
+
+/** Classes of twins from congruent pairs (pieces with the same outline). Class id = the smallest member id. */
+export function twinClassesOf(pairs: [string, string][]): Map<string, string> {
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    while (parent.get(x) !== x) x = parent.get(x)!;
+    return x;
+  };
+  for (const [p, q] of pairs) {
+    if (!parent.has(p)) parent.set(p, p);
+    if (!parent.has(q)) parent.set(q, q);
+    parent.set(find(p), find(q));
+  }
+  const min = new Map<string, string>();
+  for (const id of parent.keys()) {
+    const r = find(id);
+    const m = min.get(r);
+    if (m === undefined || id < m) min.set(r, id);
+  }
+  const out = new Map<string, string>();
+  for (const id of parent.keys()) out.set(id, min.get(find(id))!);
+  return out;
 }
 
 /** Share of partner Q's interior (placed by poseQ in the anchor's frame) that falls inside partner P (placed by poseP). */

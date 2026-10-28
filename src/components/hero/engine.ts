@@ -1262,8 +1262,10 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     if (reduced) jAmt = v;
     dirty = true;
   }
+  let stepped = false;
   function step(dir: number) {
     if (!assembled) return;
+    stepped = true;
     setPlaying(false);
     setJ(0);
     if (dir > 0) {
@@ -1339,6 +1341,14 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       }
       if (input?.mode !== "recorded" && t >= T.end) t = T.end;
     } else if (!playing && t > g) t = g;
+    // reduced motion: the finished still, as far as the run has got (until the visitor steps through it)
+    if (reduced && !stepped) {
+      const st = stopAt();
+      if (t !== st) {
+        t = st;
+        dirty = true;
+      }
+    }
     if (Math.abs(jAmt - jTarget) > 0.001) {
       jAmt += (jTarget - jAmt) * (1 - Math.exp(-dt * 7));
       if (Math.abs(jAmt - jTarget) < 0.002) jAmt = jTarget;
@@ -1398,7 +1408,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     input = next;
     const newRun = !prev || prev.key !== next.key;
     if (newRun) {
-      t = reduced ? 0 : 0;
+      t = 0;
+      stepped = false;
       twPick = null;
       liveSeen.clear();
       liveQ.length = 0;

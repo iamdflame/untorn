@@ -384,7 +384,8 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
       <div className="r-head">
         <h2 id="rh">{title}</h2>
         <p className="r-sub">
-          The rebuilt page, what Muse read on it, and every seam with both of its clues. Hover the page for a real-pixel close-up; press <kbd>J</kbd> to pull it apart.
+          The rebuilt page, what Muse read on it, and every seam with both of its clues. <span className="on-fine">Hover the page for a real-pixel close-up; press <kbd>J</kbd> to pull it apart.</span>
+          <span className="on-touch">Touch the page for a real-pixel close-up.</span>
         </p>
         <div className="dl" role="group" aria-label="Downloads">
           {result.pages.map(

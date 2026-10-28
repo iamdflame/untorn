@@ -912,6 +912,17 @@ h2 {
   margin: 0;
   text-wrap: balance;
 }
+.on-touch {
+  display: none;
+}
+@media (hover: none) {
+  .on-fine {
+    display: none;
+  }
+  .on-touch {
+    display: inline;
+  }
+}
 .r-sub {
   grid-column: 1;
   margin: 8px 0 0;
@@ -1329,7 +1340,8 @@ h2 {
   max-width: 1344px;
   margin: 0 auto;
 }
-.page h1 {
+.page h1,
+.capture h1 {
   font-family: var(--serif);
   font-weight: 500;
   font-size: clamp(44px, 6vw, 96px);
@@ -1377,7 +1389,6 @@ h2 {
   font-size: 44px;
   line-height: 1;
   letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
 }
 .acc-keys dd small {
   display: block;
@@ -1447,7 +1458,6 @@ h2 {
   color: var(--chalk);
 }
 .eval-table td {
-  font-variant-numeric: tabular-nums;
   color: var(--chalk);
 }
 .eval-table figcaption {

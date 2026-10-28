@@ -1,0 +1,281 @@
+// Eval harness for the Rejoin solver on Bench-S cases.
+//
+//   pnpm tsx scripts/eval/solver.ts                                   # every case in scripts/bench/out, geometry only
+//   pnpm tsx scripts/eval/solver.ts --family single --content oracle:0.1
+//   pnpm tsx scripts/eval/solver.ts --family stack --content module:./path/to/muse-check.ts
+//
+// Options:
+//   --root DIR          cases directory (default scripts/bench/out)
+//   --family a,b        families to run (default: all but dev*)
+//   --content MODE      none | oracle:<error rate> | module:<path exporting createContentCheck() or a default ContentCheck>
+//   --masks sam|gt      SAM-like noisy masks (default) or exact masks
+//   --limit N           first N cases per family
+//   --json FILE         write per-case results as JSON
+//   --renders DIR       save the content-check images of the first case (pair + choice sheets) as PNG
+//
+// Metrics: a fragment is placed correctly when its pose is within 3 px (at its centroid) and 1° of the truth, up to
+// one rigid transform per page; joins are correct when the pair is adjacent on the page and the joined pose agrees
+// within 4 px / 1.5°. A page is perfect when all its fragments are placed correctly in one predicted page that holds
+// no foreign fragment.
+
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { fitRigid, poseApply, poseCompose, poseInvert, rng, type Pose } from "../../src/lib/rejoin/geom";
+import { encodePng } from "../../src/lib/rejoin/render";
+import { askAll, contentRequests, finish, prepare } from "../../src/lib/rejoin/solve";
+import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, SolveResult } from "../../src/lib/rejoin/types";
+import { listCases, loadCase, trueRelative, type BenchCase, type GroundTruth } from "./cases";
+
+type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string };
+
+function parseArgs(argv: string[]): Args {
+  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0 };
+  for (let i = 0; i < argv.length; i++) {
+    const k = argv[i];
+    const v = argv[i + 1];
+    if (k === "--root") a.root = v;
+    else if (k === "--family") a.family = v.split(",");
+    else if (k === "--content") a.content = v;
+    else if (k === "--masks") a.masks = v as "sam" | "gt";
+    else if (k === "--limit") a.limit = Number(v);
+    else if (k === "--json") a.json = v;
+    else if (k === "--renders") a.renders = v;
+    else continue;
+    i++;
+  }
+  return a;
+}
+
+/** Is a candidate join true: same page, and the pose within tolerance of the truth (at b's centroid)? */
+function isTrueJoin(gt: GroundTruth, frags: Map<string, Fragment>, a: string, b: string, pose: Pose, px = 4, deg = 1.5): boolean {
+  const fa = gt.fragments.find((f) => f.id === a)!;
+  const fb = gt.fragments.find((f) => f.id === b)!;
+  if (fa.page !== fb.page) return false;
+  const tp = trueRelative(gt, a, b)!;
+  const c = frags.get(b)!.centroid;
+  const [x1, y1] = poseApply(tp, c[0], c[1]);
+  const [x2, y2] = poseApply(pose, c[0], c[1]);
+  const dth = Math.abs(Math.atan2(Math.sin(tp.theta - pose.theta), Math.cos(tp.theta - pose.theta)));
+  return Math.hypot(x1 - x2, y1 - y2) <= px && dth <= (deg * Math.PI) / 180;
+}
+
+/** An oracle content check that answers from the ground truth and errs at `rate` (deterministic per case). */
+function oracle(gt: GroundTruth, frags: Map<string, Fragment>, cands: Map<string, Candidate>, rate: number, seed: number): ContentCheck {
+  const rand = rng(seed);
+  return async (req: ContentRequest): Promise<ContentVerdict> => {
+    const err = rand() < rate;
+    if (req.kind === "pair") {
+      const c = cands.get(req.candidate)!;
+      const truth = isTrueJoin(gt, frags, c.a, c.b, c.pose, 6, 2);
+      return { kind: "pair", id: req.id, same: err ? !truth : truth, confidence: 0.9 };
+    }
+    const truthIdx = req.candidates.findIndex((id) => {
+      const c = cands.get(id)!;
+      return isTrueJoin(gt, frags, c.a, c.b, c.pose, 6, 2);
+    });
+    if (!err) return { kind: "choice", id: req.id, choice: truthIdx >= 0 ? truthIdx : null, confidence: 0.9 };
+    const others = req.candidates.map((_, k) => k).filter((k) => k !== truthIdx);
+    return { kind: "choice", id: req.id, choice: others.length ? others[Math.floor(rand() * others.length)] : null, confidence: 0.9 };
+  };
+}
+
+async function loadModule(spec: string): Promise<ContentCheck> {
+  const mod = await import(pathToFileURL(path.resolve(spec)).href);
+  if (typeof mod.createContentCheck === "function") return await mod.createContentCheck();
+  if (typeof mod.default === "function") return mod.default as ContentCheck;
+  throw new Error(`${spec} exports neither createContentCheck() nor a default ContentCheck`);
+}
+
+type CaseResult = {
+  name: string;
+  family: string;
+  fragments: number;
+  placed: number;
+  correct: number;
+  misplaced: number;
+  unplaced: number;
+  pages: number;
+  perfectPages: number;
+  gtPages: number;
+  joinsAccepted: number;
+  joinsCorrect: number;
+  gtJoins: number;
+  twinSeams: number;
+  twinSeamsDetected: number;
+  twinGroups: number;
+  contentAsked: number;
+  ms: { analyse: number; match: number; assemble: number; total: number };
+};
+
+/** Score a result against the ground truth. */
+function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Omit<CaseResult, "contentAsked" | "ms"> {
+  const gt = c.gt;
+  const gtOf = new Map(gt.fragments.map((f) => [f.id, f] as const));
+  const pageOfPred = new Map<string, string>();
+  for (const p of res.pages) for (const f of p.fragments) pageOfPred.set(f.id, p.id);
+  const correct = new Set<string>();
+  let perfect = 0;
+  for (let g = 0; g < gt.pages.length; g++) {
+    const gtIds = gt.fragments.filter((f) => f.page === g && frags.has(f.id)).map((f) => f.id);
+    let bestCorrect: string[] = [];
+    let bestPage: SolveResult["pages"][number] | null = null;
+    for (const p of res.pages) {
+      const mine = p.fragments.filter((f) => gtOf.get(f.id)!.page === g);
+      if (!mine.length) continue;
+      const ok = alignedFragments(mine, gtOf, frags);
+      if (ok.length > bestCorrect.length) {
+        bestCorrect = ok;
+        bestPage = p;
+      }
+    }
+    for (const id of bestCorrect) correct.add(id);
+    if (bestPage && bestCorrect.length === gtIds.length && bestPage.fragments.length === gtIds.length) perfect++;
+  }
+  const placed = res.pages.reduce((s, p) => s + p.fragments.length, 0);
+  let joinsCorrect = 0;
+  for (const j of res.joins) if (isTrueJoin(gt, frags, j.a, j.b, j.pose)) joinsCorrect++;
+  // twin seams: true joins of stacked pages; detected when a twin group holds the true candidate
+  let twinSeams = 0;
+  let detected = 0;
+  if (gt.kind === "stack") {
+    const cands = new Map(res.candidates.map((x) => [x.id, x] as const));
+    for (const j of gt.joins) {
+      const a = gt.fragments[j.a].id;
+      const b = gt.fragments[j.b].id;
+      twinSeams++;
+      const hit = res.twinGroups.some((tg) =>
+        tg.candidates.some((id) => {
+          const x = cands.get(id)!;
+          return ((x.a === a && x.b === b) || (x.a === b && x.b === a)) && isTrueJoin(gt, frags, x.a, x.b, x.pose, 6, 2);
+        }),
+      );
+      if (hit) detected++;
+    }
+  }
+  return {
+    name: c.name,
+    family: gt.family,
+    fragments: c.inputs.length,
+    placed,
+    correct: correct.size,
+    misplaced: placed - correct.size,
+    unplaced: c.inputs.length - placed,
+    pages: res.pages.length,
+    perfectPages: perfect,
+    gtPages: gt.pages.length,
+    joinsAccepted: res.joins.length,
+    joinsCorrect,
+    gtJoins: gt.joins.length,
+    twinSeams,
+    twinSeamsDetected: detected,
+    twinGroups: res.twinGroups.length,
+  };
+}
+
+/** The largest set of a predicted page's fragments consistent with the truth under one rigid transform. */
+function alignedFragments(mine: { id: string; pose: Pose }[], gtOf: Map<string, GroundTruth["fragments"][number]>, frags: Map<string, Fragment>): string[] {
+  // photo → true page is the inverse of the generator's pose (page → photo)
+  const truth = new Map(mine.map((m) => [m.id, poseInvert(gtOf.get(m.id)!.pose)] as const));
+  const check = (G: Pose) =>
+    mine.filter((m) => {
+      const c = frags.get(m.id)!.centroid;
+      const pred = poseCompose(G, m.pose);
+      const tr = truth.get(m.id)!;
+      const [x1, y1] = poseApply(pred, c[0], c[1]);
+      const [x2, y2] = poseApply(tr, c[0], c[1]);
+      const dth = Math.abs(Math.atan2(Math.sin(pred.theta - tr.theta), Math.cos(pred.theta - tr.theta)));
+      return Math.hypot(x1 - x2, y1 - y2) <= 3 && dth <= Math.PI / 180;
+    });
+  let best: typeof mine = [];
+  for (const k of mine) {
+    const G = poseCompose(truth.get(k.id)!, poseInvert(k.pose));
+    let ok = check(G);
+    if (ok.length >= 2) {
+      // refine the page transform on the inliers' outlines, then recount
+      const a: number[] = [];
+      const b: number[] = [];
+      for (const m of ok) {
+        const f = frags.get(m.id)!;
+        const tr = truth.get(m.id)!;
+        for (let i = 0; i < f.outline.length; i += 40) {
+          const p = poseApply(m.pose, f.outline[i], f.outline[i + 1]);
+          const q = poseApply(tr, f.outline[i], f.outline[i + 1]);
+          a.push(p[0], p[1]);
+          b.push(q[0], q[1]);
+        }
+      }
+      const fit = fitRigid(Float64Array.from(a), Float64Array.from(b));
+      const ok2 = check(fit.pose);
+      if (ok2.length >= ok.length) ok = ok2;
+    }
+    if (ok.length > best.length) best = ok;
+  }
+  return best.map((m) => m.id);
+}
+
+const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(1)}%` : "–");
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const all = listCases(args.root);
+  const fams = args.family ?? [...new Set(all.map((d) => d.replace(/-\d+$/, "")))].filter((f) => !f.startsWith("dev"));
+  const external = args.content.startsWith("module:") ? await loadModule(args.content.slice(7)) : null;
+  const results: CaseResult[] = [];
+  for (const fam of fams) {
+    const names = listCases(args.root, [fam]).slice(0, args.limit || undefined);
+    for (const name of names) {
+      const c = loadCase(path.join(args.root, name), args.masks);
+      const t0 = performance.now();
+      const prep = prepare(c.inputs);
+      let reqs: ContentRequest[] = [];
+      let verdicts: (ContentVerdict | null)[] = [];
+      if (args.content !== "none") {
+        reqs = contentRequests(prep);
+        const cands = new Map(prep.match.candidates.map((x) => [x.id, x] as const));
+        const check = external ?? oracle(c.gt, prep.byId, cands, Number(args.content.split(":")[1] ?? 0.1), c.gt.seed);
+        if (args.renders && !results.length) {
+          mkdirSync(args.renders, { recursive: true });
+          reqs.slice(0, 12).forEach((r, k) => writeFileSync(path.join(args.renders!, `${name}-${k}-${r.kind}.png`), encodePng(r.render())));
+        }
+        verdicts = await askAll(reqs, check, 8);
+      }
+      const res = finish(prep, reqs, verdicts);
+      const total = performance.now() - t0;
+      const s = score(c, prep.byId, res);
+      const row: CaseResult = {
+        ...s,
+        contentAsked: reqs.length,
+        ms: { analyse: res.timings.analyse, match: res.timings.match, assemble: res.timings.assemble, total: total - (res.timings.content ?? 0) },
+      };
+      results.push(row);
+      console.log(
+        `${name.padEnd(12)} frags ${String(row.fragments).padStart(3)}  correct ${String(row.correct).padStart(3)}  misplaced ${row.misplaced}  unplaced ${row.unplaced}  ` +
+          `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
+          (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups}  ` : "") +
+          (reqs.length ? `asked ${reqs.length}  ` : "") +
+          `${row.ms.total.toFixed(0)} ms`,
+      );
+    }
+  }
+  // summary table per family
+  console.log("\n| Family | Cases | Fragments | Placed correctly | Mis-placed | Join precision | Join recall | Perfect pages | Twin seams detected | Runtime median (max) |");
+  console.log("|---|---|---|---|---|---|---|---|---|---|");
+  for (const fam of fams) {
+    const r = results.filter((x) => x.family === fam);
+    if (!r.length) continue;
+    const sum = (k: keyof CaseResult) => r.reduce((s, x) => s + (x[k] as number), 0);
+    const ms = r.map((x) => x.ms.total).sort((a, b) => a - b);
+    console.log(
+      `| ${fam} | ${r.length} | ${sum("fragments")} | ${pct(sum("correct"), sum("fragments"))} | ${sum("misplaced")} | ${pct(sum("joinsCorrect"), sum("joinsAccepted"))} | ` +
+        `${pct(sum("joinsCorrect"), sum("gtJoins"))} | ${sum("perfectPages")}/${sum("gtPages")} | ${sum("twinSeams") ? pct(sum("twinSeamsDetected"), sum("twinSeams")) : "–"} | ` +
+        `${(ms[Math.floor(ms.length / 2)] / 1000).toFixed(2)} s (${(ms[ms.length - 1] / 1000).toFixed(2)} s) |`,
+    );
+  }
+  if (args.json) writeFileSync(args.json, JSON.stringify({ args, results }, null, 1));
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

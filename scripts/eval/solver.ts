@@ -13,6 +13,7 @@
 //   --json FILE         write per-case results as JSON
 //   --renders DIR       save the content-check images of the first case (pair + choice sheets) as PNG
 //   --twin-sides one|both  ask each stack slot from both classes of twins (default) or one
+//   --cuts              also match straight cuts (opt-in; for scissor-cut and ShredBench-style pieces)
 //
 // Metrics: a fragment is placed correctly when its pose is within 3 px (at its centroid) and 1° of the truth, up to
 // one rigid transform per page; joins are correct when the pair is adjacent on the page and the joined pose agrees
@@ -28,10 +29,10 @@ import { askAll, contentRequests, finish, prepare } from "../../src/lib/rejoin/s
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, SolveResult } from "../../src/lib/rejoin/types";
 import { listCases, loadCase, trueRelative, type BenchCase, type GroundTruth } from "./cases";
 
-type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string; twinSides: "one" | "both" };
+type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string; twinSides: "one" | "both"; cuts: boolean };
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both" };
+  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both", cuts: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     const v = argv[i + 1];
@@ -43,6 +44,10 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--json") a.json = v;
     else if (k === "--renders") a.renders = v;
     else if (k === "--twin-sides") a.twinSides = v as "one" | "both";
+    else if (k === "--cuts") {
+      a.cuts = true;
+      continue;
+    }
     else continue;
     i++;
   }
@@ -108,6 +113,9 @@ type CaseResult = {
   twinSeams: number;
   twinSeamsDetected: number;
   twinGroups: number;
+  /** Twin groups where pixel appearance alone (ink continuing, paper tone) ranks the true twin first. */
+  twinAppearanceHits: number;
+  twinAppearanceGroups: number;
   contentAsked: number;
   ms: { analyse: number; match: number; assemble: number; total: number };
 };
@@ -127,10 +135,13 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
     let bestPage: SolveResult["pages"][number] | null = null;
     for (const p of res.pages) {
       const mine = p.fragments.filter((f) => gtOf.get(f.id)!.page === g);
-      if (!mine.length) continue;
+      // a predicted page belongs to the true page holding a strict majority of its pieces; pieces of any other page
+      // in it are misplaced, and a placement needs at least two pieces consistent with the truth
+      if (2 * mine.length <= p.fragments.length) continue;
       const ok = alignedFragments(mine, gtOf, frags);
+      if (ok.length < 2) continue;
       // a group of this page's pieces consistent with the truth, in a predicted page that holds nothing else
-      if (ok.length >= 2 && mine.length === p.fragments.length) for (const id of ok) consistent.add(id);
+      if (mine.length === p.fragments.length) for (const id of ok) consistent.add(id);
       if (ok.length > bestCorrect.length) {
         bestCorrect = ok;
         bestPage = p;
@@ -161,7 +172,23 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
       if (hit) detected++;
     }
   }
+  // can pixel appearance alone pick the true twin? (the baseline the reading clue has to beat)
+  let appHits = 0;
+  let appGroups = 0;
+  if (gt.kind === "stack") {
+    const cands = new Map(res.candidates.map((x) => [x.id, x] as const));
+    for (const tg of res.twinGroups) {
+      const members = tg.candidates.map((id) => cands.get(id)!).filter((x) => x.appearance?.ink !== null && x.appearance !== null);
+      const truth = members.filter((x) => isTrueJoin(gt, frags, x.a, x.b, x.pose, 6, 2));
+      if (members.length < 2 || truth.length !== 1) continue;
+      appGroups++;
+      const best = members.reduce((p, q) => (q.appearance!.score > p.appearance!.score ? q : p));
+      if (best === truth[0]) appHits++;
+    }
+  }
   return {
+    twinAppearanceHits: appHits,
+    twinAppearanceGroups: appGroups,
     name: c.name,
     family: gt.family,
     fragments: c.inputs.length,
@@ -236,7 +263,7 @@ async function main() {
     for (const name of names) {
       const c = loadCase(path.join(args.root, name), args.masks);
       const t0 = performance.now();
-      const prep = prepare(c.inputs, { twinSides: args.twinSides });
+      const prep = prepare(c.inputs, { twinSides: args.twinSides, match: { cuts: args.cuts } });
       let reqs: ContentRequest[] = [];
       let verdicts: (ContentVerdict | null)[] = [];
       if (args.content !== "none") {
@@ -261,7 +288,7 @@ async function main() {
       console.log(
         `${name.padEnd(12)} frags ${String(row.fragments).padStart(3)}  correct ${String(row.correct).padStart(3)}  split ${row.split}  misplaced ${row.misplaced}  unplaced ${row.unplaced}  ` +
           `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
-          (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups}  ` : "") +
+          (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups} appearance-picks ${row.twinAppearanceHits}/${row.twinAppearanceGroups}  ` : "") +
           (reqs.length ? `asked ${reqs.length}  ` : "") +
           `${row.ms.total.toFixed(0)} ms`,
       );

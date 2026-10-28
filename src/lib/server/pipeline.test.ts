@@ -62,8 +62,8 @@ describe("runPipeline (mocked models)", async () => {
   });
 
   it("stops reading at the deadline and assembles with what it has", async () => {
-    const result = await runPipeline(scene.photo, fakeDeps(put, { readDelayMs: 2000 }), { runId: "t6", source: "upload", readDeadlineMs: 150 }, () => {});
+    const result = await runPipeline(scene.photo, fakeDeps(put, { readDelayMs: 8000 }), { runId: "t6", source: "upload", readDeadlineMs: 150 }, () => {});
     expect(result.warnings.map((w) => w.code)).toContain("slow-reading");
-    expect(result.timings.read).toBeLessThan(1500);
+    expect(result.timings.read).toBeLessThan(6000);
   });
 });

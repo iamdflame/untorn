@@ -6,3 +6,11 @@
 eval/data
 *.mp4
 !public/**/*.mp4
+.next
+node_modules
+.data
+*.tsbuildinfo
+test-results
+playwright-report
+scripts/bench/pages
+scripts/bench/sample

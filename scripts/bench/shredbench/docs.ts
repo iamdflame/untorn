@@ -31,9 +31,13 @@ async function getJson<T>(url: string): Promise<T> {
 
 async function getText(url: string): Promise<string | null> {
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch(url, { headers: UA });
-    if (res.ok) return await res.text();
-    if (res.status === 404) return null;
+    try {
+      const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(30000) });
+      if (res.ok) return await res.text();
+      if (res.status === 404) return null;
+    } catch {
+      // a reset or timeout: try again
+    }
     await sleep(2000 * attempt);
   }
   return null;
@@ -232,9 +236,10 @@ async function arxivTables(want: number): Promise<{ content: string; source: str
     await sleep(3000); // arXiv asks automated clients for one request every few seconds
     const page = await getText(`https://arxiv.org/html/${id}`);
     if (!page) continue;
-    const tables = [...page.matchAll(/<table class="ltx_tabular[\s\S]*?<\/table>/g)].map((t) => plainTable(t[0])).filter((t): t is string => !!t);
+    const tables = [...page.matchAll(/<table[^>]*class="ltx_tabular[^"]*"[^>]*>[\s\S]*?<\/table>/g)].map((t) => plainTable(t[0])).filter((t): t is string => !!t);
     // one table per paper, the first usable one
     if (tables.length) out.push({ content: tables[0], source: `https://arxiv.org/html/${id}` });
+    console.log(`arXiv ${id}: ${tables.length} usable table(s), ${out.length}/${want}`);
   }
   return out;
 }
@@ -244,7 +249,11 @@ async function arxivTables(want: number): Promise<{ content: string; source: str
 async function main() {
   const root = path.join(argValue("--root") ?? DEFAULT_ROOT, "replica", "docs");
   const per = Number(argValue("--per") ?? 18);
-  const sources: Source[] = [];
+  const only = argValue("--domains")?.split(",");
+  const want = (d: string) => !only || only.includes(d);
+  // keep what earlier runs fetched for the domains not asked for now
+  const sourcesFile = path.join(root, "sources.json");
+  const sources: Source[] = existsSync(sourcesFile) ? (JSON.parse(readFileSync(sourcesFile, "utf8")) as Source[]).filter((x) => !want(x.domain)) : [];
   const save = (domain: string, name: string, md: string, source: string, license: string) => {
     const dir = path.join(root, domain);
     mkdirSync(dir, { recursive: true });
@@ -256,7 +265,7 @@ async function main() {
   const official = path.join(argValue("--root") ?? DEFAULT_ROOT, "official", "my_dataset");
   const rendered = new Set(["news_008", "news_031", "news_041"]);
   let en = 0;
-  if (existsSync(official)) {
+  if (want("news_en") && existsSync(official)) {
     for (const f of readdirSync(official).filter((x) => x.endsWith(".md")).sort()) {
       const name = f.replace(/\.md$/, "");
       if (rendered.has(name)) continue;
@@ -264,23 +273,26 @@ async function main() {
       en++;
     }
   }
-  for (const [i, a] of (await chinaDaily(per - en, 101)).entries()) save("news_en", `cd_${String(i + 1).padStart(3, "0")}`, a.md, a.source, "China Daily (ShredBench's English source; evaluation use only)");
+  if (want("news_en")) for (const [i, a] of (await chinaDaily(per - en, 101)).entries()) save("news_en", `cd_${String(i + 1).padStart(3, "0")}`, a.md, a.source, "China Daily (ShredBench's English source; evaluation use only)");
   console.log(`news_en: ${sources.filter((s) => s.domain === "news_en").length}`);
-  for (const [i, a] of (await peoplesDaily(per, 1)).entries()) save("news_zh", `pd_${String(i + 1).padStart(3, "0")}`, a.md, a.source, "People's Daily (ShredBench's Chinese source; evaluation use only)");
+  if (want("news_zh")) for (const [i, a] of (await peoplesDaily(per, 1)).entries()) save("news_zh", `pd_${String(i + 1).padStart(3, "0")}`, a.md, a.source, "People's Daily (ShredBench's Chinese source; evaluation use only)");
   console.log(`news_zh: ${sources.filter((s) => s.domain === "news_zh").length}`);
 
   // code: a third each of Python, C++ and Java
   const third = Math.ceil(per / 3);
+  if (want("code")) {
   for (const [i, f] of pythonFiles(third).entries()) save("code", `py_${String(i + 1).padStart(3, "0")}`, "```python\n" + f.content + "\n```", f.source, "PSF-2.0");
   const cpp = [...(await githubFiles("google/googletest", "v1.15.2", /\.(cc|h)$/, Math.ceil(third / 2))), ...(await githubFiles("fmtlib/fmt", "11.0.2", /\.(cc|h)$/, third))].slice(0, third);
   for (const [i, f] of cpp.entries()) save("code", `cpp_${String(i + 1).padStart(3, "0")}`, "```cpp\n" + f.content + "\n```", f.source, f.source.includes("googletest") ? "BSD-3-Clause" : "MIT");
   const java = await githubFiles("google/gson", "gson-parent-2.11.0", /\.java$/, per - 2 * third);
   for (const [i, f] of java.entries()) save("code", `java_${String(i + 1).padStart(3, "0")}`, "```java\n" + f.content + "\n```", f.source, "Apache-2.0");
   console.log(`code: ${sources.filter((s) => s.domain === "code").length}`);
+  }
 
-  for (const [i, t] of (await arxivTables(per)).entries()) save("table", `arxiv_${String(i + 1).padStart(3, "0")}`, t.content, t.source, "arXiv (per paper; used for evaluation only)");
+  if (want("table")) for (const [i, t] of (await arxivTables(per)).entries()) save("table", `arxiv_${String(i + 1).padStart(3, "0")}`, t.content, t.source, "arXiv (per paper; used for evaluation only)");
   console.log(`table: ${sources.filter((s) => s.domain === "table").length}`);
-  writeFileSync(path.join(root, "sources.json"), JSON.stringify(sources, null, 1));
+  mkdirSync(root, { recursive: true });
+  writeFileSync(sourcesFile, JSON.stringify(sources, null, 1));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {

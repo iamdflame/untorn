@@ -72,10 +72,10 @@ function voronoiLabels(W: number, H: number, seeds: [number, number][]): Uint8Ar
 }
 
 /** Greedy centre-out packing on a coarse grid (1 cell = `g` page px), with a gap of `pad` cells around each piece. */
-function pack(masks: { w: number; h: number; occ: Uint8Array; area: number }[], pad: number): [number, number][] {
+function pack(masks: { w: number; h: number; occ: Uint8Array; area: number }[], pad: number, grow = 1): [number, number][] {
   const total = masks.reduce((s, m) => s + m.area, 0);
-  let side = Math.ceil(1.5 * Math.sqrt(total / 0.5));
-  side = Math.max(side, 2 * Math.max(...masks.map((m) => Math.max(m.w, m.h))));
+  let side = Math.ceil(1.5 * grow * Math.sqrt(total / 0.5));
+  side = Math.max(side, Math.ceil(2 * grow * Math.max(...masks.map((m) => Math.max(m.w, m.h)))));
   const canvas = new Uint8Array(side * side);
   const order = masks.map((_, i) => i).sort((a, b) => masks[b].area - masks[a].area);
   const pos: [number, number][] = masks.map(() => [0, 0]);
@@ -114,7 +114,8 @@ function pack(masks: { w: number; h: number; occ: Uint8Array; area: number }[], 
       placed = true;
       break;
     }
-    if (!placed) throw new Error("packing failed");
+    // long cells of a tall page can run out of room: start again on a larger canvas
+    if (!placed) return pack(masks, pad, grow * 1.3);
   }
   return pos;
 }

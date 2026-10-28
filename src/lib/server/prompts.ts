@@ -6,7 +6,8 @@
 // validates them and decoding is constrained to them.
 
 // .1: the measured bench runs (seam v1/v2/flush, choice v1). .2: verifySeam defaults to seam v2 after the bench.
-export const PROMPTS_VERSION = "2026-10-28.2";
+// .3: readPage gains the "markdown" and "parts" wordings (ShredBench's conversion rules); its default is unchanged.
+export const PROMPTS_VERSION = "2026-10-28.3";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -139,6 +140,42 @@ const READ_V1 =
   "Return the transcription as text, the language as a BCP 47 code (for example en, de, fr), and in uncertain list " +
   "each word you transcribed but are not sure of, exactly as it appears in text.";
 
+/**
+ * markdown: a reassembled page to Markdown, with ShredBench's own conversion rules (their published MLLM prompt,
+ * github.com/ythere-y/ShredBench, Apache-2.0) adapted only where the input differs: the page is already put back
+ * together, and missing text is marked instead of guessed.
+ */
+const READ_MARKDOWN =
+  "You are an AI assistant specialized in converting a reconstructed document to Markdown format. The input image " +
+  "shows a single document that was torn into fragments and has been put back together: thin lines show where the " +
+  "pieces meet, and some parts may still be missing (blank or dark areas).\n" +
+  "1. Text: accurately recognize all text, verbatim. Do not summarize, interpret, or hallucinate content. If the " +
+  "document is code, transcribe the code exactly. Ignore the tear lines, shadows and background. Where text is " +
+  `missing because a piece is missing, or is illegible, write ${GAP} in its place and never guess it. Convert the text ` +
+  "into Markdown format, keeping the original document structure (headings, paragraphs, lists).\n" +
+  "2. Mathematical formulas: convert them to LaTeX, inline with \\( \\) and blocks with \\[ \\].\n" +
+  "3. Tables: convert tables to HTML format, wrapped with <table> and </table>.\n" +
+  "4. Figures: ignore their content.\n" +
+  "5. Output: a clear Markdown structure with line breaks between elements; only the converted content, no remarks.\n" +
+  "Return the Markdown as text, the language as a BCP 47 code, and in uncertain each word you are not sure of.";
+
+/** parts: the same rules for a document that could only be partly reassembled (parts and loose pieces, all upright). */
+const READ_PARTS =
+  "You are an AI assistant specialized in reconstructing torn documents and converting them to Markdown format. The " +
+  "input image shows the pieces of a single document: some pieces have already been put back together into larger " +
+  "parts, the rest are shown on their own, and every part is upright. They are numbered, but the numbers are not " +
+  "their order. Mentally put the parts back in their original order (a word or sentence cut at an edge continues on " +
+  "the part that completes it) and transcribe the whole document once, from its beginning to its end.\n" +
+  "1. Text: accurately recognize all text, verbatim. Do not summarize, interpret, or hallucinate content. If the " +
+  "document is code, transcribe the code exactly. Ignore cut lines, labels, shadows and background. Where text is " +
+  `missing, write ${GAP} in its place and never guess it. Convert the text into Markdown format, keeping the original ` +
+  "document structure (headings, paragraphs, lists).\n" +
+  "2. Mathematical formulas: convert them to LaTeX, inline with \\( \\) and blocks with \\[ \\].\n" +
+  "3. Tables: convert tables to HTML format, wrapped with <table> and </table>.\n" +
+  "4. Figures: ignore their content.\n" +
+  "5. Output: a clear Markdown structure with line breaks between elements; only the converted content, no remarks.\n" +
+  "Return the Markdown as text, the language as a BCP 47 code, and in uncertain each word you are not sure of.";
+
 // ---------------------------------------------------------------------------------------------------------------
 // translate
 
@@ -194,7 +231,7 @@ const fragmentLabel = (i: number) => `Fragment ${i}:`;
 export const PROMPTS = {
   seam: { v1: SEAM_V1, v2: SEAM_V2, flush: SEAM_FLUSH },
   choice: { v1: CHOICE_V1, v2: CHOICE_V2, joined: CHOICE_JOINED },
-  read: { v1: READ_V1 },
+  read: { v1: READ_V1, markdown: READ_MARKDOWN, parts: READ_PARTS },
   translate: { v1: TRANSLATE_V1 },
   sort: { v1: SORT_V1, fragmentLabel },
   /** Added when the seam image is also sent rotated by 180°. */
@@ -204,6 +241,7 @@ export const PROMPTS = {
 } as const;
 
 export type SeamPromptVersion = keyof typeof PROMPTS.seam;
+export type ReadPromptVersion = keyof typeof PROMPTS.read;
 export type ChoicePromptVersion = keyof typeof PROMPTS.choice;
 
 /** The wording each function uses by default, chosen from the measured runs in docs/MODELS.md. */

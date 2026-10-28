@@ -48,6 +48,15 @@ const SEAM_V2 =
   "Return same_place, your confidence from 0 to 1, the joined words you read across the tear, and a one-line reason " +
   "that names the deciding words.";
 
+/** flush: v1 for a seam drawn without the dark gap line (the two pieces simply meet). */
+const SEAM_FLUSH =
+  "Two torn paper fragments are laid edge to edge with no gap: a ragged tear runs from top to bottom near the middle " +
+  "of the image, where the left piece meets the right piece. Decide whether they really belong together at this " +
+  "spot (the same place on the same page) or are two different places that merely line up. Read the typed words " +
+  "that cross the tear: on a true join, the letters and words split by the tear continue across it (half-letters " +
+  "complete each other, words and sentences read on). Return same_place, your confidence 0-1, the words you read " +
+  "across the tear, and a one-line reason.";
+
 // ---------------------------------------------------------------------------------------------------------------
 // chooseContinuation: which candidate continues the fragment? (k-way)
 
@@ -92,6 +101,16 @@ const CHOICE_V2 = (k: number) =>
   "stops making sense. Rule candidates out by their broken lines and choose the one where every line reads on.\n" +
   "Return the choice, your confidence from 0 to 1, the joined words you read across the tear for your choice, and a " +
   "one-line reason that names the deciding words.";
+
+/** joined: the sheet shows each candidate already joined, flush, to the left piece (one strip per candidate). */
+const CHOICE_JOINED = (k: number) =>
+  "Pages stacked together were torn in one go, so several fragments share exactly the same torn outline. The top " +
+  "strip, labelled LEFT FRAGMENT, is one piece on its own. Each row below it shows that same left piece joined, flush " +
+  `along the tear, to a different right piece: ${k} candidates (${letterList(k)}) with the identical tear shape. ` +
+  "Exactly one row is a true join, where the right piece comes from the same page. Read each row straight across " +
+  "the tear: on the true join, letters cut in half complete each other and every line reads on as real words and a " +
+  "sensible sentence; on the others some line breaks into a non-word or nonsense. Return the choice, your confidence " +
+  "0-1, the joined words you read across the tear for your choice, and a one-line reason.";
 
 // ---------------------------------------------------------------------------------------------------------------
 // readPage: transcribe a reassembled page, marking gaps instead of guessing.
@@ -172,8 +191,8 @@ const SORT_V1 = (n: number) =>
 const fragmentLabel = (i: number) => `Fragment ${i}:`;
 
 export const PROMPTS = {
-  seam: { v1: SEAM_V1, v2: SEAM_V2 },
-  choice: { v1: CHOICE_V1, v2: CHOICE_V2 },
+  seam: { v1: SEAM_V1, v2: SEAM_V2, flush: SEAM_FLUSH },
+  choice: { v1: CHOICE_V1, v2: CHOICE_V2, joined: CHOICE_JOINED },
   read: { v1: READ_V1 },
   translate: { v1: TRANSLATE_V1 },
   sort: { v1: SORT_V1, fragmentLabel },

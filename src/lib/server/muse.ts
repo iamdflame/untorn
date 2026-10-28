@@ -4,8 +4,8 @@
 // Every public function returns a MuseOutcome and never throws for an upstream problem: a failed reading is evidence
 // the solver goes without, not a crash. Policy, per attempt:
 // - network errors, 5xx and 429 retry with jittered exponential backoff (Retry-After honoured, within the deadline);
-// - empty or unparseable output retries at once, and an output cut off by the token budget retries with a larger one
-//   (the spike's empty k-way answers were reasoning that used up max_output_tokens);
+// - empty or unparseable output retries at once; when the reasoning used up max_output_tokens (the spike's empty k-way
+//   answers), the retry reasons one level lower with 1.5x the budget, so a runaway item cannot double the latency;
 // - 400/401/402/403/404/413 fail at once: the same request would fail again;
 // - each attempt has its own timeout and the call has an overall deadline; the caller's AbortSignal cancels both;
 // - a call slower than its hedge delay gets a second identical request beside it; the first good answer wins.
@@ -140,6 +140,10 @@ export type StructuredRequest<T> = {
   promptVersion?: string;
   defaults: { model: MuseModel; effort: ReasoningEffort; maxOutputTokens: number; timeoutMs: number; deadlineMs: number; hedgeAfterMs: number };
 };
+
+const EFFORTS: ReasoningEffort[] = ["minimal", "low", "medium", "high", "xhigh", "max"];
+/** One reasoning level lower (minimal stays minimal). */
+export const stepDown = (e: ReasoningEffort): ReasoningEffort => EFFORTS[Math.max(0, EFFORTS.indexOf(e) - 1)];
 
 const BACKOFF_BASE_MS = 600;
 const BACKOFF_CAP_MS = 8000;
@@ -296,7 +300,7 @@ export async function museCall<T>(req: StructuredRequest<T>, opts: MuseOptions =
 
 async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Promise<MuseOutcome<T>> {
   const model = opts.model ?? req.defaults.model;
-  const effort = opts.effort ?? req.defaults.effort;
+  let effort = opts.effort ?? req.defaults.effort;
   let maxOutputTokens = opts.maxOutputTokens ?? req.defaults.maxOutputTokens;
   const timeoutMs = opts.timeoutMs ?? req.defaults.timeoutMs;
   const deadlineMs = opts.deadlineMs ?? req.defaults.deadlineMs;
@@ -393,7 +397,11 @@ async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Pr
             ? { code: "incomplete", message: `no answer within ${maxOutputTokens} output tokens (${j.incomplete_details?.reason ?? "incomplete"})`, status, retryable: true }
             : { code: "empty", message: "empty output", status, retryable: true };
           waitMs = 0;
-          if (cutOff || attemptUsage.reasoningTokens > 0.8 * maxOutputTokens) maxOutputTokens = Math.min(MAX_OUTPUT_CAP, maxOutputTokens * 2);
+          if (cutOff || attemptUsage.reasoningTokens > 0.8 * maxOutputTokens) {
+            // the reasoning ran away: think less and allow a little more, rather than wait twice as long
+            effort = stepDown(effort);
+            maxOutputTokens = Math.min(MAX_OUTPUT_CAP, Math.round(maxOutputTokens * 1.5));
+          }
         } else {
           const parsed = parseJsonLoose(text);
           const value = parsed === undefined ? null : req.check(parsed);
@@ -523,7 +531,7 @@ export async function chooseContinuation(
       schema,
       content,
       promptVersion: `${PROMPTS_VERSION}/choice.${version}${opts.rotated ? "+rot" : ""}`,
-      defaults: { model: "muse-spark-1.3", effort: "medium", maxOutputTokens: 8000, timeoutMs: 60_000, deadlineMs: 120_000, hedgeAfterMs: 25_000 },
+      defaults: { model: "muse-spark-1.3", effort: "low", maxOutputTokens: 6000, timeoutMs: 45_000, deadlineMs: 90_000, hedgeAfterMs: 20_000 },
       check: (j) => {
         if (!isObj(j)) return null;
         const choice = str(j.choice)?.trim().toUpperCase() ?? "";

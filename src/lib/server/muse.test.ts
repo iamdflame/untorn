@@ -135,7 +135,7 @@ describe("retry policy", () => {
     expect(sleeps).toEqual([450, 900]);
   });
 
-  it("retries empty output at once, with a doubled budget when reasoning used it up", async () => {
+  it("retries empty output at once, reasoning one level lower with a larger budget when reasoning used it up", async () => {
     const empty = new Response(
       JSON.stringify({
         status: "incomplete",
@@ -149,7 +149,8 @@ describe("retry policy", () => {
     const { o, logs, sleeps } = opts({ fetchImpl: f.impl });
     const r = await verifySeam(img, o);
     expect(r.ok).toBe(true);
-    expect(f.calls.map((c) => c.body.max_output_tokens)).toEqual([4000, 8000]);
+    expect(f.calls.map((c) => c.body.max_output_tokens)).toEqual([4000, 6000]);
+    expect(f.calls.map((c) => (c.body.reasoning as { effort: string }).effort)).toEqual(["low", "minimal"]);
     expect(logs[0]).toMatchObject({ error: "incomplete", outcome: "retry" });
     expect(sleeps[0]).toBeLessThan(300);
     // the failed attempt's tokens are billed too
@@ -227,7 +228,7 @@ describe("chooseContinuation", () => {
     const r = await chooseContinuation(img, 4, o);
     const schema = (f.calls[0].body.text as { format: { schema: { properties: { choice: { enum: string[] } } } } }).format.schema;
     expect(schema.properties.choice.enum).toEqual(["A", "B", "C", "D"]);
-    expect(f.calls[0].body).toMatchObject({ reasoning: { effort: "medium" } });
+    expect(f.calls[0].body).toMatchObject({ reasoning: { effort: "low" }, max_output_tokens: 6000 });
     expect(r.ok && r.value).toMatchObject({ choice: "C", index: 2, confidence: 1 });
   });
 

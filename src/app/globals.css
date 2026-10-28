@@ -12,7 +12,7 @@
   --room-3: oklch(0.265 0.012 60);
   --chalk: oklch(0.95 0.014 85); /* type on the room */
   --chalk-2: oklch(0.8 0.014 80);
-  --chalk-3: oklch(0.66 0.014 75);
+  --chalk-3: oklch(0.7 0.014 75);
   --chalk-hair: oklch(0.95 0.014 85 / 0.12);
   --chalk-hair-2: oklch(0.95 0.014 85 / 0.28);
   --ink: oklch(0.3 0.012 260);

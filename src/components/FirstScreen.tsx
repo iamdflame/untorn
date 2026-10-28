@@ -11,7 +11,7 @@ import { SAMPLES, STACKS, type Sample } from "@/lib/run/samples";
 import type { RunResult } from "@/lib/run/types";
 import { Hero } from "./hero/Hero";
 import { ErrorNote, Note } from "./hero/LeadNote";
-import { usePrefersReducedMotion } from "./hooks";
+import { useNearOrIdle, usePrefersReducedMotion } from "./hooks";
 import { ResultSection } from "./result/ResultSection";
 import { useRun, type LiveInput } from "./run/useRun";
 import { openPicker, TearYourOwn } from "./TearYourOwn";
@@ -34,6 +34,9 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
   const [J, setJ] = useState(0);
   const [liveSample, setLiveSample] = useState(false);
   const lastInput = useRef<LiveInput | null>(null);
+  // the result is below the fold: build it once it's near, or once the page is idle
+  const resultRef = useRef<HTMLDivElement>(null);
+  const resultOn = useNearOrIdle(resultRef);
 
   // warm the functions, then load the recording
   useEffect(() => {
@@ -165,12 +168,13 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
         <p className="why-sm">The federal auditors put the finish at 847 years at this pace. The law asks that victims get their files back in their lifetime. At this pace, they won’t.</p>
       </section>
 
-      {result ? (
+      <div ref={resultRef} />
+      {result && resultOn ? (
         <ResultSection result={result} photoSrc={usesSamplePhoto ? (sample.photo.hires ?? sample.photo.url) : (result.photo.url ?? state.photo?.url ?? null)} J={J} setJ={setJ} />
       ) : (
         <section className="result" id="result" aria-labelledby="rh" aria-busy={busy}>
           <div className="r-head">
-            <h2 id="rh">{isLive ? "The page appears here when the run is done." : "Loading the recorded run…"}</h2>
+            <h2 id="rh">{isLive && !result ? "The page appears here when the run is done." : "Loading the result…"}</h2>
           </div>
         </section>
       )}

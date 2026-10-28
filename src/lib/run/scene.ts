@@ -126,7 +126,51 @@ function densify(poly: Vec[], step: number): Vec[] {
   return out;
 }
 
-function distToPoly(p: Vec, q: Vec[]): number {
+/** Segments of a closed polygon bucketed in a grid, for fast "is this point within tol of the outline" tests. */
+type SegGrid = { cell: number; map: Map<string, number[]>; q: Vec[] };
+function segGrid(q: Vec[], cell: number): SegGrid {
+  const map = new Map<string, number[]>();
+  for (let i = 0; i < q.length; i++) {
+    const a = q[i];
+    const b = q[(i + 1) % q.length];
+    const x0 = Math.floor(Math.min(a[0], b[0]) / cell);
+    const x1 = Math.floor(Math.max(a[0], b[0]) / cell);
+    const y0 = Math.floor(Math.min(a[1], b[1]) / cell);
+    const y1 = Math.floor(Math.max(a[1], b[1]) / cell);
+    for (let gx = x0; gx <= x1; gx++)
+      for (let gy = y0; gy <= y1; gy++) {
+        const k = `${gx},${gy}`;
+        const l = map.get(k);
+        if (l) l.push(i);
+        else map.set(k, [i]);
+      }
+  }
+  return { cell, map, q };
+}
+/** Distance from p to the polygon, or Infinity when no segment lies within one grid cell of p. */
+function distNear(p: Vec, g: SegGrid): number {
+  const gx = Math.floor(p[0] / g.cell);
+  const gy = Math.floor(p[1] / g.cell);
+  let best = Infinity;
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dy = -1; dy <= 1; dy++) {
+      const l = g.map.get(`${gx + dx},${gy + dy}`);
+      if (!l) continue;
+      for (const i of l) {
+        const a = g.q[i];
+        const b = g.q[(i + 1) % g.q.length];
+        const abx = b[0] - a[0];
+        const aby = b[1] - a[1];
+        const l2 = abx * abx + aby * aby || 1e-9;
+        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / l2));
+        const d = Math.hypot(a[0] + abx * t - p[0], a[1] + aby * t - p[1]);
+        if (d < best) best = d;
+      }
+    }
+  return best;
+}
+
+export function distToPoly(p: Vec, q: Vec[]): number {
   let best = Infinity;
   for (let i = 0; i < q.length; i++) {
     const a = q[i];
@@ -329,7 +373,18 @@ export type SceneInput = {
   reads: ReadOut[];
 };
 
+const cache = new WeakMap<object, { pages: object; joins: object; scene: Scene }>();
+
+/** The scene for a run; the same run's arrays give back the same scene (the hero and the result share it). */
 export function buildScene(input: SceneInput): Scene {
+  const hit = cache.get(input.pieces);
+  if (hit && hit.pages === input.pages && hit.joins === input.joins) return hit.scene;
+  const scene = makeScene(input);
+  cache.set(input.pieces, { pages: input.pages, joins: input.joins, scene });
+  return scene;
+}
+
+function makeScene(input: SceneInput): Scene {
   const { photo } = input;
   // pages side by side, centred on the photo
   const gap = input.pages.length ? PAGE_GAP * input.pages[0].width : 0;
@@ -372,6 +427,15 @@ export function buildScene(input: SceneInput): Scene {
 
   // seams: the shared edge of every join, found where the two outlines meet on the page
   const pagePoly = new Map<string, Vec[]>();
+  const grids = new Map<string, SegGrid>();
+  const gridOf = (p: ScenePiece) => {
+    let g = grids.get(p.id);
+    if (!g) {
+      g = segGrid(onPage(p), 8);
+      grids.set(p.id, g);
+    }
+    return g;
+  };
   const onPage = (p: ScenePiece): Vec[] => {
     let pts = pagePoly.get(p.id);
     if (!pts) {
@@ -393,8 +457,10 @@ export function buildScene(input: SceneInput): Scene {
     if (!pa || !pb || !pa.placed || !pb.placed || pa.page !== pb.page) continue;
     const A = onPage(pa);
     const B = onPage(pb);
-    const ra = longestRun(A.map((p) => distToPoly(p, B) < SEAM_TOL));
-    const rb = longestRun(B.map((p) => distToPoly(p, A) < SEAM_TOL));
+    const gA = gridOf(pa);
+    const gB = gridOf(pb);
+    const ra = longestRun(A.map((p) => distNear(p, gB) < SEAM_TOL));
+    const rb = longestRun(B.map((p) => distNear(p, gA) < SEAM_TOL));
     const runA = ra.map((i) => A[i]);
     const runB = rb.map((i) => B[i]);
     const line = runA.length >= 2 ? simplifyOpen(runA, 0.8) : [];

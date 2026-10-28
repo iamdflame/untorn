@@ -10,7 +10,7 @@
 
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { del, get, head, list, put } from "@vercel/blob";
+import { BlobNotFoundError, del, get, head, list, put } from "@vercel/blob";
 
 export type StoredFile = { bytes: Uint8Array; contentType: string };
 export type ListedFile = { key: string; uploadedAt: Date; size: number };
@@ -83,7 +83,8 @@ class BlobStore implements Store {
   }
 }
 
-const isNotFound = (e: unknown) => e instanceof Error && /not.?found/i.test(`${e.name} ${e.message}`);
+// class names are minified in production builds: check the class, then the message ("The requested blob does not exist")
+export const isNotFound = (e: unknown) => e instanceof BlobNotFoundError || (e instanceof Error && /not.?found|does not exist/i.test(`${e.name} ${e.message}`));
 
 class FsStore implements Store {
   kind = "fs" as const;

@@ -36,3 +36,11 @@ describe("photo intake", () => {
     expect(crisp).toBeGreaterThan(soft * 3);
   });
 });
+
+describe("store", () => {
+  it("recognises Blob's not-found errors even with minified class names", async () => {
+    const { isNotFound } = await import("./store");
+    expect(isNotFound(new Error("Vercel Blob: The requested blob does not exist"))).toBe(true);
+    expect(isNotFound(new Error("Vercel Blob: Access denied"))).toBe(false);
+  });
+});

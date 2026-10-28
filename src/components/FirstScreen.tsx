@@ -40,7 +40,7 @@ export function FirstScreen({ sample }: { sample: Sample }) {
     if (recorded) replay(recorded, { instant: reduced, targetMs: 20_000 });
   }, [recorded, reduced, replay]);
 
-  // the recording plays as soon as it arrives (a still, for reduced motion)
+  // the recording plays as soon as it arrives (a still, for reduced motion), unless a live run already started
   const started = useRef(false);
   useEffect(() => {
     if (!recorded || started.current) return;
@@ -50,6 +50,7 @@ export function FirstScreen({ sample }: { sample: Sample }) {
 
   const goLive = useCallback(
     (input: LiveInput) => {
+      started.current = true; // a late-loading recording must not replace a live run
       lastInput.current = input;
       stageRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
       void live(input);

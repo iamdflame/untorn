@@ -177,6 +177,9 @@ export function assembleTiles(shapes: PieceShape[], cands: StraightCandidate[], 
     progress = false;
     for (let i = 0; i < blank.length && !progress; i++) {
       const s = blank[i].c;
+      // the join placed on no content at all must be the strongest geometry: both corners and equal lengths (two
+      // single-corner fits can agree by chance, e.g. a piece set outside the page against two collinear page edges)
+      if (s.straight.ends < 2) continue;
       const ga = groupOf.get(s.a)!;
       const gb = groupOf.get(s.b)!;
       if (ga === gb) continue;

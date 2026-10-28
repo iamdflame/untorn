@@ -15,7 +15,7 @@
 //   --root DIR          data and runs (default scripts/bench/shredbench/out, or $SHREDBENCH_ROOT)
 //   --run NAME          run name (default main); --budget USD stops new live work past this total spend (default 24)
 //   --set official|replica, --pieces 8,12,16, --domains news_en,news_zh,code,table, --split dev|test|all,
-//   --only <substr,…>, --limit N, --concurrency N, --max-reads N (seam readings per sample, default 14)
+//   --only <substr,…>, --limit N, --concurrency N, --max-reads N (seam readings per sample, default 2N − 2)
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -43,7 +43,8 @@ const run = argValue("--run") ?? "main";
 const budget = Number(argValue("--budget") ?? 24);
 const list = (k: string) => argValue(k)?.split(",").filter(Boolean);
 const concurrency = Number(argValue("--concurrency") ?? 3);
-const maxReads = Number(argValue("--max-reads") ?? SOLVE_DEFAULTS.maxReads);
+// seam readings per sample: 2N − 2 by default (14 for 8 pieces), or --max-reads
+const maxReadsFor = (pieces: number) => Number(argValue("--max-reads") ?? 2 * pieces - 2);
 
 const segFile = (s: Sample) => path.join(root, "segments", `${s.key}.json`);
 const runDir = (s: Sample, r = run) => path.join(root, "runs", r, s.key);
@@ -130,7 +131,7 @@ async function solveStage(samples: Sample[], ledger: Ledger) {
       readMs = Math.max(readMs, out.meta.ms);
       return out.ok ? { same: out.value.same_place, confidence: out.value.confidence } : null;
     };
-    const sol = await solveSample(photo, segmentsOf(s), reader, known, { ...SOLVE_DEFAULTS, maxReads });
+    const sol = await solveSample(photo, segmentsOf(s), reader, known, { ...SOLVE_DEFAULTS, maxReads: maxReadsFor(s.pieces) });
     const ms = performance.now() - t0;
     writeJson(path.join(dir, "verdicts.json"), Object.fromEntries(sol.verdicts));
     const n = sol.frags.length;

@@ -78,21 +78,55 @@ export function textOrientation(
     X[k] -= cx;
     Y[k] -= cy;
   }
+  // Paper under the ink, sampled the same way: the criterion compares ink per bin with paper per bin, so the piece's
+  // own shape does not count (projected along its long axis an elongated piece bunches any ink into few bins).
+  const paperXs: number[] = [];
+  const paperYs: number[] = [];
+  let paperCount = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (depth[y * w + x] >= margin) paperCount++;
+  const pStride = Math.max(1, Math.ceil(paperCount / maxSamples));
+  for (let y = 0, q = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (depth[y * w + x] < margin) continue;
+      if (q++ % pStride === 0) {
+        paperXs.push(x + 0.5 - cx);
+        paperYs.push(y + 0.5 - cy);
+      }
+    }
+  }
   const R = Math.ceil(Math.hypot(w, h)) + 2;
   const hist = new Float64Array(2 * R + 1);
+  const paperHist = new Float64Array(2 * R + 1);
+  const splat = (out: Float64Array, r: number, wgt: number) => {
+    // linear splat into two bins: rounding to the nearest bin aliases with the pixel lattice (at 45° the projected
+    // pixel centres fall on a 1/√2 grid, and the profile looks peaky without any text lines)
+    const b = Math.floor(r);
+    const f = r - b;
+    out[b] += wgt * (1 - f);
+    out[b + 1] += wgt * f;
+  };
+  /** E[d²] / E[d]² of the ink density d (ink per paper) across bins, paper-weighted: 1 when the ink is uniform. */
   const crit = (theta: number) => {
     hist.fill(0);
+    paperHist.fill(0);
     const s = Math.sin(theta);
     const c = Math.cos(theta);
-    let tot = 0;
-    for (let k = 0; k < n; k++) {
-      const r = -X[k] * s + Y[k] * c;
-      hist[Math.round(r) + R] += W[k];
-      tot += W[k];
+    for (let k = 0; k < n; k++) splat(hist, -X[k] * s + Y[k] * c + R, W[k]);
+    for (let k = 0; k < paperXs.length; k++) splat(paperHist, -paperXs[k] * s + paperYs[k] * c + R, 1);
+    let pmax = 0;
+    for (let b = 0; b < paperHist.length; b++) pmax = Math.max(pmax, paperHist[b]);
+    let sp = 0;
+    let sd = 0;
+    let sdd = 0;
+    for (let b = 0; b < hist.length; b++) {
+      const p = paperHist[b];
+      if (p < 0.2 * pmax) continue;
+      const d = hist[b] / p;
+      sp += p;
+      sd += p * d;
+      sdd += p * d * d;
     }
-    let ss = 0;
-    for (let b = 0; b < hist.length; b++) ss += hist[b] * hist[b];
-    return ss / (tot * tot);
+    return sd > 0 ? (sdd * sp) / (sd * sd) : 1;
   };
   const coarse = new Float64Array(180);
   let best = 0;

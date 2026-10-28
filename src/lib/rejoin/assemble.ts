@@ -27,6 +27,8 @@ export type AssembleOptions = {
   /** A join is refused when this share of either seam is already used by an accepted join. */
   seamReuse: number;
   refineIters: number;
+  /** Accept a twin seam without a read when its two pieces already sit side by side on one page (a closed loop). */
+  twinLoops: boolean;
   /** Called with every acceptance decision (for logs and the UI). */
   trace?: (candidate: string, outcome: TraceOutcome) => void;
 };
@@ -44,6 +46,7 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   overlapShare: 0.02,
   seamReuse: 0.35,
   refineIters: 6,
+  twinLoops: true,
 };
 
 /** Fused content evidence per candidate id: log-odds sum of the verdicts that touched it. */
@@ -182,6 +185,18 @@ export function assemble(
       if (tryAccept({ c, combined, decidedBy: "geometry", content: null })) added++;
     }
     if (!added) break;
+  }
+
+  // Twins whose pieces already sit side by side on one page, exactly as the seam says: the loop closes on its own
+  // (the pages were built from confirmed joins), so the seam is accepted without a read of its own.
+  if (o.twinLoops) {
+    for (const c of byScore) {
+      if (acceptedIds.has(c.id) || !c.twinGroup || c.edge === "cut" || c.score < o.minContentScore) continue;
+      if (comp.get(c.a) !== comp.get(c.b)) continue;
+      const ev = evidence?.get(c.id);
+      if (ev && ev.logOdds < 0) continue;
+      tryAccept({ c, combined: 1 - Math.exp(-c.score / 60), decidedBy: "geometry", content: null });
+    }
   }
 
   // pages: components of two or more fragments

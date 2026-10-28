@@ -8,6 +8,7 @@
 //   const result = finish(prep, reqs, verdicts);                           // sync: assembly
 
 import { assemble, ASSEMBLE_DEFAULTS, type AssembleOptions, type ContentEvidence } from "./assemble";
+import { permutationVotes, planQuestions, type QuestionPlan, type TwinStrategy } from "./plan";
 import { analyzeFragment, type FragmentOptions } from "./fragment";
 import { matchFragments, type MatchOptions, type MatchResult } from "./match";
 import { renderChoiceSheet, renderSeam, type SeamRenderOptions } from "./seam";
@@ -25,6 +26,11 @@ export type SolveOptions = {
    * class ("one", half the calls) or of both ("both", every pick confirmed from the other side).
    */
   twinSides?: "one" | "both";
+  /**
+   * Stack tears: "all" asks every twin seam (from `twinSides`); "tree" asks along a spanning tree of slots, one side
+   * first, and re-asks only where the reads disagree (plan.ts).
+   */
+  twinStrategy?: TwinStrategy;
   /** Parallel content calls. */
   concurrency?: number;
   fragment?: FragmentOptions;
@@ -98,7 +104,7 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
     if (asked.has(key)) continue;
     asked.set(key, cands[0].score);
     // "one": ask each slot from the class with the smaller id (a piece whose twins were not all found keeps its question)
-    if ((o.twinSides ?? "both") === "one" && mine !== undefined && theirs !== undefined && mine > theirs) continue;
+    if ((o.twinStrategy ?? "all") === "all" && (o.twinSides ?? "both") === "one" && mine !== undefined && theirs !== undefined && mine > theirs) continue;
     reqs.push({
       kind: "choice",
       id: `choice:${g.id}`,
@@ -133,7 +139,7 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
 const logit = (p: number) => Math.log(Math.max(1e-3, p) / Math.max(1e-3, 1 - p));
 
 /** Fold verdicts into per-candidate log-odds: a pick adds evidence for it and against the others in its sheet. */
-export function fuseVerdicts(reqs: ContentRequest[], verdicts: (ContentVerdict | null)[]): ContentEvidence {
+export function fuseVerdicts(reqs: ContentRequest[], verdicts: (ContentVerdict | null)[], prep?: Prepared): ContentEvidence {
   const ev: ContentEvidence = new Map();
   const add = (id: string, lo: number) => {
     const e = ev.get(id) ?? { logOdds: 0, votes: 0 };
@@ -153,6 +159,13 @@ export function fuseVerdicts(reqs: ContentRequest[], verdicts: (ContentVerdict |
       r.candidates.forEach((id, k) => add(id, k === v.choice ? logit(conf) : -logit(conf)));
     }
   });
+  // "tree": a pick on a side that forms a consistent matching is confirmed by the other picks of its slot
+  if (prep && prep.options.twinStrategy === "tree") {
+    const extra = permutationVotes({ candidates: prep.match.candidates, twinClass: prep.match.twinClass }, reqs, verdicts);
+    for (const [id, conf] of extra) {
+      if ((ev.get(id)?.votes ?? 0) < 2) add(id, logit(Math.min(0.99, Math.max(0.5, conf))));
+    }
+  }
   return ev;
 }
 
@@ -176,10 +189,46 @@ export async function askAll(reqs: ContentRequest[], check: ContentCheck, concur
   return out;
 }
 
+/** The questions to ask, round by round (see plan.ts). */
+export function questionPlan(prep: Prepared): QuestionPlan {
+  const trial = (reqs: ContentRequest[], verdicts: (ContentVerdict | null)[]) => {
+    const quiet = { ...prep, options: { ...prep.options, onProgress: undefined, assemble: { ...prep.options.assemble, trace: undefined } } };
+    return new Set(finish(quiet, reqs, verdicts).joins.map((j) => (j.a < j.b ? `${j.a}|${j.b}` : `${j.b}|${j.a}`)));
+  };
+  return planQuestions({ candidates: prep.match.candidates, twinClass: prep.match.twinClass, trial }, contentRequests(prep), prep.options.twinStrategy ?? "all");
+}
+
+/** Ask the planned questions round by round; returns every question asked and its verdict. */
+export async function askPlanned(
+  prep: Prepared,
+  check: ContentCheck,
+  concurrency = 6,
+  opts: { onDone?: (n: number) => void; onRound?: (round: ContentRequest[], k: number) => void; stop?: () => boolean } = {},
+): Promise<{ reqs: ContentRequest[]; verdicts: (ContentVerdict | null)[] }> {
+  const plan = questionPlan(prep);
+  const reqs: ContentRequest[] = [];
+  const verdicts: (ContentVerdict | null)[] = [];
+  const answers = new Map<string, ContentVerdict | null>();
+  let round = plan.first;
+  let done = 0;
+  for (let k = 0; round.length && k < 12; k++) {
+    opts.onRound?.(round, k);
+    const vs = await askAll(round, check, concurrency, () => opts.onDone?.(++done));
+    round.forEach((r, i) => {
+      reqs.push(r);
+      verdicts.push(vs[i]);
+      answers.set(r.id, vs[i]);
+    });
+    if (opts.stop?.()) break;
+    round = plan.next(answers);
+  }
+  return { reqs, verdicts };
+}
+
 /** Assemble pages from the prepared geometry and the content verdicts (if any). Synchronous. */
 export function finish(prep: Prepared, reqs: ContentRequest[] = [], verdicts: (ContentVerdict | null)[] = []): SolveResult {
   const t0 = now();
-  const evidence = verdicts.some((v) => v) ? fuseVerdicts(reqs, verdicts) : null;
+  const evidence = verdicts.some((v) => v) ? fuseVerdicts(reqs, verdicts, prep) : null;
   const r = assemble(prep.fragments, prep.match.data, prep.match.candidates, evidence, prep.options.assemble);
   const t1 = now();
   prep.options.onProgress?.("assemble", 1, 1);
@@ -198,9 +247,12 @@ export function finish(prep: Prepared, reqs: ContentRequest[] = [], verdicts: (C
 export async function solve(inputs: FragmentInput[], options: SolveOptions = {}): Promise<SolveResult> {
   const prep = prepare(inputs, options);
   if (!options.content) return finish(prep);
-  const reqs = contentRequests(prep);
   const t0 = now();
-  const verdicts = await askAll(reqs, options.content, options.concurrency ?? 6, (n) => options.onProgress?.("content", n, reqs.length));
+  let total = 0;
+  const { reqs, verdicts } = await askPlanned(prep, options.content, options.concurrency ?? 6, {
+    onRound: (round) => (total += round.length),
+    onDone: (n) => options.onProgress?.("content", n, total),
+  });
   prep.timings.content = now() - t0;
   return finish(prep, reqs, verdicts);
 }

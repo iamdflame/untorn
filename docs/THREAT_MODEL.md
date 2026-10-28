@@ -11,17 +11,17 @@ Untorn takes a photo of torn paper and returns the rebuilt page and its text. Th
 - **Retention:** photos, run results and phone sessions are kept in a private Vercel Blob store and deleted after 23 h by an hourly cleanup cron (`/api/cleanup`). Sample runs are static files.
 - **No training use.** Photos go only to Meta's Model API (SAM 3.1 and Muse) to run the pipeline. The capture page says so in one line before the camera opens.
 - **IP addresses** are never stored in the clear: rate limiting uses salted hashes (`IP_HASH_SALT`).
-- **Run links** (`/r/{runId}`) use unguessable ids. Anyone holding a link can view that run until it expires, and the share UI says so.
+- **Run links** (`/r/{runId}`) use unguessable ids. Anyone holding a link can view that run until it expires (23 h).
 
 ## Threats and mitigations
 | Threat | Mitigation |
 |---|---|
 | Key theft from the browser | The key lives only in server env vars. The browser never talks to the model API. |
 | Credit exhaustion (scripted runs) | Per-IP hourly limits on runs and sessions; a global daily spend cap; a per-instance concurrency cap with a bounded queue; at most 120 pieces per photo; request bodies capped at 4.5 MB. |
-| Malicious uploads (polyglots, huge images, decompression bombs) | Type sniffed by content, not by extension or MIME header; size caps before decode; images decoded by `sharp` with pixel limits; HEIC converted server-side; any failure returns a designed error. |
+| Malicious uploads (polyglots, huge images, decompression bombs) | Type sniffed by content, not by extension or MIME header; size caps before decode; images decoded by `sharp` (its default input-pixel limit applies); HEIC converted server-side; any failure returns a designed error. |
 | Prompt injection via the photo's own text ("ignore instructions…") | Muse calls use fixed prompts with strict JSON schemas. The text on the paper is data to read, never instructions. Verdicts only choose between geometric candidates the solver proposed, so a hostile page can at worst mislead its own reconstruction, never act. |
 | Invented text in the transcript | The page-reading prompt forbids filling gaps: missing paper is marked `[…]`, uncertain words are listed, and the join map shows the evidence for every seam. |
-| Cross-session access (guessing a phone code) | 6-character codes expire. Sessions accept one photo and are rate-limited per IP. |
+| Cross-session access (guessing a phone code) | 6-character codes expire, and creating codes is rate-limited per IP. |
 | Cron endpoints abused | `/api/health/run` and `/api/cleanup` require `CRON_SECRET`. |
 | Store enumeration | `/api/files/{key}` serves allow-listed key shapes only. The store is private. |
 | Dependency vulnerabilities | Lockfile-pinned. Audit before each release. |

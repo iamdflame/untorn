@@ -95,6 +95,8 @@ type CaseResult = {
   fragments: number;
   placed: number;
   correct: number;
+  /** Assembled consistently with the truth, but in a group separate from the page's main one. */
+  split: number;
   misplaced: number;
   unplaced: number;
   pages: number;
@@ -117,6 +119,7 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
   const pageOfPred = new Map<string, string>();
   for (const p of res.pages) for (const f of p.fragments) pageOfPred.set(f.id, p.id);
   const correct = new Set<string>();
+  const consistent = new Set<string>();
   let perfect = 0;
   for (let g = 0; g < gt.pages.length; g++) {
     const gtIds = gt.fragments.filter((f) => f.page === g && frags.has(f.id)).map((f) => f.id);
@@ -126,6 +129,8 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
       const mine = p.fragments.filter((f) => gtOf.get(f.id)!.page === g);
       if (!mine.length) continue;
       const ok = alignedFragments(mine, gtOf, frags);
+      // a group of this page's pieces consistent with the truth, in a predicted page that holds nothing else
+      if (ok.length >= 2 && mine.length === p.fragments.length) for (const id of ok) consistent.add(id);
       if (ok.length > bestCorrect.length) {
         bestCorrect = ok;
         bestPage = p;
@@ -135,6 +140,7 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
     if (bestPage && bestCorrect.length === gtIds.length && bestPage.fragments.length === gtIds.length) perfect++;
   }
   const placed = res.pages.reduce((s, p) => s + p.fragments.length, 0);
+  const split = [...consistent].filter((id) => !correct.has(id)).length;
   let joinsCorrect = 0;
   for (const j of res.joins) if (isTrueJoin(gt, frags, j.a, j.b, j.pose)) joinsCorrect++;
   // twin seams: true joins of stacked pages; detected when a twin group holds the true candidate
@@ -161,7 +167,8 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
     fragments: c.inputs.length,
     placed,
     correct: correct.size,
-    misplaced: placed - correct.size,
+    split,
+    misplaced: placed - correct.size - split,
     unplaced: c.inputs.length - placed,
     pages: res.pages.length,
     perfectPages: perfect,
@@ -252,7 +259,7 @@ async function main() {
       };
       results.push(row);
       console.log(
-        `${name.padEnd(12)} frags ${String(row.fragments).padStart(3)}  correct ${String(row.correct).padStart(3)}  misplaced ${row.misplaced}  unplaced ${row.unplaced}  ` +
+        `${name.padEnd(12)} frags ${String(row.fragments).padStart(3)}  correct ${String(row.correct).padStart(3)}  split ${row.split}  misplaced ${row.misplaced}  unplaced ${row.unplaced}  ` +
           `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
           (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups}  ` : "") +
           (reqs.length ? `asked ${reqs.length}  ` : "") +
@@ -261,15 +268,15 @@ async function main() {
     }
   }
   // summary table per family
-  console.log("\n| Family | Cases | Fragments | Placed correctly | Mis-placed | Join precision | Join recall | Perfect pages | Twin seams detected | Runtime median (max) |");
-  console.log("|---|---|---|---|---|---|---|---|---|---|");
+  console.log("\n| Family | Cases | Fragments | Placed correctly | Split off | Mis-placed | Unplaced | Join precision | Join recall | Perfect pages | Twin seams detected | Runtime median (max) |");
+  console.log("|---|---|---|---|---|---|---|---|---|---|---|---|");
   for (const fam of fams) {
     const r = results.filter((x) => x.family === fam);
     if (!r.length) continue;
     const sum = (k: keyof CaseResult) => r.reduce((s, x) => s + (x[k] as number), 0);
     const ms = r.map((x) => x.ms.total).sort((a, b) => a - b);
     console.log(
-      `| ${fam} | ${r.length} | ${sum("fragments")} | ${pct(sum("correct"), sum("fragments"))} | ${sum("misplaced")} | ${pct(sum("joinsCorrect"), sum("joinsAccepted"))} | ` +
+      `| ${fam} | ${r.length} | ${sum("fragments")} | ${pct(sum("correct"), sum("fragments"))} | ${sum("split")} | ${sum("misplaced")} | ${sum("unplaced")} | ${pct(sum("joinsCorrect"), sum("joinsAccepted"))} | ` +
         `${pct(sum("joinsCorrect"), sum("gtJoins"))} | ${sum("perfectPages")}/${sum("gtPages")} | ${sum("twinSeams") ? pct(sum("twinSeamsDetected"), sum("twinSeams")) : "–"} | ` +
         `${(ms[Math.floor(ms.length / 2)] / 1000).toFixed(2)} s (${(ms[ms.length - 1] / 1000).toFixed(2)} s) |`,
     );

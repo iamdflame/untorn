@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { openSamStream, samFrames } from "./client";
 import { parseSamText, readOutputTextDeltas, SamTextAccumulator, UpstreamError } from "./parse";
+import { buildBoxPointImageRequest } from "./request";
 
 // Cut from real SAM 3.1 output: the e1 "head" concept cache (lossless masks) and a live point prompt (one_bit masks).
 const fixture = (name: string) => readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), "utf8");
@@ -19,6 +20,20 @@ function sse(events: unknown[], splitEvery = 7): ReadableStream<Uint8Array> {
     },
   });
 }
+
+describe("box and point prompts", () => {
+  it("writes a half-open box (right and bottom exclusive) with positive and negative points, clamped into the image", () => {
+    const body = buildBoxPointImageRequest(
+      [{ box: [10, 20, 110, 220], points: [{ x: 60.7, y: 120.2 }, { x: 999, y: 5, negative: true }] }, { box: [300, 10, 400, 90] }],
+      { width: 640, height: 480 },
+      "data:image/jpeg;base64,AAAA",
+    );
+    expect(body.input[0].content[0].text).toBe(
+      "<0f>0<|box;x1=10;y1=20;x2=109;y2=219;w=640;h=480|><|point;x=60;y=120;w=640;h=480|>-<|point;x=639;y=5;w=640;h=480|>," +
+        "1<|box;x1=300;y1=10;x2=399;y2=89;w=640;h=480|>",
+    );
+  });
+});
 
 describe("parseSamText on real output", () => {
   it("reads the concept cache: frames, ids, boxes, confidence, height-first masks", () => {

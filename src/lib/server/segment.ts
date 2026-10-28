@@ -16,11 +16,12 @@ import type { Box } from "@/lib/contracts";
 import { openSamStream, samFrames, META_API_BASE } from "@/lib/sam/client";
 import { decodeMask } from "@/lib/sam/mask";
 import { UpstreamError, type RawObject } from "@/lib/sam/parse";
-import { buildBoxImageRequest, buildConceptImageRequest, jpegDataUrl, MAX_OBJECTS_PER_REQUEST, type SamRequestBody } from "@/lib/sam/request";
+import { buildBoxPointImageRequest, buildConceptImageRequest, jpegDataUrl, MAX_OBJECTS_PER_REQUEST, type PointPrompt, type SamRequestBody } from "@/lib/sam/request";
 import { hedge } from "./hedge";
 import { cropJpeg, decodePhoto, resizeJpeg, type DecodedPhoto } from "./images";
 import {
   cleanFragmentMask,
+  interiorPoints,
   maskArea,
   maskBox,
   maskCoverage,
@@ -34,8 +35,10 @@ import {
 
 export type SegmentVariant = "auto" | "crops" | "fullres-boxes" | "snap";
 
-/** In "auto", a snapped piece whose paper and background colours are closer than this (σ) is refined with SAM. */
-export const SNAP_MIN_SEPARATION = 6;
+/** In "auto", a snapped piece whose paper and background colours are closer than this (robust separation) is refined with SAM. */
+export const SNAP_MIN_SEPARATION = 3;
+/** In "auto", a snap that agrees less than this (IoU) with the pass-1 mask it started from is refined with SAM. */
+export const SNAP_MIN_AGREEMENT = 0.85;
 
 /** USD per SAM 3.1 image request (docs: pricing-rate-limits, $2.50 per 1,000 images). */
 export const SAM_IMAGE_PRICE = 0.0025;
@@ -59,6 +62,8 @@ export type Fragment = {
   refined: boolean;
   /** How this piece reached full resolution. */
   method: "snap" | "crop" | "fullres" | "snap-fallback";
+  /** For snapped pieces: paper/background colour separation (σ) and IoU of the snap with the pass-1 mask. */
+  snap?: { separation: number | null; agreement: number };
 };
 
 export type SamCallLog = { stage: string; ms: number; attempt: number; ok: boolean; objects: number; bytes: number; error?: string };
@@ -259,6 +264,8 @@ export function mergeDetections<T extends { full: PlacedMask; confidence: number
   return kept;
 }
 
+// Boxes go to SAM as [left, top, right, bottom) (half-open, see request.ts); the inclusive mask box padded by
+// 2 x scale + 2 px or more absorbs the one-pixel difference.
 function padBox(b: Box, pad: number, W: number, H: number): Box {
   return [Math.max(0, b[0] - pad), Math.max(0, b[1] - pad), Math.min(W - 1, b[2] + pad), Math.min(H - 1, b[3] + pad)];
 }
@@ -368,10 +375,21 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
   const tTiles = Date.now();
 
   // Pass 2: refine each piece to full resolution.
-  type Refined = { mask: PlacedMask; confidence: number | null; refined: boolean; method: Fragment["method"] };
+  type Refined = { mask: PlacedMask; confidence: number | null; refined: boolean; method: Fragment["method"]; snap?: Fragment["snap"] };
   const fallback = (d: Detection, why: string): Refined => {
     warnings.push(why);
     return { mask: snapped(photo, d).mask, confidence: d.confidence, refined: false, method: "snap-fallback" };
+  };
+  // Point prompts for piece i: up to 3 positive points deep inside its pass-1 mask, and a negative point deep inside
+  // each neighbouring piece that reaches into its box, so SAM segments this piece and not its neighbour.
+  const interiors = dets.map((d) => interiorPoints(d.full, 3));
+  const promptPoints = (i: number, region: { left: number; top: number; width: number; height: number }): PointPrompt[] => {
+    const box = maskBox(dets[i].full)!;
+    const usable = ([x, y]: Point) =>
+      x >= Math.max(region.left, box[0]) && y >= Math.max(region.top, box[1]) && x <= Math.min(region.left + region.width - 1, box[2]) && y <= Math.min(region.top + region.height - 1, box[3]);
+    const pos = interiors[i].map(([x, y]) => ({ x, y }));
+    const neg = interiors.flatMap((pts, j) => (j === i ? [] : pts.filter(usable).slice(0, 1))).map(([x, y]) => ({ x, y, negative: true }));
+    return [...pos, ...neg.slice(0, 4)];
   };
   const refineByCrop = async (d: Detection, i: number): Promise<Refined> => {
     const b = maskBox(d.full)!;
@@ -381,7 +399,9 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
     const pad = Math.ceil(2 * d.scale) + 2;
     const local = padBox([b[0] - crop.left, b[1] - crop.top, b[2] - crop.left, b[3] - crop.top], pad, crop.width, crop.height);
     try {
-      const objects = await samImage(ctx, `crop${i}`, buildBoxImageRequest([local], { width: crop.width, height: crop.height }, jpegDataUrl(Buffer.from(crop.jpeg).toString("base64"))), opts.refineTimeoutMs ?? 30_000, hedgeMs);
+      const points = promptPoints(i, crop).map((p) => ({ ...p, x: p.x - crop.left, y: p.y - crop.top }));
+      const request = buildBoxPointImageRequest([{ box: local, points }], { width: crop.width, height: crop.height }, jpegDataUrl(Buffer.from(crop.jpeg).toString("base64")));
+      const objects = await samImage(ctx, `crop${i}`, request, opts.refineTimeoutMs ?? 30_000, hedgeMs);
       const o = objects.find((x) => x.id === 0) ?? objects[0];
       const m = o && objectMask(o);
       if (!m) return fallback(d, `piece ${i}: refinement returned no mask`);
@@ -396,13 +416,15 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
   let sentToSam = 0;
   if (variant === "snap" || variant === "auto") {
     const snaps = dets.map((d) => snapped(photo, d));
+    const agreement = snaps.map((sn, i) => maskIoU(sn.mask, dets[i].full));
     const unsure = snaps.map(
-      (sn, i) => variant === "auto" && (sn.separation === null || sn.separation < SNAP_MIN_SEPARATION || maskIoU(sn.mask, dets[i].full) < 0.85),
+      (sn, i) => variant === "auto" && (sn.separation === null || sn.separation < SNAP_MIN_SEPARATION || agreement[i] < SNAP_MIN_AGREEMENT),
     );
     sentToSam = unsure.filter(Boolean).length;
-    refined = await mapLimit(dets, concurrency, async (d, i): Promise<Refined> =>
-      unsure[i] ? refineByCrop(d, i) : { mask: snaps[i].mask, confidence: d.confidence, refined: true, method: "snap" },
-    );
+    refined = await mapLimit(dets, concurrency, async (d, i): Promise<Refined> => {
+      const snap = { separation: snaps[i].separation === null ? null : Math.round(snaps[i].separation! * 10) / 10, agreement: Math.round(agreement[i] * 1000) / 1000 };
+      return unsure[i] ? { ...(await refineByCrop(d, i)), snap } : { mask: snaps[i].mask, confidence: d.confidence, refined: true, method: "snap", snap };
+    });
   } else if (variant === "crops") {
     sentToSam = dets.length;
     refined = await mapLimit(dets, concurrency, refineByCrop);
@@ -414,9 +436,12 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
     const url = jpegDataUrl(Buffer.from(photo.jpeg).toString("base64"));
     await Promise.all(
       chunks.map(async (idx, c) => {
-        const boxes = idx.map((i) => padBox(maskBox(dets[i].full)!, Math.ceil(2 * dets[i].scale) + 2, W, H));
+        const prompts = idx.map((i) => ({
+          box: padBox(maskBox(dets[i].full)!, Math.ceil(2 * dets[i].scale) + 2, W, H),
+          points: promptPoints(i, { left: 0, top: 0, width: W, height: H }),
+        }));
         try {
-          const objects = await samImage(ctx, `fullres${c}`, buildBoxImageRequest(boxes, { width: W, height: H }, url), opts.refineTimeoutMs ?? 120_000, 2 * hedgeMs);
+          const objects = await samImage(ctx, `fullres${c}`, buildBoxPointImageRequest(prompts, { width: W, height: H }, url), opts.refineTimeoutMs ?? 120_000, 2 * hedgeMs);
           idx.forEach((i, k) => {
             const o = objects.find((x) => x.id === k);
             const m = o && objectMask(o);
@@ -441,7 +466,17 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
     .filter((r): r is Refined & { box: Box } => r.box !== null)
     .map((r) => ({ ...r, cy: (r.box[1] + r.box[3]) / 2, cx: (r.box[0] + r.box[2]) / 2 }))
     .sort((a, b) => (Math.abs(a.cy - b.cy) > 0.05 * H ? a.cy - b.cy : a.cx - b.cx))
-    .map((r, id) => ({ id, box: r.box, polygon: traceOutline(r.mask, 0.5), mask: r.mask, area: maskArea(r.mask), confidence: r.confidence, refined: r.refined, method: r.method }));
+    .map((r, id) => ({
+      id,
+      box: r.box,
+      polygon: traceOutline(r.mask, 0.5),
+      mask: r.mask,
+      area: maskArea(r.mask),
+      confidence: r.confidence,
+      refined: r.refined,
+      method: r.method,
+      ...(r.snap ? { snap: r.snap } : {}),
+    }));
   const tEnd = Date.now();
 
   return {

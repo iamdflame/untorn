@@ -340,6 +340,32 @@ function chamfer(src: Uint8Array, w: number, h: number): Float32Array {
   return d;
 }
 
+/**
+ * Up to `n` points deep inside the mask (photo pixels, pixel centres), spread out: the deepest pixel first, then the
+ * deepest ones far from those already chosen. Good positive point prompts for a thin or oddly shaped fragment.
+ */
+export function interiorPoints(m: PlacedMask, n = 3): Point[] {
+  const d = chamfer(m.data, m.width, m.height);
+  let max = 0;
+  for (let i = 0; i < d.length; i++) if (m.data[i] && d[i] > max) max = d[i];
+  if (!max) return [];
+  const diag = Math.hypot(m.width, m.height);
+  const pts: [number, number][] = [];
+  for (let k = 0; k < n; k++) {
+    let best = -1, bestD = 0;
+    for (let i = 0; i < d.length; i++) {
+      if (!m.data[i] || d[i] < 0.4 * max || d[i] <= bestD) continue;
+      const x = i % m.width, y = (i - x) / m.width;
+      if (pts.some(([px, py]) => Math.hypot(px - x, py - y) < 0.3 * diag)) continue;
+      best = i;
+      bestD = d[i];
+    }
+    if (best < 0) break;
+    pts.push([best % m.width, Math.floor(best / m.width)]);
+  }
+  return pts.map(([x, y]) => [m.x + x + 0.5, m.y + y + 0.5]);
+}
+
 type Gauss = { mean: [number, number, number]; inv: number[] } | null;
 
 function fitGauss(samples: number[][]): Gauss {
@@ -361,6 +387,28 @@ function fitGauss(samples: number[][]): Gauss {
   return { mean, inv };
 }
 
+/**
+ * How far apart two colour samples are, robustly: per channel, the gap between the medians over the sum of the robust
+ * spreads (1.4826 × MAD, at least 2 levels), combined over R, G, B. Ink in the paper ring and a shadow in the
+ * background ring do not move it, unlike a Gaussian fit. ~1 means the colours overlap; white paper on a mid-grey
+ * or wooden desk scores 5–30.
+ */
+export function robustSeparation(a: number[][], b: number[][]): number | null {
+  if (a.length < 12 || b.length < 12) return null;
+  const stat = (xs: number[]) => {
+    const s = Float64Array.from(xs).sort();
+    const med = s[s.length >> 1];
+    const dev = Float64Array.from(xs, (v) => Math.abs(v - med)).sort();
+    return { med, spread: Math.max(2, 1.4826 * dev[dev.length >> 1]) };
+  };
+  let sum = 0;
+  for (let c = 0; c < 3; c++) {
+    const sa = stat(a.map((p) => p[c])), sb = stat(b.map((p) => p[c]));
+    sum += ((sa.med - sb.med) / (sa.spread + sb.spread)) ** 2;
+  }
+  return Math.sqrt(sum);
+}
+
 function mahal2(g: NonNullable<Gauss>, r: number, gg: number, b: number): number {
   const v = [r - g.mean[0], gg - g.mean[1], b - g.mean[2]];
   let s = 0;
@@ -373,8 +421,8 @@ function mahal2(g: NonNullable<Gauss>, r: number, gg: number, b: number): number
  * Pixels within `band` px of the coarse outline are re-decided by colour: a Gaussian colour model of the background
  * ring just outside and of the paper ring just inside. Inside the coarse outline a pixel turns background only when it
  * is closer to the background model and plausibly background at all (within 4σ), so ink touching the tear stays paper.
- * Falls back to the coarse mask when either ring is too small to model. `separation` says how far apart the paper and
- * background colours are (in standard deviations): low separation means the snap had little to go on.
+ * Falls back to the coarse mask when either ring is too small to model. `separation` (robustSeparation of the two
+ * rings) says how far apart the paper and background colours are: low separation means the snap had little to go on.
  */
 export function snapToPaperEdge(
   rgb: Rgb,
@@ -412,7 +460,7 @@ export function snapToPaperEdge(
       out[i] = m0[i] ? (db < dp && db < 16 ? 0 : 1) : dp < db ? 1 : 0;
     }
   }
-  // how far apart the two colour models are, in standard deviations (null: could not model one side)
-  const separation = gp && gb ? Math.sqrt(Math.min(mahal2(gb, ...gp.mean), mahal2(gp, ...gb.mean))) : null;
+  // how far apart paper and background are (null: could not model one side)
+  const separation = gp && gb ? robustSeparation(paper, bg) : null;
   return { mask: cleanFragmentMask({ x: region.x, y: region.y, width: w, height: h, data: out }), separation };
 }

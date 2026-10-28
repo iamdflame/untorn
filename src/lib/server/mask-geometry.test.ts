@@ -3,11 +3,13 @@ import { boundaryCentres, distanceToRing, evaluateMasks, rasterizePolygon } from
 import {
   cleanFragmentMask,
   fillHoles,
+  interiorPoints,
   largestComponent,
   maskArea,
   maskBox,
   maskIoU,
   polygonArea,
+  robustSeparation,
   snapToPaperEdge,
   traceOutline,
   upsampleMask,
@@ -56,6 +58,28 @@ describe("outlines", () => {
     expect(maskArea(c)).toBe(100);
     expect(maskArea(largestComponent(m))).toBe(99);
     expect(maskArea(fillHoles(m))).toBe(104);
+  });
+});
+
+describe("prompt points and colour separation", () => {
+  it("puts spread-out points deep inside a long thin piece", () => {
+    const m = blank(0, 0, 200, 30);
+    fillRect(m, 0, 5, 200, 25);
+    const pts = interiorPoints(m, 3);
+    expect(pts).toHaveLength(3);
+    for (const [, y] of pts) expect(Math.abs(y - 15)).toBeLessThanOrEqual(1);
+    const xs = pts.map((p) => p[0]).sort((a, b) => a - b);
+    expect(xs[1] - xs[0]).toBeGreaterThan(50);
+    expect(xs[2] - xs[1]).toBeGreaterThan(50);
+  });
+
+  it("scores paper on a desk far apart and ignores ink outliers, white on white close", () => {
+    const paper = Array.from({ length: 200 }, (_, i) => (i % 10 === 0 ? [40, 40, 60] : [236 + (i % 5), 232, 220]));
+    const desk = Array.from({ length: 200 }, (_, i) => [128 + (i % 7), 92 + (i % 3), 62]);
+    const whiteTable = Array.from({ length: 200 }, (_, i) => [230 + (i % 9), 228 + (i % 5), 222]);
+    expect(robustSeparation(paper, desk)!).toBeGreaterThan(10);
+    expect(robustSeparation(paper, whiteTable)!).toBeLessThan(3);
+    expect(robustSeparation(paper.slice(0, 5), desk)).toBeNull();
   });
 });
 

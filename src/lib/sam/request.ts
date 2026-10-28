@@ -47,15 +47,45 @@ export function buildConceptImageRequest(concept: string, imageUrl: string): Sam
 
 /** One object per box (ids 0..n-1, in order), each box in the image's own pixels. */
 export function buildBoxImageRequest(boxes: readonly Box[], size: MediaSize, imageUrl: string): SamRequestBody {
-  if (!boxes.length) throw new PromptError("at least one box is needed");
-  if (boxes.length > MAX_OBJECTS_PER_REQUEST) throw new PromptError(`at most ${MAX_OBJECTS_PER_REQUEST} boxes per request`);
+  return buildBoxPointImageRequest(boxes.map((box) => ({ box })), size, imageUrl);
+}
+
+/** A point prompt in the image's own pixels; negative marks a region that is not the object. */
+export type PointPrompt = { x: number; y: number; negative?: boolean };
+
+/**
+ * One object per entry (ids 0..n-1, in order): a box, optionally with positive and negative points that pin down
+ * which object inside the box is meant (a thin rotated fragment's box holds a lot of desk and its neighbours).
+ */
+export function buildBoxPointImageRequest(
+  objects: readonly { box: Box; points?: readonly PointPrompt[] }[],
+  size: MediaSize,
+  imageUrl: string,
+): SamRequestBody {
+  if (!objects.length) throw new PromptError("at least one box is needed");
+  if (objects.length > MAX_OBJECTS_PER_REQUEST) throw new PromptError(`at most ${MAX_OBJECTS_PER_REQUEST} boxes per request`);
   // Meta's boxes are half-open (right and bottom exclusive), in whole media pixels.
   const clamp = (v: number, hi: number) => Math.min(Math.max(Math.round(v), 0), hi);
-  const objects = boxes.map(([x1, y1, x2, y2], id) => ({
+  const inside = (v: number, hi: number) => Math.min(Math.max(Math.floor(v), 0), hi - 1);
+  const prompted = objects.map(({ box: [x1, y1, x2, y2], points }, id) => ({
     id,
-    prompts: [{ frame: 0, box: { left: clamp(x1, size.width), top: clamp(y1, size.height), right: clamp(x2, size.width), bottom: clamp(y2, size.height) } }],
+    prompts: [
+      {
+        frame: 0,
+        box: { left: clamp(x1, size.width), top: clamp(y1, size.height), right: clamp(x2, size.width), bottom: clamp(y2, size.height) },
+        ...(points?.length
+          ? {
+              points: points.map((p) => ({
+                x: inside(p.x, size.width),
+                y: inside(p.y, size.height),
+                label: p.negative ? ("negative" as const) : ("positive" as const),
+              })),
+            }
+          : {}),
+      },
+    ],
   }));
-  return body(buildObjectPrompt({ size, objects }), imageUrl);
+  return body(buildObjectPrompt({ size, objects: prompted }), imageUrl);
 }
 
 export const jpegDataUrl = (base64: string) => `data:image/jpeg;base64,${base64}`;

@@ -1,0 +1,72 @@
+// Record a real run of the pipeline on a sample photo, for the first screen's replay (and as a test fixture).
+//
+//   pnpm tsx scripts/record-run.ts [sample=chouteau-1903] [--photo FILE] [--out DIR] [--events FILE]
+//
+// Runs the same pipeline as POST /api/runs with the real models (about $0.10), and writes DIR (default
+// public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
+// --events also saves the raw NDJSON event stream with its timing. Prints stage timings, joins and cost.
+
+import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { loadEnv } from "./lib/env";
+import { liveDeps } from "../src/lib/server/live";
+import { runPipeline } from "../src/lib/server/pipeline";
+import { SAMPLES } from "../src/lib/run/samples";
+import type { RunEvent } from "../src/lib/run/types";
+
+async function main() {
+  loadEnv();
+  const argv = process.argv.slice(2);
+  const opt = (k: string) => {
+    const i = argv.indexOf(k);
+    return i >= 0 ? argv[i + 1] : undefined;
+  };
+  const name = argv[0] && !argv[0].startsWith("--") ? argv[0] : "chouteau-1903";
+  const sample = SAMPLES[name];
+  const photoFile = opt("--photo") ?? sample?.file;
+  if (!photoFile) throw new Error(`unknown sample ${name}; pass --photo`);
+  const out = opt("--out") ?? path.join("public/samples", name);
+  const urlBase = out.replace(/\\/g, "/").startsWith("public/") ? "/" + out.replace(/\\/g, "/").slice("public/".length) : null;
+  mkdirSync(out, { recursive: true });
+  const eventsFile = opt("--events");
+  if (eventsFile) writeFileSync(eventsFile, "");
+
+  const putAsset = async (file: string, bytes: Uint8Array) => {
+    writeFileSync(path.join(out, file), bytes);
+    return urlBase ? `${urlBase}/${file}` : file;
+  };
+  const deps = liveDeps(putAsset);
+  const runId = `rec-${name}-${randomBytes(3).toString("hex")}`;
+  const t0 = Date.now();
+  const log = (e: RunEvent) => {
+    if (eventsFile) appendFileSync(eventsFile, JSON.stringify(e) + "\n");
+    const t = ((Date.now() - t0) / 1000).toFixed(1).padStart(5);
+    if (e.type === "stage") console.log(`${t}s  ${e.stage} ${e.status}${e.ms !== undefined ? ` (${e.ms} ms)` : ""}`);
+    else if (e.type === "segment") console.log(`${t}s  ${e.pieces.length} pieces`);
+    else if (e.type === "match") console.log(`${t}s  ${e.candidates.length} candidates, ${e.asks.length} questions`);
+    else if (e.type === "read") console.log(`${t}s  read ${e.read.id} ${e.read.ok ? (e.read.kind === "pair" ? `same=${e.read.same}` : `choice=${e.read.choice}`) : `FAILED ${e.read.error}`} ${e.read.confidence} ${JSON.stringify(e.read.words)} (${e.read.ms} ms)`);
+    else if (e.type === "assemble") console.log(`${t}s  ${e.pages.length} pages (${e.pages.map((p) => p.pieces.length).join(", ")} pieces), ${e.joins.length} joins, ${e.unplaced.length} unplaced`);
+    else if (e.type === "transcribe") console.log(`${t}s  transcript ${e.transcript.page}: ${e.transcript.ok ? e.transcript.text.slice(0, 80).replace(/\n/g, " ") : e.transcript.error}`);
+    else if (e.type === "warning") console.log(`${t}s  warning ${e.warning.code}`);
+  };
+  const result = await runPipeline(new Uint8Array(readFileSync(photoFile)), deps, { runId, source: "sample", sample: name, caption: sample?.caption }, log);
+  console.log(
+    JSON.stringify({
+      runId,
+      totalMs: result.timings.total,
+      timings: result.timings,
+      pieces: result.pieces.length,
+      pages: result.pages.map((p) => p.pieces.length),
+      joins: result.joins.map((j) => `${j.a}-${j.b}:${j.decidedBy}${j.read ? (j.read.agrees ? "+read" : "-read") : ""}`),
+      unplaced: result.unplaced,
+      cost: result.cost,
+      out,
+    }),
+  );
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

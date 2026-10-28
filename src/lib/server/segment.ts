@@ -62,7 +62,7 @@ export type Fragment = {
   refined: boolean;
   /** How this piece reached full resolution. */
   method: "snap" | "crop" | "fullres" | "snap-fallback";
-  /** For snapped pieces: paper/background colour separation (σ) and IoU of the snap with the pass-1 mask. */
+  /** For snapped pieces: paper/background colour separation (robustSeparation; under 3 is unsure) and IoU of the snap with the pass-1 mask. */
   snap?: { separation: number | null; agreement: number };
 };
 

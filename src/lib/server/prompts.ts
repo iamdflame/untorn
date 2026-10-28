@@ -5,7 +5,8 @@
 // Schemas use the strict subset (plain object root, additionalProperties false, every key required), so the server
 // validates them and decoding is constrained to them.
 
-export const PROMPTS_VERSION = "2026-10-28.1";
+// .1: the measured bench runs (seam v1/v2/flush, choice v1). .2: verifySeam defaults to seam v2 after the bench.
+export const PROMPTS_VERSION = "2026-10-28.2";
 
 type JsonSchema = Record<string, unknown>;
 

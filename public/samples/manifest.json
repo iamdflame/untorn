@@ -1,0 +1,48 @@
+{
+  "note": "The fixed samples. The first screen replays `default`'s recorded run (switch with /?sample=<name>); the hourly health run checks `health` against its answer key. A sample needs data/samples/<name>/photo.jpg (server, live runs) and public/samples/<name>/ (recorded run, photos). `twins` names a stack trial for the twins beat.",
+  "default": "chouteau-1903",
+  "health": "chouteau-1903",
+  "samples": {
+    "chouteau-1903": {
+      "name": "chouteau-1903",
+      "title": "A letter of 1903, torn into 10 pieces",
+      "caption": "Simulated tear of a real public-domain letter (Pierre Chouteau to Mary Louise Dalton, 5 September 1903, Missouri Historical Society via DPLA). The outlines, seam readings and joins are the real pipeline's.",
+      "honesty": "Simulated tear of a real 1903 letter, recorded run.",
+      "credit": "The letter is a simulated tear of a real public-domain letter (Pierre Chouteau to Mary Louise Dalton, 1903, Missouri Historical Society via DPLA).",
+      "recorded": "/samples/chouteau-1903/result.json",
+      "file": "data/samples/chouteau-1903/photo.jpg",
+      "photo": {
+        "url": "/samples/chouteau-1903/photo.jpg",
+        "width": 2400,
+        "height": 1800,
+        "sources": [
+          { "url": "/samples/chouteau-1903/photo-800.webp", "w": 800 },
+          { "url": "/samples/chouteau-1903/photo-1200.webp", "w": 1200 },
+          { "url": "/samples/chouteau-1903/photo-2400.webp", "w": 2400 }
+        ],
+        "hires": "/samples/chouteau-1903/photo-2400.webp"
+      },
+      "twins": "stack-cw3"
+    }
+  },
+  "stacks": {
+    "stack-cw3": {
+      "name": "stack-cw3",
+      "label": "Simulated stack: composites cut from one real page, so the three edges are identical by construction.",
+      "images": {
+        "L": { "url": "/samples/stack-cw3/twin-L.webp", "w": 215, "h": 150 },
+        "A": { "url": "/samples/stack-cw3/twin-A.webp", "w": 244, "h": 150 },
+        "B": { "url": "/samples/stack-cw3/twin-B.webp", "w": 244, "h": 150 },
+        "C": { "url": "/samples/stack-cw3/twin-C.webp", "w": 244, "h": 150 }
+      },
+      "slotX": 176,
+      "truth": "C",
+      "choice": "C",
+      "confidence": 0.97,
+      "words": ["bo|rn", "di|ed"],
+      "reason": "o+rn makes born and di+ed makes died with matching 1724-1778 dates forming a coherent biography.",
+      "rings": [[187, 29], [184, 64]],
+      "summary": { "trials": 12, "answered": 12, "correct": 12, "chance": 3, "model": "Muse Spark 1.3, low effort", "source": "reading bench, stack set cw3, trial 7" }
+    }
+  }
+}

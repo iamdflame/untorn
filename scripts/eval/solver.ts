@@ -12,6 +12,7 @@
 //   --limit N           first N cases per family
 //   --json FILE         write per-case results as JSON
 //   --renders DIR       save the content-check images of the first case (pair + choice sheets) as PNG
+//   --twin-sides one|both  ask each stack slot from both classes of twins (default) or one
 //
 // Metrics: a fragment is placed correctly when its pose is within 3 px (at its centroid) and 1° of the truth, up to
 // one rigid transform per page; joins are correct when the pair is adjacent on the page and the joined pose agrees
@@ -27,10 +28,10 @@ import { askAll, contentRequests, finish, prepare } from "../../src/lib/rejoin/s
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, SolveResult } from "../../src/lib/rejoin/types";
 import { listCases, loadCase, trueRelative, type BenchCase, type GroundTruth } from "./cases";
 
-type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string };
+type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string; twinSides: "one" | "both" };
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0 };
+  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both" };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     const v = argv[i + 1];
@@ -41,6 +42,7 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--limit") a.limit = Number(v);
     else if (k === "--json") a.json = v;
     else if (k === "--renders") a.renders = v;
+    else if (k === "--twin-sides") a.twinSides = v as "one" | "both";
     else continue;
     i++;
   }
@@ -227,7 +229,7 @@ async function main() {
     for (const name of names) {
       const c = loadCase(path.join(args.root, name), args.masks);
       const t0 = performance.now();
-      const prep = prepare(c.inputs);
+      const prep = prepare(c.inputs, { twinSides: args.twinSides });
       let reqs: ContentRequest[] = [];
       let verdicts: (ContentVerdict | null)[] = [];
       if (args.content !== "none") {

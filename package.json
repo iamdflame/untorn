@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@meta-sam/parser": "0.1.0",
+    "fast-png": "8.0.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -27,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "jpeg-js": "0.4.4",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",

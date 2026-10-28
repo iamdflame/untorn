@@ -20,6 +20,11 @@ export type SolveOptions = {
   maxPairChecks?: number;
   /** Ask pair checks at all (twin groups are asked either way). */
   pairChecks?: boolean;
+  /**
+   * Stack tears: a slot between two classes of twins (pieces sharing an outline) can be asked from the pieces of one
+   * class ("one", half the calls) or of both ("both", every pick confirmed from the other side).
+   */
+  twinSides?: "one" | "both";
   /** Parallel content calls. */
   concurrency?: number;
   fragment?: FragmentOptions;
@@ -79,8 +84,21 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
     return !!t && t.confidence >= 0.4 && t.up !== 0;
   };
   const reqs: ContentRequest[] = [];
-  for (const g of prep.match.twinGroups) {
+  const cls = twinClasses(prep);
+  const asked = new Map<string, number>(); // anchor + partner class → best score already asked
+  const groups = [...prep.match.twinGroups].sort((x, y) => (byCand.get(y.candidates[0])?.score ?? 0) - (byCand.get(x.candidates[0])?.score ?? 0));
+  for (const g of groups) {
     const cands = g.candidates.map((id) => byCand.get(id)!).filter(Boolean);
+    if (!cands.length) continue;
+    const partner = cands[0].a === g.anchor ? cands[0].b : cands[0].a;
+    const mine = cls.get(g.anchor);
+    const theirs = cls.get(partner);
+    // one question per anchor and class of partners (partial seams make duplicates)
+    const key = `${g.anchor}|${theirs ?? partner}`;
+    if (asked.has(key)) continue;
+    asked.set(key, cands[0].score);
+    // "one": ask each slot from the class with the smaller id (a piece whose twins were not all found keeps its question)
+    if ((o.twinSides ?? "both") === "one" && mine !== undefined && theirs !== undefined && mine > theirs) continue;
     reqs.push({
       kind: "choice",
       id: `choice:${g.id}`,
@@ -108,6 +126,32 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
     }
   }
   return reqs;
+}
+
+/** Classes of twins: the partners on one twin group share an outline. Class id = smallest member index. */
+function twinClasses(prep: Prepared): Map<string, number> {
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    while (parent.get(x) !== x) x = parent.get(x)!;
+    return x;
+  };
+  const byCand = new Map(prep.match.candidates.map((c) => [c.id, c] as const));
+  for (const g of prep.match.twinGroups) {
+    const partners = g.candidates.map((id) => {
+      const c = byCand.get(id)!;
+      return c.a === g.anchor ? c.b : c.a;
+    });
+    for (const p of partners) if (!parent.has(p)) parent.set(p, p);
+    for (const p of partners.slice(1)) parent.set(find(p), find(partners[0]));
+  }
+  const out = new Map<string, number>();
+  for (const id of parent.keys()) {
+    const root = find(id);
+    const idx = prep.byId.get(id)?.index ?? 0;
+    out.set(root, Math.min(out.get(root) ?? Infinity, idx));
+  }
+  for (const id of parent.keys()) out.set(id, out.get(find(id))!);
+  return out;
 }
 
 const logit = (p: number) => Math.log(Math.max(1e-3, p) / Math.max(1e-3, 1 - p));

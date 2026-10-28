@@ -42,9 +42,10 @@ export type MatchOptions = {
   /** When both fragments have a confident text angle, their lines must be parallel within this (rad) to seed. */
   textTol: number;
   textConfidence: number;
-  /** Score ratio and footprint coincidence that make two alternatives twins. */
+  /** Score ratio and footprint coincidence that make two alternatives twins, and the score both need. */
   twinRatio: number;
   twinFootprint: number;
+  twinMinScore: number;
 };
 
 export const MATCH_DEFAULTS: MatchOptions = {
@@ -65,8 +66,9 @@ export const MATCH_DEFAULTS: MatchOptions = {
   deepPx: 3,
   textTol: (6 * Math.PI) / 180,
   textConfidence: 0.85,
-  twinRatio: 0.7,
+  twinRatio: 0.5,
   twinFootprint: 0.8,
+  twinMinScore: 40,
 };
 
 /** Matching data for one fragment. */
@@ -687,8 +689,11 @@ export function side(c: Candidate, fid: string): { partner: string; seam: [numbe
   return c.a === fid ? { partner: c.b, seam: c.seamA, pose: c.pose } : { partner: c.a, seam: c.seamB, pose: poseInvert(c.pose) };
 }
 
-/** Margins, geometry confidences and twin groups. */
-function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candidates: Candidate[]; twinGroups: TwinGroup[] } {
+/**
+ * Competitors of each candidate: other candidates that claim the same stretch of edge (≥ 30% of the shorter seam) on
+ * one of its fragments. Only one of them can be right.
+ */
+export function competitors(cands: Candidate[], data: MatchData[]): Map<string, Candidate[]> {
   const byId = new Map(data.map((d) => [d.f.id, d] as const));
   const involving = new Map<string, Candidate[]>();
   for (const c of cands) {
@@ -698,24 +703,49 @@ function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candida
       involving.set(f, l);
     }
   }
+  const out = new Map<string, Candidate[]>();
+  for (const c of cands) {
+    const list: Candidate[] = [];
+    for (const fid of [c.a, c.b]) {
+      const F = byId.get(fid);
+      if (!F) continue;
+      const mine = side(c, fid);
+      for (const d of involving.get(fid) ?? []) {
+        if (d === c || list.includes(d)) continue;
+        const other = side(d, fid);
+        if (rangeOverlap(mine.seam, other.seam, F.n) >= 0.3 * Math.min(mine.seam[1], other.seam[1])) list.push(d);
+      }
+    }
+    out.set(c.id, list);
+  }
+  return out;
+}
+
+/** Margins, geometry confidences and twin groups. */
+function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candidates: Candidate[]; twinGroups: TwinGroup[] } {
+  const byId = new Map(data.map((d) => [d.f.id, d] as const));
+  const rivals = competitors(cands, data);
   const twinEdges: [Candidate, Candidate, string][] = [];
   for (const c of cands) {
     let margin = Infinity;
-    for (const fid of [c.a, c.b]) {
-      const F = byId.get(fid)!;
-      const mine = side(c, fid);
-      for (const d of involving.get(fid) ?? []) {
-        if (d === c) continue;
-        const other = side(d, fid);
-        const ov = rangeOverlap(mine.seam, other.seam, F.n);
-        if (ov < 0.3 * Math.min(mine.seam[1], other.seam[1])) continue;
-        margin = Math.min(margin, c.score / Math.max(d.score, 1e-9));
-        if (other.partner !== mine.partner && c.id < d.id) {
-          const ratio = Math.min(c.score, d.score) / Math.max(c.score, d.score);
-          if (ratio >= o.twinRatio && footprint(byId.get(mine.partner)!, mine.pose, byId.get(other.partner)!, other.pose) >= o.twinFootprint) {
-            twinEdges.push([c, d, fid]);
-          }
-        }
+    for (const d of rivals.get(c.id) ?? []) {
+      margin = Math.min(margin, c.score / Math.max(d.score, 1e-9));
+      if (c.id >= d.id || c.score < o.twinMinScore || d.score < o.twinMinScore) continue;
+      // twins: same anchor fragment, different partners, footprints that coincide
+      const anchor = c.a === d.a || c.a === d.b ? c.a : c.b;
+      if ((d.a !== anchor && d.b !== anchor)) continue;
+      const mine = side(c, anchor);
+      const other = side(d, anchor);
+      if (other.partner === mine.partner) continue;
+      const ratio = Math.min(c.score, d.score) / Math.max(c.score, d.score);
+      if (ratio < o.twinRatio) continue;
+      // the two partners must cover each other: a small piece inside a large one is not its twin
+      const P = byId.get(mine.partner)!;
+      const Q = byId.get(other.partner)!;
+      const area = Math.min(P.f.area, Q.f.area) / Math.max(P.f.area, Q.f.area);
+      if (area < 0.85) continue;
+      if (footprint(P, mine.pose, Q, other.pose) >= o.twinFootprint && footprint(Q, other.pose, P, mine.pose) >= o.twinFootprint) {
+        twinEdges.push([c, d, anchor]);
       }
     }
     c.margin = margin;

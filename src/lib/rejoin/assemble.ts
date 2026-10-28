@@ -6,7 +6,7 @@
 // Every accepted join must leave its seams unused, agree with the page when it closes a loop, and not make placed
 // pieces overlap. Fragments that join nothing stay unplaced: never force a fit.
 
-import { correspond, interpenetration, measureSeam, workspace, type MatchData } from "./match";
+import { competitors, correspond, interpenetration, measureSeam, workspace, type MatchData } from "./match";
 import { poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
 import type { Candidate, Clue, Fragment, Join, Page, Unplaced } from "./types";
 
@@ -25,7 +25,11 @@ export type AssembleOptions = {
   /** A join is refused when this share of either seam is already used by an accepted join. */
   seamReuse: number;
   refineIters: number;
+  /** Called with every acceptance decision (for logs and the UI). */
+  trace?: (candidate: string, outcome: TraceOutcome) => void;
 };
+
+export type TraceOutcome = "accepted" | "pair-joined" | "seam-taken" | "loop-disagrees" | "overlap";
 
 export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   minGeomScore: 60,
@@ -98,42 +102,34 @@ export function assemble(
   const loops = new Set<string>();
   const direct = new Set<string>();
 
-  for (const dcs of decide(cands, evidence, o)) {
+  const tryAccept = (dcs: Decision): boolean => {
     const c = dcs.c;
     const A = byId.get(c.a)!;
     const B = byId.get(c.b)!;
     const pairKey = c.a < c.b ? `${c.a}|${c.b}` : `${c.b}|${c.a}`;
-    if (direct.has(pairKey)) continue;
-    if (usedShare(used.get(c.a)!, c.seamA, A.n) > o.seamReuse || usedShare(used.get(c.b)!, c.seamB, B.n) > o.seamReuse) continue;
+    const no = (why: TraceOutcome) => {
+      o.trace?.(c.id, why);
+      return false;
+    };
+    if (direct.has(pairKey)) return no("pair-joined");
+    if (usedShare(used.get(c.a)!, c.seamA, A.n) > o.seamReuse || usedShare(used.get(c.b)!, c.seamB, B.n) > o.seamReuse) return no("seam-taken");
     const ca = comp.get(c.a)!;
     const cb = comp.get(c.b)!;
     const pa = pose.get(c.a)!;
     const pb = pose.get(c.b)!;
     if (ca === cb) {
       // loop closure: the page already places b relative to a; the join must agree
-      const predicted = poseCompose(poseInvert(pa), pb);
-      const [x1, y1] = poseApply(predicted, B.f.centroid[0], B.f.centroid[1]);
-      const [x2, y2] = poseApply(c.pose, B.f.centroid[0], B.f.centroid[1]);
-      const dth = Math.abs(Math.atan2(Math.sin(predicted.theta - c.pose.theta), Math.cos(predicted.theta - c.pose.theta)));
-      if (Math.hypot(x1 - x2, y1 - y2) > o.loopPx || dth > (o.loopDeg * Math.PI) / 180) continue;
+      if (!agrees(c, pa, pb, B, o)) return no("loop-disagrees");
       loops.add(c.id);
     } else {
-      // merge b's page into a's: X ↦ pose_a ∘ c.pose ∘ pose_b⁻¹ ∘ pose_X
-      const T = poseCompose(pa, poseCompose(c.pose, poseInvert(pb)));
+      // merge b's page into a's: X ↦ T ∘ pose_X, T from the join, then refined on every seam the merge creates
       const moved = members.get(cb)!;
       const staying = members.get(ca)!;
-      let clash = false;
+      const T = alignComponents(poseCompose(pa, poseCompose(c.pose, poseInvert(pb))), moved, staying, byId, pose, radius);
       for (const x of moved) {
         const px = poseCompose(T, pose.get(x)!);
-        for (const y of staying) {
-          if (overlapping(byId.get(x)!, px, byId.get(y)!, pose.get(y)!, radius, o)) {
-            clash = true;
-            break;
-          }
-        }
-        if (clash) break;
+        for (const y of staying) if (overlapping(byId.get(x)!, px, byId.get(y)!, pose.get(y)!, radius, o)) return no("overlap");
       }
-      if (clash) continue;
       for (const x of moved) {
         pose.set(x, poseCompose(T, pose.get(x)!));
         comp.set(x, ca);
@@ -145,6 +141,43 @@ export function assemble(
     markUsed(used.get(c.b)!, c.seamB, B.n);
     direct.add(pairKey);
     accepted.push(dcs);
+    acceptedIds.add(c.id);
+    o.trace?.(c.id, "accepted");
+    return true;
+  };
+  const acceptedIds = new Set<string>();
+  for (const dcs of decide(cands, evidence, o)) tryAccept(dcs);
+
+  // Relaxation: a join is only ambiguous while its rivals are possible. Once the pages grow, rivals whose seams are
+  // taken, whose pair is already joined, or that contradict the layout drop out; re-check the margins against the
+  // rivals that remain, until nothing changes. Twins still need the content clue.
+  const rivals = competitors(cands, data);
+  const feasible = (d: Candidate): boolean => {
+    if (acceptedIds.has(d.id)) return true;
+    const pairKey = d.a < d.b ? `${d.a}|${d.b}` : `${d.b}|${d.a}`;
+    if (direct.has(pairKey)) return false;
+    const A = byId.get(d.a)!;
+    const B = byId.get(d.b)!;
+    if (usedShare(used.get(d.a)!, d.seamA, A.n) > o.seamReuse || usedShare(used.get(d.b)!, d.seamB, B.n) > o.seamReuse) return false;
+    if (comp.get(d.a) === comp.get(d.b) && !agrees(d, pose.get(d.a)!, pose.get(d.b)!, B, o)) return false;
+    return true;
+  };
+  const byScore = [...cands].sort((x, y) => y.score - x.score);
+  for (let pass = 0; pass < 6; pass++) {
+    let added = 0;
+    for (const c of byScore) {
+      if (acceptedIds.has(c.id) || c.twinGroup || c.score < o.minGeomScore) continue;
+      const ev = evidence?.get(c.id);
+      if (ev && ev.logOdds < 0) continue;
+      let best = 0;
+      for (const d of rivals.get(c.id) ?? []) if (feasible(d)) best = Math.max(best, d.score);
+      const margin = best > 0 ? c.score / best : Infinity;
+      if (margin < o.minMargin) continue;
+      const base = 1 - Math.exp(-c.score / 60);
+      const combined = base * (Number.isFinite(margin) ? Math.max(0, 1 - 1 / (margin * margin)) : 1);
+      if (tryAccept({ c, combined, decidedBy: "geometry", content: null })) added++;
+    }
+    if (!added) break;
   }
 
   // pages: components of two or more fragments
@@ -262,6 +295,86 @@ function impliedSeams(ids: string[], byId: Map<string, MatchData>, pose: Map<str
   return out;
 }
 
+/**
+ * Refine the rigid transform T that places a moved group of fragments against a staying group: point-to-line ICP over
+ * all seams between the two groups at once (one seam alone pins the rotation weakly, and the error grows with the
+ * distance from it).
+ */
+function alignComponents(
+  T0: Pose,
+  moved: string[],
+  staying: string[],
+  byId: Map<string, MatchData>,
+  pose: Map<string, Pose>,
+  radius: Map<string, number>,
+): Pose {
+  let T = T0;
+  for (let it = 0; it < 4; it++) {
+    const H = new Float64Array(9);
+    const g = new Float64Array(3);
+    let n = 0;
+    let cx = 0;
+    let cy = 0;
+    const pts: [number, number, number, number, number][] = []; // q (page), a (page), normal (page)
+    for (const x of moved) {
+      const X = byId.get(x)!;
+      const px = poseCompose(T, pose.get(x)!);
+      const [xcx, xcy] = poseApply(px, ...X.f.centroid);
+      for (const y of staying) {
+        const Y = byId.get(y)!;
+        const py = pose.get(y)!;
+        const [ycx, ycy] = poseApply(py, ...Y.f.centroid);
+        if (Math.hypot(xcx - ycx, xcy - ycy) > radius.get(x)! + radius.get(y)! + 4) continue;
+        const rel = poseCompose(poseInvert(py), px); // X's photo → Y's photo
+        const w = workspace(X.sample.length);
+        correspond(Y, X, rel, 4, w);
+        const c = Math.cos(py.theta);
+        const s = Math.sin(py.theta);
+        for (let k = 0; k < X.sample.length; k++) {
+          if (w.inl[k] !== 1) continue;
+          const a = w.ai[k];
+          const q = poseApply(py, w.qx[k], w.qy[k]);
+          const ap = poseApply(py, Y.X[a], Y.Y[a]);
+          pts.push([q[0], q[1], ap[0] - q[0], ap[1] - q[1], Math.atan2(s * Y.NX[a] + c * Y.NY[a], c * Y.NX[a] - s * Y.NY[a])]);
+          cx += q[0];
+          cy += q[1];
+          n++;
+        }
+      }
+    }
+    if (n < 20) return T;
+    cx /= n;
+    cy /= n;
+    for (const [qx, qy, dx, dy, na] of pts) {
+      const nx = Math.cos(na);
+      const ny = Math.sin(na);
+      const r = -(nx * dx + ny * dy); // n·(q − a)
+      const wt = Math.abs(r) <= 1.5 ? 1 : 1.5 / Math.abs(r);
+      const J = [-(qy - cy) * nx + (qx - cx) * ny, nx, ny];
+      for (let p = 0; p < 3; p++) {
+        g[p] += wt * J[p] * r;
+        for (let q = 0; q < 3; q++) H[3 * p + q] += wt * J[p] * J[q];
+      }
+    }
+    const d = solveSPD(H, Float64Array.from([-g[0], -g[1], -g[2]]), 3, 1e-6);
+    const dth = Math.max(-0.05, Math.min(0.05, d[0]));
+    const cd = Math.cos(dth);
+    const sd = Math.sin(dth);
+    T = poseCompose({ theta: dth, tx: cx - (cd * cx - sd * cy) + d[1], ty: cy - (sd * cx + cd * cy) + d[2] }, T);
+    if (Math.abs(dth) < 1e-5 && Math.hypot(d[1], d[2]) < 0.01) break;
+  }
+  return T;
+}
+
+/** Does a candidate agree with where the page already puts its two fragments? */
+function agrees(c: Candidate, pa: Pose, pb: Pose, B: MatchData, o: AssembleOptions): boolean {
+  const predicted = poseCompose(poseInvert(pa), pb);
+  const [x1, y1] = poseApply(predicted, B.f.centroid[0], B.f.centroid[1]);
+  const [x2, y2] = poseApply(c.pose, B.f.centroid[0], B.f.centroid[1]);
+  const dth = Math.abs(Math.atan2(Math.sin(predicted.theta - c.pose.theta), Math.cos(predicted.theta - c.pose.theta)));
+  return Math.hypot(x1 - x2, y1 - y2) <= o.loopPx && dth <= (o.loopDeg * Math.PI) / 180;
+}
+
 function usedShare(used: Uint8Array, seam: [number, number], n: number): number {
   if (!seam[1]) return 0;
   let u = 0;
@@ -279,7 +392,8 @@ function overlapping(X: MatchData, px: Pose, Y: MatchData, py: Pose, radius: Map
   const [bx, by] = poseApply(py, Y.f.centroid[0], Y.f.centroid[1]);
   if (Math.hypot(ax - bx, ay - by) > radius.get(X.f.id)! + radius.get(Y.f.id)!) return false;
   const rel = poseCompose(poseInvert(py), px); // X's photo → Y's photo
-  const area = interpenetration(Y, X, rel, 3, 2);
+  // only deep overlap counts: placements drift by a few px before the joint refinement, wrong ones overlap deeply
+  const area = interpenetration(Y, X, rel, 6, 2);
   return area > o.overlapPx + o.overlapShare * Math.min(X.f.area, Y.f.area);
 }
 

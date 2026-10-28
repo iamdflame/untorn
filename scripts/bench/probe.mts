@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import { loadEnv, recordingFetch, ledger } from "../lib/env";
+import { verifySeam } from "../../src/lib/server/muse";
+loadEnv();
+const S = "C:/Users/Dflame/AppData/Local/Temp/claude/c--Users-Dflame-Pictures-rr/a84bfe74-f81a-44b1-86db-20e1d736c21a/scratchpad";
+const f = recordingFetch((_u, _b, status, res) => writeFileSync(`${S}/probe1-response.json`, res) );
+const img = readFileSync("C:/Users/Dflame/Pictures/rr/.apex/spikes/v3/cw1/00-true.jpg");
+const r = await verifySeam({ data: img, mime: "image/jpeg" }, { fetchImpl: f });
+console.log(JSON.stringify(r, null, 1));
+ledger({ what: "probe verifySeam", cost: r.meta.costUsd });

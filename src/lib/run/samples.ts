@@ -10,6 +10,8 @@ export type Sample = {
   recorded: string;
   /** Full-resolution photo, bundled with the server functions (repo path). */
   file: string;
+  /** The display photo of the recorded run, for the first paint (before the recording loads). */
+  photo: { url: string; width: number; height: number };
 };
 
 export const SAMPLES: Record<string, Sample> = {
@@ -20,6 +22,7 @@ export const SAMPLES: Record<string, Sample> = {
       "Simulated tear of a real public-domain letter (Pierre Chouteau to Mary Louise Dalton, 5 September 1903, Missouri Historical Society via DPLA). The outlines, seam readings and joins are the real pipeline's.",
     recorded: "/samples/chouteau-1903/result.json",
     file: "data/samples/chouteau-1903/photo.jpg",
+    photo: { url: "/samples/chouteau-1903/photo.jpg", width: 2400, height: 1800 },
   },
 };
 

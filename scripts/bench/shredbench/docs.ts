@@ -192,9 +192,32 @@ function decode(s: string): string {
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** One plain HTML table from a LaTeXML table, or null when it holds math, images or nesting, or is too small. */
+const LATEX_SYMBOLS: Record<string, string> = {
+  pm: "±", times: "×", uparrow: "↑", downarrow: "↓", rightarrow: "→", leftarrow: "←", cdot: "·", sim: "~", leq: "≤", geq: "≥",
+  le: "≤", ge: "≥", approx: "≈", infty: "∞", checkmark: "✓", dagger: "†", ddagger: "‡", ast: "*", star: "⋆", circ: "∘",
+  alpha: "α", beta: "β", gamma: "γ", delta: "δ", lambda: "λ", mu: "μ", sigma: "σ", tau: "τ", theta: "θ", Delta: "Δ",
+  "%": "%", _: "_", "&": "&", "#": "#", $: "$", ",": " ", ";": " ", ":": " ", "!": "", " ": " ", textasciitilde: "~",
+};
+
+/** Simple LaTeX math (LaTeXML's alttext) as plain text, or null when it holds anything beyond symbols and styling. */
+function mathText(tex: string): string | null {
+  let s = tex.replace(/\\(?:mathbf|mathrm|textbf|textit|text|mathit|mathsf|mathtt|boldsymbol|bm|underline|emph)\s*\{([^{}]*)\}/g, "$1");
+  s = s.replace(/\\([A-Za-z]+|[%_&#$,;:! ])/g, (m, name: string) => (name in LATEX_SYMBOLS ? LATEX_SYMBOLS[name] : m));
+  s = s.replace(/[\^_]\{([^{}]*)\}/g, "$1").replace(/[\^_](\w)/g, "$1").replace(/[{}]/g, "").replace(/\s+/g, " ").trim();
+  return s.includes("\\") ? null : s;
+}
+
+/** One plain HTML table from a LaTeXML table, or null when it holds hard math, images or nesting, or is too small. */
 export function plainTable(html: string): string | null {
-  if (/<math|<img|<svg|<table[\s\S]*<table/i.test(html.slice(6))) return null;
+  if (/<img|<svg|<table[\s\S]*<table/i.test(html.slice(6))) return null;
+  // simple math (numbers with ±, arrows, bold) becomes its text; anything harder rejects the table
+  let mathOk = true;
+  html = html.replace(/<math\b[^>]*alttext="([^"]*)"[^>]*>[\s\S]*?<\/math>/gi, (_, alt: string) => {
+    const t = mathText(decode(alt));
+    if (t === null) mathOk = false;
+    return t ?? "";
+  });
+  if (!mathOk || /<math/i.test(html)) return null;
   const rows: string[] = [];
   let cols = 0;
   const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
@@ -207,7 +230,7 @@ export function plainTable(html: string): string | null {
     let width = 0;
     while ((c = cellRe.exec(m[1]))) {
       const attrs = c[2];
-      const text = decode(c[3].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+      const text = decode(c[3].replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
       const colspan = /colspan="(\d+)"/.exec(attrs)?.[1];
       const rowspan = /rowspan="(\d+)"/.exec(attrs)?.[1];
       const tag = first || c[1].toLowerCase() === "th" ? "th" : "td";

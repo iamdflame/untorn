@@ -40,6 +40,8 @@ export function StageList({ state }: { state: RunState }) {
 /** "✓ joins", "✗ doesn't join", "picked B of 3", or "couldn't tell". */
 export function verdictText(r: ReadOut): { mark: "yes" | "no" | "unsure"; text: string } {
   if (!r.ok) return { mark: "unsure", text: "no answer" };
+  // at confidence 0.5 or below the solver gives a read no weight
+  if (r.confidence <= 0.5) return { mark: "unsure", text: "too little text to tell" };
   if (r.kind === "pair") {
     if (r.same === null) return { mark: "unsure", text: "couldn't tell" };
     return r.same ? { mark: "yes", text: "continues" } : { mark: "no", text: "doesn't continue" };

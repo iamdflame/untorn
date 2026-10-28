@@ -235,7 +235,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   };
   let verdicts: (ContentVerdict | null)[];
   try {
-    verdicts = await askAll(reqs, check, opts.concurrency ?? 12);
+    verdicts = await askAll(reqs, check, opts.concurrency ?? 16);
   } finally {
     clearTimeout(deadline);
     signal?.removeEventListener("abort", onOuterAbort);
@@ -408,7 +408,9 @@ function joinOut(j: SolveResult["joins"][number], reqs: ContentRequest[], verdic
     if (r.kind === "pair" && v.kind === "pair" && r.candidate === j.candidate && v.same !== null) agrees = v.same;
     if (r.kind === "choice" && v.kind === "choice" && r.candidates.includes(j.candidate) && v.choice !== null) agrees = r.candidates[v.choice] === j.candidate;
     if (agrees === null) return;
-    if (!read || v.confidence > read.confidence) read = { id: r.id, agrees, confidence: round3(v.confidence), words: v.wordsAcross ?? [], reason: v.reason ?? "" };
+    // the solver weighs a verdict by logit(max(0.5, confidence)): at 0.5 or below it carries nothing
+    const decisive = v.confidence > 0.5;
+    if (!read || v.confidence > read.confidence) read = { id: r.id, agrees: decisive ? agrees : null, confidence: round3(v.confidence), words: v.wordsAcross ?? [], reason: v.reason ?? "" };
   });
   return {
     candidate: j.candidate,

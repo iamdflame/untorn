@@ -1,8 +1,6 @@
+import { FirstScreen } from "@/components/FirstScreen";
+import { DEFAULT_SAMPLE, SAMPLES } from "@/lib/run/samples";
+
 export default function Home() {
-  return (
-    <main>
-      <h1>Push</h1>
-      <p>Your pillow is a CPR manikin now.</p>
-    </main>
-  );
+  return <FirstScreen sample={SAMPLES[DEFAULT_SAMPLE]} />;
 }

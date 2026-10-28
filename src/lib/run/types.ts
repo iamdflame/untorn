@@ -86,8 +86,11 @@ export type JoinOut = {
   loop: boolean;
   /** The shape clue: how well the torn edges fit. */
   shape: { score: number; confidence: number; rms: number; overlap: number };
-  /** The content clue: what Muse read across this join (null when not asked or no answer). */
-  read: { id: string; agrees: boolean; confidence: number; words: string[]; reason: string } | null;
+  /**
+   * The content clue: what Muse read across this join (null when not asked or no answer). `agrees` is null when Muse
+   * answered with confidence 0.5 or less: too little text to tell, so the read carried no weight.
+   */
+  read: { id: string; agrees: boolean | null; confidence: number; words: string[]; reason: string } | null;
 };
 
 export type PageOut = {

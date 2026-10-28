@@ -147,8 +147,8 @@ function JoinMap({ result }: { result: RunResult }) {
           </thead>
           <tbody>
             {result.joins.map((j) => (
-              <tr key={j.candidate} data-decided={j.decidedBy} data-read={j.read ? (j.read.agrees ? "agrees" : "disagrees") : "none"}>
-                <td>
+              <tr key={j.candidate} data-decided={j.decidedBy} data-read={!j.read ? "none" : j.read.agrees === null ? "unsure" : j.read.agrees ? "agrees" : "disagrees"}>
+                <td data-label="Pieces">
                   <span className="pair">
                     {pieces.get(j.a) && <PieceThumb piece={pieces.get(j.a)!} photo={result.photo} size={36} />}
                     {pieces.get(j.b) && <PieceThumb piece={pieces.get(j.b)!} photo={result.photo} size={36} />}
@@ -157,20 +157,27 @@ function JoinMap({ result }: { result: RunResult }) {
                     </span>
                   </span>
                 </td>
-                <td>
+                <td data-label="Shape fit">
                   {Math.round(j.shape.score)} px of seam · {j.shape.rms.toFixed(2)} px misfit · {Math.round(j.shape.confidence * 100)}%
                 </td>
-                <td>
+                <td data-label="Muse read">
                   {j.read ? (
                     <>
-                      {j.read.words.length ? j.read.words.map((w) => `“${w}”`).join(" · ") : "no words"} <span aria-hidden>{j.read.agrees ? "✓" : "✗"}</span>
-                      <span className="sr-only">{j.read.agrees ? "agrees" : "disagrees"}</span>
+                      {j.read.words.length ? j.read.words.map((w) => `“${w}”`).join(" · ") : "no words"}{" "}
+                      {j.read.agrees === null ? (
+                        <span className="muted">(too little text to tell)</span>
+                      ) : (
+                        <>
+                          <span aria-hidden>{j.read.agrees ? "✓" : "✗"}</span>
+                          <span className="sr-only">{j.read.agrees ? "agrees" : "disagrees"}</span>
+                        </>
+                      )}
                     </>
                   ) : (
-                    <span className="muted">not asked</span>
+                    <span className="muted">not read at this placement</span>
                   )}
                 </td>
-                <td>{DECIDED[j.decidedBy]}</td>
+                <td data-label="Decided by">{DECIDED[j.decidedBy]}</td>
               </tr>
             ))}
           </tbody>

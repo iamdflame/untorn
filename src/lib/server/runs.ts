@@ -18,7 +18,8 @@ export type RunInput = { bytes: Uint8Array; source: RunSource; sample?: string; 
 export async function readSample(name: string): Promise<{ bytes: Uint8Array; caption: string }> {
   const s = SAMPLES[name];
   if (!s) throw new RunError("not-found");
-  const bytes = new Uint8Array(await readFile(path.join(process.cwd(), s.file)));
+  // statically scoped to data/samples so the build traces only that folder (s.file names the same path)
+  const bytes = new Uint8Array(await readFile(path.join(process.cwd(), "data", "samples", s.name, "photo.jpg")));
   return { bytes, caption: s.caption };
 }
 

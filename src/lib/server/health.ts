@@ -51,7 +51,7 @@ export async function runHealthCheck(store: Store, deps?: PipelineDeps): Promise
     const { ipKey } = await admitRun(store, "health", runId);
     try {
       const { bytes, caption } = await readSample(sample);
-      const keyFile = path.join(process.cwd(), path.dirname(SAMPLES[sample].file), "key.json");
+      const keyFile = path.join(process.cwd(), "data", "samples", SAMPLES[sample].name, "key.json");
       const key = JSON.parse(await readFile(keyFile, "utf8")) as AnswerKey;
       const onEvent = (e: RunEvent) => {
         if (e.type === "stage" && e.status === "done" && e.ms !== undefined) stages[e.stage] = e.ms;

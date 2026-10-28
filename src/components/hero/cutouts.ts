@@ -178,7 +178,8 @@ export function inkNear(c: Cutout, px: number, py: number, a: number, x: number,
 /* ---------------- shared between the hero and the result plate ---------------- */
 
 const shared = new Map<string, Promise<Map<string, Cutout>>>();
-export const cutoutKey = (src: string, pieces: ScenePiece[]) => `${src}|${pieces.map((p) => p.id).join(",")}`;
+/** Same photo and the same outlines (a new segmentation of the same photo gets its own cut-outs). */
+export const cutoutKey = (src: string, pieces: ScenePiece[]) => `${src}|${pieces.map((p) => `${p.id}:${p.bbox.map(Math.round).join(",")}:${p.poly.length}`).join(";")}`;
 /** One set of cut-outs per photo and outline set: whoever asks first makes them, the rest wait for them. */
 export function sharedCutouts(key: string, make: () => Promise<Map<string, Cutout>>): Promise<Map<string, Cutout>> {
   let p = shared.get(key);

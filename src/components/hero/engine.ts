@@ -175,11 +175,21 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     loop: 0,
   };
   const TW = { ask: 0.7, try0: 3.6, tryDur: 1.45 };
+  /** A live run waits here, the lit pieces on the table, until the solver's poses arrive. */
+  const HOLD = 4.0;
+  /** The live run waited on the table: when the poses arrive the clock steps back to the explode, outlines and
+   * balloons already gone. */
+  let rewound = false;
   let STOPS: number[] = [0];
 
   function setScene(sc: Scene) {
     scene = sc;
+    const was = assembled;
     assembled = sc.pages.length > 0;
+    if (assembled && !was && input?.mode === "live" && t > T.exp0) {
+      t = T.exp0;
+      rewound = true;
+    }
     const [bx0, by0, bx1, by1] = sc.pagesBox;
     PCX = (bx0 + bx1) / 2;
     PCY = (by0 + by1) / 2;
@@ -510,6 +520,13 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     if (!(input?.twins && input.mode === "recorded")) return 0;
     return smooth(T.tw0 - 0.3, T.tw0 + 0.2, t) * (1 - smooth(T.tw1 - 0.35, T.tw1, t));
   }
+  /** Before the poses arrive, the light table sits under the pieces: a page-sized patch at their centre. */
+  function tableBox(): [number, number, number, number] {
+    const area = pieces.reduce((n, p) => n + (p.bbox[2] - p.bbox[0]) * (p.bbox[3] - p.bbox[1]) * 0.6, 0) || 1e6;
+    const h = Math.sqrt(area * 1.3);
+    const w = h / 1.3;
+    return [PHC.x - w / 2, PHC.y - h / 2, PHC.x + w / 2, PHC.y + h / 2];
+  }
   function homeFrac(t: number) {
     if (!assembled || !pieces.length) return 0;
     return pieces.reduce((n, p) => n + (p.placed ? poseAt(p, t, 0).home : 1), 0) / pieces.length;
@@ -531,7 +548,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     const dimsA = smooth(T.exp0 + 0.4, T.exp1, t) * (1 - smooth(T.stepT[1] ?? T.exp1 + 1, (T.stepT[1] ?? T.exp1 + 1) + 0.6, t)) * (1 - j);
     const cornersA = assembled ? smooth(T.exp0 + 0.4, T.exp1, t) * (1 - smooth(T.stepT[1] ?? T.exp1 + 1, (T.stepT[1] ?? T.exp1 + 1) + 0.6, t)) : 0;
     const wholeA = smooth(T.whole, T.whole + 0.7, t);
-    const pb = scene?.pagesBox ?? [0, 0, input.photo.width, input.photo.height];
+    const pb = assembled && scene ? scene.pagesBox : tableBox();
 
     g.save();
     lightTable(g, c, pb as [number, number, number, number], (cutsReady ? smooth(T.lift0, T.lift1 + 0.3, t) : 0) * (1 - z));
@@ -580,7 +597,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       const pr = clamp((t - (T.trace0 + i * T.traceStag)) / T.traceDur);
       if (pr <= 0) return;
       const ps = poses[i];
-      const a = 1 - (assembled ? smooth(T.exp1 - 0.4, T.exp1 + 0.4, t) : cutsReady ? smooth(T.lift1, T.lift1 + 0.6, t) * 0.85 : 0);
+      let a = 1 - (assembled ? smooth(T.exp1 - 0.4, T.exp1 + 0.4, t) : cutsReady ? smooth(T.lift1, T.lift1 + 0.6, t) * 0.85 : 0);
+      if (rewound) a = Math.min(a, 0.15);
       if (a < 0.01) return;
       g.save();
       g.translate(ps.x, ps.y);
@@ -638,7 +656,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     pieces.forEach((p, i) => {
       const ps = poses[i];
       const done = T.trace0 + i * T.traceStag + T.traceDur;
-      const a = smooth(done - 0.1, done + 0.2, t) * (1 - (assembled ? smooth(T.exp1 - 0.3, T.exp1 + 0.3, t) : cutsReady ? smooth(T.lift1 + 0.4, T.lift1 + 1.2, t) : 0)) + j * wholeA;
+      const a = (rewound ? 0 : smooth(done - 0.1, done + 0.2, t) * (1 - (assembled ? smooth(T.exp1 - 0.3, T.exp1 + 0.3, t) : cutsReady ? smooth(T.lift1 + 0.4, T.lift1 + 1.2, t) : 0))) + j * wholeA;
       if (a < 0.01) return;
       const [sx, sy] = w2s(c, ps.x, ps.y);
       let dx = ps.x - bc.x;
@@ -926,7 +944,9 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       (cx, cy) => {
         if (!img || !img.complete || !img.naturalWidth) return;
         const z = 2;
-        g.setTransform(DPR * z, 0, 0, DPR * z, DPR * Math.round(cx - (img.naturalWidth / 2) * z), DPR * Math.round(cy - (img.naturalHeight / 2) * z));
+        // a pair image is centred on the seam; a choice sheet's seam window is its top strip
+        const fy = read.kind === "choice" ? Math.min(img.naturalHeight / 2, 75) : img.naturalHeight / 2;
+        g.setTransform(DPR * z, 0, 0, DPR * z, DPR * Math.round(cx - (img.naturalWidth / 2) * z), DPR * Math.round(cy - fy * z));
         g.drawImage(img, 0, 0);
       },
       1,
@@ -1236,7 +1256,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     if (!input?.photo || !photoOk) return 0;
     if (!pieces.length) return T.trace0 - 0.01;
     if (!cutsReady) return T.lift0;
-    if (!assembled) return T.exp0;
+    if (!assembled) return input.mode === "live" ? HOLD : T.exp0;
     if (!input.transcript && !input.progress.done) return T.whole + 0.6;
     if (!input.transcript) return T.whole + 0.6;
     return Infinity;
@@ -1354,7 +1374,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       if (Math.abs(jAmt - jTarget) < 0.002) jAmt = jTarget;
       dirty = true;
     }
-    if (input?.mode === "live" && !assembled) pumpLive(t);
+    pumpLive(t);
     findReadPoints();
     if (dirty && heroVisible) {
       dirty = false;
@@ -1409,6 +1429,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     const newRun = !prev || prev.key !== next.key;
     if (newRun) {
       t = 0;
+      rewound = false;
       stepped = false;
       twPick = null;
       liveSeen.clear();

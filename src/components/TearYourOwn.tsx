@@ -13,7 +13,7 @@ type Phase = { kind: "idle" } | { kind: "creating" } | { kind: "waiting"; sessio
 
 export const POLL_MS = 1500;
 
-export function TearYourOwn({ onPhoto, onFile, disabled, footer }: { onPhoto: (photoId: string) => void; onFile: (file: File) => void; disabled?: boolean; footer?: React.ReactNode }) {
+export function TearYourOwn({ onPhoto, onFile, onSample, disabled, footer }: { onPhoto: (photoId: string) => void; onFile: (file: File) => void; onSample?: () => void; disabled?: boolean; footer?: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -152,6 +152,15 @@ export function TearYourOwn({ onPhoto, onFile, disabled, footer }: { onPhoto: (p
               </>
             )}
           </div>
+          {onSample && (
+            <div className="way">
+              <h3>No torn page to hand?</h3>
+              <p>Run the sample letter through the live pipeline now; it takes about 40 seconds.</p>
+              <button type="button" className="btn" onClick={onSample} disabled={disabled}>
+                Run the sample live
+              </button>
+            </div>
+          )}
           <p className="privacy-line">Photos are deleted within 24 hours and never used for training.</p>
         </div>
       </div>

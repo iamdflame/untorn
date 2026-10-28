@@ -178,6 +178,7 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
       <TearYourOwn
         onPhoto={onPhoto}
         onFile={onFile}
+        onSample={() => goLive({ sample: sample.name })}
         disabled={busy}
         footer={
           <footer className="foot">

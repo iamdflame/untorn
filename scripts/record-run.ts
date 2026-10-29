@@ -1,7 +1,7 @@
 // Record a real run of the pipeline on a sample photo, for the first screen's replay (and as a test fixture).
 //
 //   pnpm tsx scripts/record-run.ts [sample=chouteau-1903] [--photo FILE] [--out DIR] [--events FILE]
-//                                  [--strategy all|tree] [--read-deadline MS] [--concurrency N]
+//                                  [--strategy all|tree] [--sheet stacked|joined] [--window WxH] [--read-deadline MS] [--concurrency N]
 //
 // Runs the same pipeline as POST /api/runs with the real models (about $0.10 for a 10-piece page), and writes DIR
 // (default public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
@@ -64,6 +64,8 @@ async function main() {
       sample: name,
       caption: sample?.caption,
       twinStrategy: strategy as "all" | "tree" | undefined,
+      choiceSheet: opt("--sheet") as "stacked" | "joined" | undefined,
+      sheetWindow: opt("--window") ? (opt("--window")!.split("x").map(Number) as [number, number]) : undefined,
       readDeadlineMs: opt("--read-deadline") ? Number(opt("--read-deadline")) : undefined,
       concurrency: opt("--concurrency") ? Number(opt("--concurrency")) : undefined,
     },

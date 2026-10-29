@@ -30,6 +30,12 @@ export type SeamRenderOptions = {
   pitchHint?: number | null;
   /** Draw the tear as a dark line (pair images). */
   seamLine?: boolean;
+  /** Choice sheets: show each candidate joined, flush, to the left piece (one strip per candidate; Muse's "joined"
+   *  prompt) instead of on its own under it. */
+  joined?: boolean;
+  /** Choice sheets: the window of each strip (default: width / height). Taller strips show more lines across the tear. */
+  sheetWidth?: number;
+  sheetHeight?: number;
   background?: [number, number, number];
 };
 
@@ -223,7 +229,7 @@ export function renderChoiceSheet(
   const anchor = get(anchorId);
   const bg = opts.background ?? BG;
   const first = side(candidates[0], anchorId);
-  const fr = seamFrame(anchor, first.seam, get(first.partner), first.pose, opts);
+  const fr = seamFrame(anchor, first.seam, get(first.partner), first.pose, { ...opts, width: opts.sheetWidth ?? opts.width, height: opts.sheetHeight ?? opts.height });
   const pad = 20;
   const gap = 34;
   const W = fr.width + 2 * pad;
@@ -236,7 +242,9 @@ export function renderChoiceSheet(
     const sd = side(cand, anchorId);
     const top = pad + (fr.height + gap) * (k + 1);
     drawText(out, `CANDIDATE ${String.fromCharCode(65 + k)}`, pad, top - 18, white, 2);
-    paint(out, pad, top, fr, [{ f: get(sd.partner), pose: sd.pose }], bg);
+    const layers = [{ f: get(sd.partner), pose: sd.pose }];
+    if (opts.joined) layers.unshift({ f: anchor, pose: { theta: 0, tx: 0, ty: 0 } });
+    paint(out, pad, top, fr, layers, bg);
   });
   return out;
 }

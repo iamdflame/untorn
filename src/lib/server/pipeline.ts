@@ -61,6 +61,10 @@ export type PipelineOptions = {
   maxPairChecks?: number;
   /** Stack tears: read every twin seam ("all") or along a spanning tree of slots ("tree", fewer reads). */
   twinStrategy?: TwinStrategy;
+  /** k-way sheets: candidates on their own under the left piece ("stacked"), or each joined to it ("joined"). */
+  choiceSheet?: "stacked" | "joined";
+  /** k-way sheet strip size (px); the default is the pair image's 420 x 150. */
+  sheetWindow?: [number, number];
   /** Start a duplicate Muse request when a seam read hasn't answered after this long (median 7–9 s, p90 ~13 s). */
   readHedgeMs?: number;
   /** Translate transcripts that are not in this language. */
@@ -74,10 +78,16 @@ export type PipelineOptions = {
 };
 
 const SEAM_JPEG_QUALITY = 90;
-/** Fewest type pixels a question needs (the anchor's panel, and all candidates together) to be worth a read. */
+/** Fewest type pixels a question needs to be worth a read: a pair image, each candidate of a k-way sheet, and the
+ *  sheet's left piece (a few words). Measured on the stack sample: these keep 45 of 65 sheets and lift Muse's picks
+ *  from 46/60 to 34/40 right. */
 const MIN_INK = 300;
+const MIN_ANCHOR_INK = 800;
 /** The read strategy for live runs (S6b measured both on Bench-S and on the real stack sample). */
 export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "all";
+/** The k-way sheet layout for live runs (S6b measured both on the real stack sample). */
+export const DEFAULT_CHOICE_SHEET: "stacked" | "joined" = "stacked";
+export const DEFAULT_SHEET_WINDOW: [number, number] = [420, 150];
 const PAGE_MARGIN = 8;
 
 /** Run the whole pipeline on one photo. Emits events as it goes; returns the stored result. Throws RunError. */
@@ -180,7 +190,10 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const rgba = rgbToRgba(photo.rgb);
   const inputs = fragmentsFromSegments(rgba, seg.fragments.map((f) => ({ id: pieceId(f.id), mask: f.mask })));
   const strategy = opts.twinStrategy ?? DEFAULT_TWIN_STRATEGY;
-  const prep: Prepared = prepare(inputs, { maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length), twinStrategy: strategy });
+  const sheet = opts.choiceSheet ?? DEFAULT_CHOICE_SHEET;
+  const win = opts.sheetWindow ?? DEFAULT_SHEET_WINDOW;
+  const sheetArea = (win[0] * win[1]) / (420 * 150);
+  const prep: Prepared = prepare(inputs, { maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length), twinStrategy: strategy, render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1] } });
   const textOf = new Map(prep.fragments.map((f) => [f.id, !!f.text && f.text.confidence >= 0.3] as const));
   for (const p of pieces) p.text = textOf.get(p.id) ?? false;
   const blank = pieces.filter((p) => !p.text).length;
@@ -213,8 +226,10 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     const started = now();
     const img = req.render();
     // a question with almost no type is a guess, not a read: skip it (the seam then rests on shape, or on other reads)
-    const ink = renderedInk(img, req.kind === "choice" ? req.candidates.length + 1 : 1);
-    const blankQuestion = req.kind === "choice" ? ink[0] < MIN_INK || ink.slice(1).reduce((a, b) => a + b, 0) < MIN_INK : ink[0] < MIN_INK;
+    const ink = req.kind === "choice" ? renderedInk(img, req.candidates.length + 1, win[1]) : renderedInk(img, 1);
+    // a k-way sheet needs type on the left piece and on every candidate: shown one scrap with words and two blank ones,
+    // Muse picks the one with words, even when the true continuation is the blank margin
+    const blankQuestion = req.kind === "choice" ? ink[0] < MIN_ANCHOR_INK * sheetArea || Math.min(...ink.slice(1)) < MIN_INK * sheetArea : ink[0] < MIN_INK;
     if (blankQuestion) {
       skipped++;
       return null;
@@ -236,7 +251,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
         verdict = { kind: "pair", id: req.id, same: v.same_place, confidence: v.confidence, reason: v.reason, wordsAcross: v.words_across };
       } else read.error = out.error.code;
     } else {
-      const out = await deps.chooseContinuation(image, req.candidates.length, callOpts);
+      const out = await deps.chooseContinuation(image, req.candidates.length, sheet === "joined" ? { ...callOpts, prompt: "joined" } : callOpts);
       museCost(out);
       const partners = req.candidates.map((id) => partnerOf(prep, id, req.anchor));
       read = { ...base, kind: "choice", pieces: [req.anchor, ...partners], candidates: req.candidates, ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started };
@@ -367,6 +382,8 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     cost: { ...cost, usd: Math.round(cost.usd * 10000) / 10000 },
     stats: {
       twinStrategy: strategy,
+      choiceSheet: sheet,
+      sheetWindow: win,
       readRounds: rounds,
       twinGroups: prep.match.twinGroups.length,
       twinClasses: new Set([...prep.match.twinClass.values()]).size,

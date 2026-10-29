@@ -160,8 +160,9 @@ export function fuseVerdicts(reqs: ContentRequest[], verdicts: (ContentVerdict |
       r.candidates.forEach((id, k) => add(id, k === v.choice ? logit(conf) : -logit(conf)));
     }
   });
-  // "tree": a pick on a side that forms a consistent matching is confirmed by the other picks of its slot
-  if (prep && prep.options.twinStrategy === "tree") {
+  // a pick on a side that forms a consistent matching (and that no read from the other side contradicts) is confirmed
+  // by the other picks of its slot: with every twin of one slot read, each pick rules its partner out for the others
+  if (prep) {
     const extra = permutationVotes({ candidates: prep.match.candidates, twinClass: prep.match.twinClass }, reqs, verdicts);
     for (const [id, conf] of extra) {
       if ((ev.get(id)?.pos ?? 0) < 2) add(id, logit(Math.min(0.99, Math.max(0.5, conf))));

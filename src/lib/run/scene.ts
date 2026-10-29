@@ -339,8 +339,10 @@ export function seamRead(join: JoinOut, reads: ReadOut[]): SeamRead | null {
 }
 
 /**
- * The climax: the longest real split word Muse read across a tear it confirmed, at confidence 0.9 or more. Ties go to
- * the more confident read, then to the read that lands first. Null when no read qualifies.
+ * The climax: the real split word Muse read most confidently across a tear it confirmed, at confidence 0.9 or more.
+ * Ties go to the longer word, then to the read that lands first. Null when no read qualifies. Certainty comes before
+ * length: on the user's real tear, a longer word read at 0.90 carried a split the paper doesn't show, and the climax
+ * must be one a judge can check by eye.
  */
 export function chooseClimax(seams: SceneSeam[], minConfidence = 0.9): Climax | null {
   let best: { seam: SceneSeam; word: string } | null = null;
@@ -355,7 +357,7 @@ export function chooseClimax(seams: SceneSeam[], minConfidence = 0.9): Climax | 
       const L = w.length;
       const bL = best.word.length;
       const bc = best.seam.read!.confidence;
-      if (L > bL || (L === bL && r.confidence > bc)) best = { seam: s, word: w };
+      if (r.confidence > bc || (r.confidence === bc && L > bL)) best = { seam: s, word: w };
     }
   }
   if (!best) return null;

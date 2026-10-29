@@ -1,12 +1,17 @@
-// /accuracy: the evidence. Sections mirror docs/EVALS.md; the tables hold the numbers measured so far (all on
-// simulated tears, labelled), and are refilled from docs/EVALS.md as the evals land.
+// /accuracy: the evidence. Every number is measured and every test set is labelled for what it is. Sources:
+// docs/SOLVER.md (Bench-S), docs/MODELS.md (the models), and this sample's recorded run scored against its answer key
+// (computed here, the same scoring the hourly health run uses).
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import key from "../../../data/samples/chouteau-1903/key.json";
+import recorded from "../../../public/samples/chouteau-1903/result.json";
+import { scoreRun, type AnswerKey } from "@/lib/server/accuracy";
+import type { RunResult } from "@/lib/run/types";
 
 export const metadata: Metadata = {
   title: "Accuracy · Untorn",
-  description: "How well Untorn puts torn pages back together: the benchmark, the stack-tear test, real tears and the method.",
+  description: "How well Untorn puts torn pages back together: the benchmark, the stack-tear test, the models, this sample's recorded run, and where it fails.",
 };
 
 type Row = (string | number)[];
@@ -14,7 +19,7 @@ type Row = (string | number)[];
 function Table({ caption, head, rows, note }: { caption: string; head: string[]; rows: Row[]; note?: string }) {
   return (
     <figure className="eval-table">
-      <div className="table-wrap">
+      <div className="table-wrap" tabIndex={0} role="region" aria-label={caption}>
         <table>
           <caption>{caption}</caption>
           <thead>
@@ -35,17 +40,37 @@ function Table({ caption, head, rows, note }: { caption: string; head: string[];
           </tbody>
         </table>
       </div>
-      {note && <figcaption className="muted small">{note}</figcaption>}
+      {note && <figcaption>{note}</figcaption>}
     </figure>
   );
 }
 
-export default function AccuracyPage() {
+function Section({ id, title, label, children, intro }: { id: string; title: string; label: string; intro?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <main className="plain-page accuracy">
-      <header className="site-header">
-        <Link href="/" className="wordmark">
-          Untorn
+    <section className="acc-sec" id={id} aria-labelledby={`${id}-t`}>
+      <div>
+        <h2 id={`${id}-t`}>{title}</h2>
+        <span className="label">{label}</span>
+      </div>
+      <div>
+        {intro && <p>{intro}</p>}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+export default function AccuracyPage() {
+  const run = recorded as unknown as RunResult;
+  const score = scoreRun(run, key as unknown as AnswerKey);
+  const placed = run.pages.reduce((n, p) => n + p.pieces.length, 0);
+  const reads = run.joins.filter((j) => j.read?.agrees === true).length;
+  return (
+    <main className="page">
+      <header className="page-rail">
+        <Link className="mark" href="/" aria-label="Untorn, home">
+          Un<span className="bar" aria-hidden="true" />
+          torn
         </Link>
         <nav aria-label="Site">
           <Link href="/#tear">Tear your own</Link>
@@ -54,102 +79,134 @@ export default function AccuracyPage() {
           </Link>
         </nav>
       </header>
-      <h1>How accurate is it?</h1>
-      <p className="lede">
-        Every number here was measured, and every test set is labelled for what it is. Simulated tears have known answers; real tears are checked against a photo of the page taken before it was torn.
-      </p>
+      <div className="page-body">
+        <div className="acc-top">
+          <div>
+            <h1>How accurate is it?</h1>
+            <p className="lede">Every number here was measured, and every test set says what it is. Simulated tears have known answers. No real hand-torn page has been scored yet, and this page says so.</p>
+          </div>
+          <dl className="acc-keys">
+            <div>
+              <dt>Pieces placed correctly, shape only</dt>
+              <dd>
+                97.2%
+                <small>218 pieces, single pages of 8 to 12 pieces (Bench-S, simulated)</small>
+              </dd>
+            </div>
+            <div>
+              <dt>Pieces misplaced by shape</dt>
+              <dd>
+                0
+                <small>of 938 pieces across all six simulated families</small>
+              </dd>
+            </div>
+            <div>
+              <dt>Seams Muse judged right</dt>
+              <dd>
+                23 of 24
+                <small>12 true and 12 adversarial seams (cw1)</small>
+              </dd>
+            </div>
+            <div>
+              <dt>This sample, recorded run</dt>
+              <dd>
+                {score.placedCorrectly} of {score.pieces}
+                <small>
+                  pieces placed correctly; {score.correctJoins} of {score.joins} joins right
+                </small>
+              </dd>
+            </div>
+          </dl>
+        </div>
 
-      <section id="benchmark" aria-labelledby="b-title">
-        <h2 id="b-title">Benchmark: simulated tears (Bench-S)</h2>
-        <p>14 real public-domain pages (typed, printed and handwritten; English and German), torn by a simulator calibrated to real tears, with SAM-like outline noise. Held-out seeds.</p>
-        <Table
-          caption="Shape only (no reading)"
-          head={["Family", "Cases", "Pieces", "Placed correctly", "Misplaced", "Join precision", "Perfect pages"]}
-          rows={[
-            ["Single page, 8–12 pieces", 24, 218, "97.2%", 0, "100%", "22 of 24"],
-            ["Single page, 26–38 pieces", 8, 271, "100%", 0, "100%", "8 of 8"],
-            ["Mixed bag, 2–3 pages", 8, 160, "99.4%", 0, "100%", "19 of 20"],
-            ["35% straight cuts", 6, 57, "87.7%", 0, "100%", "4 of 6"],
-          ]}
-          note="Placed correctly: within 3 px and 1° of the truth, up to one rigid move per page. Source: docs/SOLVER.md."
-        />
-        <Table
-          caption="Shape only vs reading only vs both"
-          head={["Method", "Placed correctly", "Join precision"]}
-          rows={[
-            ["Shape only", "97.2% (single pages)", "100%"],
-            ["Reading only", "to be measured", "to be measured"],
-            ["Both (Untorn)", "96.3% with a simulated reader that is right 90% of the time", "100%"],
-          ]}
-          note="The live reader's own accuracy is below; the full three-way table is filled from docs/EVALS.md."
-        />
-      </section>
+        <Section id="benchmark" title="Benchmark: simulated tears" label="Simulated (Bench-S)" intro="14 real public-domain pages (typed, printed and handwritten; English and German), torn by a simulator calibrated to real tears, with SAM-like outline noise. Fixed seeds, disjoint from the cases used for tuning.">
+          <Table
+            caption="Shape only (no reading)"
+            head={["Family", "Cases", "Pieces", "Placed correctly", "Misplaced", "Join precision", "Perfect pages"]}
+            rows={[
+              ["Single page, 8–12 pieces", 24, 218, "97.2%", 0, "100%", "22 of 24"],
+              ["Single page, 6–7 pieces", 6, 40, "95.0%", 0, "100%", "5 of 6"],
+              ["Single page, 26–38 pieces", 8, 271, "100%", 0, "100%", "8 of 8"],
+              ["Mixed bag, 2–3 pages", 8, 160, "99.4%", 0, "100%", "19 of 20"],
+              ["35% straight cuts", 6, 57, "87.7%", 0, "100%", "4 of 6"],
+              ["Stack, 3 pages × 6–10", 8, 192, "0%: every twin left for reading", 0, "–", "0 of 24"],
+            ]}
+            note="Placed correctly: within 3 px and 1° of the truth, up to one rigid move per page. Source: docs/SOLVER.md."
+          />
+          <Table
+            caption="Shape alone, and shape with reading"
+            head={["Method", "Placed correctly", "Misplaced"]}
+            rows={[
+              ["Shape only, single pages", "97.2%", 0],
+              ["Shape + a reader right 90% of the time, single pages", "96.3%", 0],
+              ["Shape + a reader right 90% of the time, mixed bags", "97.5%", 0],
+              ["Reading only", "not measured", "–"],
+            ]}
+            note="On ordinary tears the shape already decides; reading is what decides stacks (below). The simulated reader errs at a set rate on every request."
+          />
+        </Section>
 
-      <section id="stack" aria-labelledby="s-title">
-        <h2 id="s-title">Stack tears: identical outlines</h2>
-        <p>Three pages torn together share every outline, so shape is a tie. Only reading across the tear can tell the twins apart.</p>
-        <Table
-          caption="3 pages × 6–10 pieces, 8 cases"
-          head={["Reader", "Placed correctly", "Misplaced", "Choice sheets per case"]}
-          rows={[
-            ["None (shape only)", "0%: every twin left for reading", 0, "–"],
-            ["Simulated reader, 90% right", "92.2%", 0, "median 95"],
-            ["Muse Spark, k-way picks (12 trials)", "12 of 12 picks right", "–", "–"],
-          ]}
-        />
-      </section>
+        <Section id="stack" title="Stack tears: identical outlines" label="Simulated" intro="Pages torn together share every outline, so shape is a tie. Only reading across the tear can tell the twins apart.">
+          <Table
+            caption="3 pages × 6–10 pieces, 8 cases, 192 pieces"
+            head={["Reader", "Placed correctly", "Misplaced", "Choice sheets per case"]}
+            rows={[
+              ["None (shape only)", "0%: every twin left for reading", 0, "–"],
+              ["Simulated reader, right 100% of the time", "99.0%", 0, "median 95"],
+              ["Simulated reader, right 90% of the time", "92.2%", 0, "median 95"],
+              ["Simulated reader, right 82% of the time", "85.9%", "2 (1.0%)", "median 95"],
+            ]}
+            note="Pixel appearance alone ranks the true twin first in 48% of twin groups (chance is about 33%). Source: docs/SOLVER.md."
+          />
+        </Section>
 
-      <section id="models" aria-labelledby="m-title">
-        <h2 id="m-title">The models, measured</h2>
-        <Table
-          caption="SAM 3.1 outlines and Muse Spark reads (simulated tears)"
-          head={["Test", "Result", "Latency"]}
-          rows={[
-            ["SAM 3.1: pieces found (9 photos, 104 pieces)", "100%, no extras", "1.9–7.1 s per photo"],
-            ["SAM 3.1: median outline error, 12 pieces", "0.46 px", "one call"],
-            ["Muse Spark: is this seam a join? (24 seams)", "23 of 24", "median 9.3 s"],
-            ["Muse Spark: which twin continues? (12 sheets)", "12 of 12", "median 6.9 s"],
-          ]}
-          note="Source: docs/MODELS.md."
-        />
-      </section>
+        <Section id="models" title="The models, measured" label="Simulated tears, real model calls">
+          <Table
+            caption="SAM 3.1 outlines and Muse Spark reads"
+            head={["Test", "Result", "Latency"]}
+            rows={[
+              ["SAM 3.1: pieces found (9 photos, 104 pieces)", "100%, no extras", "1.9–7.1 s per photo"],
+              ["SAM 3.1: median outline error, 12 pieces", "0.46 px", "one call"],
+              ["SAM 3.1: ShredBench renders (5 photos)", "40 of 40 pieces found", "5.1–7.1 s"],
+              ["Muse Spark: is this seam a join? (24 seams, half adversarial)", "23 of 24", "median 9.3 s"],
+              ["Muse Spark: which twin continues? (12 stack sheets)", "12 of 12", "median 6.9 s"],
+            ]}
+            note="Source: docs/MODELS.md."
+          />
+        </Section>
 
-      <section id="real" aria-labelledby="r-title">
-        <h2 id="r-title">Real tears</h2>
-        <p>Hand-torn paper photographed on a table, scored against a photo of each page taken before tearing. No real tears have been scored yet; this table is filled from docs/EVALS.md when they are.</p>
-        <Table caption="Real tears (Bench-R)" head={["Page", "Pieces", "Placed correctly", "Joins right", "Transcript CER"]} rows={[["–", "–", "–", "–", "–"]]} />
-      </section>
+        <Section id="live" title="This sample, recorded" label="Recorded run of the live pipeline" intro="The letter on the first screen: a simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. An hourly health check reruns it.">
+          <Table
+            caption="The recording the first screen plays"
+            head={["Pieces placed correctly", "Joins right", "Joins confirmed by reading", "Photo to page", "Model cost"]}
+            rows={[[`${score.placedCorrectly} of ${score.pieces}`, `${score.correctJoins} of ${score.joins}`, `${reads} of ${run.joins.length}`, `${(run.timings.total / 1000).toFixed(1)} s`, `$${run.cost.usd.toFixed(2)}`]]}
+            note={`${placed} pieces on one page. The other joins rest on the edge: little text crosses those tears. Live status: /api/health.`}
+          />
+        </Section>
 
-      <section id="live" aria-labelledby="l-title">
-        <h2 id="l-title">This sample, live</h2>
-        <p>The letter on the first screen (a simulated tear of a real 1903 letter, 10 pieces) through the whole live pipeline. An hourly health check reruns it and asserts the join accuracy.</p>
-        <Table
-          caption="Recorded run"
-          head={["Pieces placed", "Joins right", "Time", "Model cost"]}
-          rows={[["9 of 10 (8 correctly)", "12 of 13", "40.8 s", "$0.14"]]}
-          note="Live status: /api/health."
-        />
-      </section>
+        <Section id="real" title="Real tears" label="Not yet measured" intro="Hand-torn paper photographed on a table, scored against a photo of each page taken before tearing. None has been scored yet; this table fills in when one is.">
+          <Table caption="Real tears (Bench-R)" head={["Page", "Pieces", "Placed correctly", "Joins right", "Transcript errors"]} rows={[["–", "–", "–", "–", "–"]]} />
+        </Section>
 
-      <section id="method" aria-labelledby="h-title">
-        <h2 id="h-title">Method</h2>
-        <ol>
-          <li>SAM 3.1 outlines every piece in one call; each outline is snapped to the paper&apos;s edge at full resolution.</li>
-          <li>Torn edges are matched by shape: candidate joins where two edges are mirror images.</li>
-          <li>Muse Spark reads across each plausible seam. Where shapes tie (stack tears), it picks which twin continues the words.</li>
-          <li>A join is accepted only when the shape fits and the reading agrees, or when reading breaks a tie. Nothing is forced; pieces that fit nowhere stay unplaced.</li>
-          <li>Muse transcribes the rebuilt page. Gaps stay gaps: nothing is written that isn&apos;t on the paper.</li>
-        </ol>
-      </section>
+        <Section id="method" title="Method" label="How a page comes back">
+          <ol>
+            <li>SAM 3.1 outlines every piece in one call; each outline is snapped to the paper&apos;s edge at full resolution.</li>
+            <li>Torn edges are matched by shape: candidate joins where two edges are mirror images.</li>
+            <li>Muse Spark reads across each plausible seam. Where shapes tie (stack tears), it picks which twin continues the words.</li>
+            <li>A join is accepted only when the shape fits and the reading agrees, or when reading breaks a tie. Nothing is forced; pieces that fit nowhere stay unplaced.</li>
+            <li>Muse transcribes the rebuilt page. Gaps stay gaps: nothing is written that isn&apos;t on the paper.</li>
+          </ol>
+        </Section>
 
-      <section id="failures" aria-labelledby="f-title">
-        <h2 id="f-title">Where it fails</h2>
-        <ul>
-          <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
-          <li>Blank pieces can only be placed by shape.</li>
-          <li>Real hand-torn paper (fibres, curl, glare) is not yet measured.</li>
-        </ul>
-      </section>
+        <Section id="failures" title="Where it fails" label="Known weaknesses">
+          <ul>
+            <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
+            <li>Blank pieces can only be placed by shape.</li>
+            <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
+            <li>Real hand-torn paper (fibres, curl, glare) is not yet measured.</li>
+          </ul>
+        </Section>
+      </div>
     </main>
   );
 }

@@ -5,12 +5,17 @@ import "./globals.css";
 // Self-hosted type: Gambetta 500 and 600 (Fontshare, ITF free licence) for the headline, mark, reads and titles; Schibsted
 // Grotesk for UI and body; IBM Plex Mono only for machine output (Google Fonts, OFL). Latin subsets.
 const gambetta = localFont({
-  src: [
-    { path: "./fonts/gambetta-500.woff2", weight: "500", style: "normal" },
-    { path: "./fonts/gambetta-600.woff2", weight: "600", style: "normal" },
-  ],
+  src: [{ path: "./fonts/gambetta-500.woff2", weight: "500", style: "normal" }],
   variable: "--font-gambetta",
   display: "swap",
+  adjustFontFallback: "Times New Roman",
+});
+// the semibold cut (the mark and the climax word) isn't needed for the first paint
+const gambettaSemi = localFont({
+  src: [{ path: "./fonts/gambetta-600.woff2", weight: "600", style: "normal" }],
+  variable: "--font-gambetta-600",
+  display: "swap",
+  preload: false,
   adjustFontFallback: "Times New Roman",
 });
 const schibsted = localFont({
@@ -43,7 +48,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${gambetta.variable} ${schibsted.variable} ${plex.variable}`}>
+    <html lang="en" className={`${gambetta.variable} ${gambettaSemi.variable} ${schibsted.variable} ${plex.variable}`}>
       <body>{children}</body>
     </html>
   );

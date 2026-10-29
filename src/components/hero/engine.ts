@@ -1479,6 +1479,15 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       );
   }
 
+  /** The twins' scraps load after the page has (they appear 20 s in). */
+  function loadTwins() {
+    const go = () => root.querySelectorAll<HTMLImageElement>(".twins img[data-src]").forEach((im) => {
+      if (!im.getAttribute("src")) im.src = im.dataset.src!;
+    });
+    if (document.readyState === "complete") setTimeout(go, 1500);
+    else addEventListener("load", () => setTimeout(go, 1500), { once: true });
+  }
+
   function update(next: EngineInput) {
     const prev = input;
     input = next;
@@ -1513,6 +1522,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       startCutouts();
     } else if (newRun || prev?.twins !== next.twins) computeT();
     if (newRun || prev?.transcript !== next.transcript) setTranscript(next.transcript);
+    if (next.twins && (newRun || !prev?.twins)) loadTwins();
     for (const r of next.reads)
       if (!liveSeen.has(r.id)) {
         liveSeen.add(r.id);

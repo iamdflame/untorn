@@ -232,11 +232,11 @@ function Twins({ d }: { d: StackTrial }) {
       </figcaption>
       <div className="tw-stage">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="tw tw-L" loading="lazy" src={d.images.L.url} alt="The piece on the page, its torn edge waiting for a scrap" width={d.images.L.w} height={d.images.L.h} />
+        <img className="tw tw-L" data-src={d.images.L.url} alt="The piece on the page, its torn edge waiting for a scrap" width={d.images.L.w} height={d.images.L.h} />
         {(["A", "B", "C"] as const).map((k) => (
           <button key={k} type="button" className="tw tw-c" data-k={k} aria-label={`Scrap ${k}`} tabIndex={-1} style={{ width: d.images[k].w, height: d.images[k].h }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={d.images[k].url} loading="lazy" alt="" width={d.images[k].w} height={d.images[k].h} />
+            <img data-src={d.images[k].url} alt="" width={d.images[k].w} height={d.images[k].h} />
             <svg viewBox={`0 0 ${d.images[k].w} ${d.images[k].h}`} aria-hidden="true">
               <path className="strike" d={`M6 ${d.images[k].h - 10} 58 8`} />
             </svg>

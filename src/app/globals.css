@@ -26,6 +26,7 @@
   --red: oklch(0.58 0.16 28);
   --red-lt: oklch(0.72 0.13 28);
   --serif: var(--font-gambetta), ui-serif, Georgia, serif;
+  --serif-600: var(--font-gambetta-600), var(--font-gambetta), ui-serif, Georgia, serif;
   --sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
   --mono: var(--font-plex), ui-monospace, monospace;
   --lc: 42vw;
@@ -149,7 +150,7 @@ i.bar {
 
 /* ---------- the wordmark and the paper tab (shared) ---------- */
 .mark {
-  font-family: var(--serif);
+  font-family: var(--serif-600);
   font-weight: 600;
   font-size: 27px;
   letter-spacing: -0.02em;
@@ -808,7 +809,7 @@ i.bar {
   margin: 0;
   display: flex;
   align-items: center;
-  font-family: var(--serif);
+  font-family: var(--serif-600);
   font-weight: 600;
   font-size: min(9vw, 15vh, 140px);
   line-height: 0.95;

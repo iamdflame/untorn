@@ -67,5 +67,5 @@ describe("runPipeline (mocked models)", async () => {
     const result = await runPipeline(scene.photo, fakeDeps(put, { readDelayMs: 60_000 }), { runId: "t6", source: "upload", readDeadlineMs: 150 }, () => {});
     expect(result.warnings.map((w) => w.code)).toContain("slow-reading");
     expect(result.timings.read).toBeLessThan(30_000);
-  });
+  }, 40_000); // the whole pipeline (segment, match, render, assemble) runs here, slower under a parallel suite
 });

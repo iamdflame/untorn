@@ -7,7 +7,7 @@ export function loadEnv(): void {
   const p = join(process.cwd(), ".env");
   if (!process.env.MODEL_API_KEY && existsSync(p)) {
     const m = /^MODEL_API_KEY=(.*)$/m.exec(readFileSync(p, "utf8"));
-    if (m) process.env.MODEL_API_KEY = m[1].trim();
+    if (m) process.env.MODEL_API_KEY = m[1].trim().replace(/^["']|["']$/g, "");
   }
   if (!process.env.MODEL_API_KEY) throw new Error("MODEL_API_KEY missing (.env)");
 }

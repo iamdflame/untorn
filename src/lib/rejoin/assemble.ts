@@ -18,6 +18,9 @@ export type AssembleOptions = {
   minContentScore: number;
   /** A twin (stack tear) needs this many concordant content reads: one unconfirmed pick never places a piece. */
   minTwinVotes: number;
+  /** Geometry this unambiguous (margin over every rival, and score) outvotes a single contrary read. */
+  overrideMargin: number;
+  overrideScore: number;
   /** Loop closure tolerance: px at the fragment's centroid, and degrees. */
   loopPx: number;
   loopDeg: number;
@@ -27,6 +30,8 @@ export type AssembleOptions = {
   /** A join is refused when this share of either seam is already used by an accepted join. */
   seamReuse: number;
   refineIters: number;
+  /** Accept a twin seam without a read when its two pieces already sit side by side on one page (a closed loop). */
+  twinLoops: boolean;
   /** Called with every acceptance decision (for logs and the UI). */
   trace?: (candidate: string, outcome: TraceOutcome) => void;
 };
@@ -38,16 +43,20 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   minMargin: 1.4,
   minContentScore: 30,
   minTwinVotes: 2,
+  overrideMargin: 5,
+  overrideScore: 300,
   loopPx: 6,
   loopDeg: 2,
   overlapPx: 300,
   overlapShare: 0.02,
   seamReuse: 0.35,
   refineIters: 6,
+  twinLoops: true,
 };
 
-/** Fused content evidence per candidate id: log-odds sum of the verdicts that touched it. */
-export type ContentEvidence = Map<string, { logOdds: number; votes: number }>;
+/** Fused content evidence per candidate id: log-odds sum of the verdicts that touched it, how many touched it, and how
+ *  many of those were for it (a "same" or a pick of it, confidence above 0.5). */
+export type ContentEvidence = Map<string, { logOdds: number; votes: number; pos?: number }>;
 
 export type AssembleResult = { pages: Page[]; joins: Join[]; unplaced: Unplaced[] };
 
@@ -65,10 +74,18 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
     if (ev && ev.votes > 0 && ev.logOdds !== 0) {
       const same = ev.logOdds > 0;
       const content = { same, confidence: sigmoid(Math.abs(ev.logOdds)), votes: ev.votes };
+      // one contrary read does not veto an overwhelming fit (a margin no false fit reaches): the edge decides, and the
+      // join map shows that Muse disagreed. Twins and straight cuts never get here: geometry cannot decide them.
+      const overwhelming = !c.twinGroup && c.edge !== "cut" && c.margin >= o.overrideMargin && c.score >= o.overrideScore && ev.votes === 1;
+      if (!same && overwhelming) {
+        out.push({ c, combined: sigmoid(logit(g) + ev.logOdds), decidedBy: "geometry", content });
+        continue;
+      }
       if (!same || c.score < o.minContentScore) continue;
       // inside a twin group geometry is tied: content decides, and only when confirmed; elsewhere both clues agree
       const twin = c.twinGroup !== null;
-      if (twin && ev.votes < o.minTwinVotes) continue;
+      // concordant: that many reads picked this very join (one pick plus one read against it is not two votes)
+      if (twin && (ev.pos ?? ev.votes) < o.minTwinVotes) continue;
       const geomTerm = twin ? logit(1 - Math.exp(-c.score / 60)) : logit(g);
       out.push({ c, combined: sigmoid(geomTerm + ev.logOdds), decidedBy: twin ? "content" : "geometry+content", content });
       continue;
@@ -182,6 +199,18 @@ export function assemble(
       if (tryAccept({ c, combined, decidedBy: "geometry", content: null })) added++;
     }
     if (!added) break;
+  }
+
+  // Twins whose pieces already sit side by side on one page, exactly as the seam says: the loop closes on its own
+  // (the pages were built from confirmed joins), so the seam is accepted without a read of its own.
+  if (o.twinLoops) {
+    for (const c of byScore) {
+      if (acceptedIds.has(c.id) || !c.twinGroup || c.edge === "cut" || c.score < o.minContentScore) continue;
+      if (comp.get(c.a) !== comp.get(c.b)) continue;
+      const ev = evidence?.get(c.id);
+      if (ev && ev.logOdds < 0) continue;
+      tryAccept({ c, combined: 1 - Math.exp(-c.score / 60), decidedBy: "geometry", content: null });
+    }
   }
 
   // pages: components of two or more fragments
@@ -500,6 +529,12 @@ function upright(ids: string[], byId: Map<string, MatchData>, pose: Map<string, 
     rot = -axis + (vote < 0 ? Math.PI : 0);
     flipKnown = Math.abs(vote) > 0.25 * wt;
     by = "text";
+    // typed lines start at one margin and end ragged: when the line ends say so clearly, they settle up and down
+    const side = alignedSide(ids, byId, pose, rot);
+    if (side !== 0 && (side < 0 || !flipKnown)) {
+      if (side < 0) rot += Math.PI;
+      flipKnown = true;
+    }
   } else {
     // page edges: dominant direction modulo 90°, then portrait
     let ex = 0;
@@ -522,6 +557,69 @@ function upright(ids: string[], byId: Map<string, MatchData>, pose: Map<string, 
   }
   if (rot) for (const id of ids) pose.set(id, poseCompose({ theta: rot, tx: 0, ty: 0 }, pose.get(id)!));
   return { by, flipKnown };
+}
+
+/**
+ * Which side of the turned page the text lines are aligned on: +1 the left (upright), -1 the right (the page is upside
+ * down), 0 unclear. Ink is binned into line slots; the left and right ends of the slots are compared by how tightly
+ * they cluster (a margin) against how ragged they are.
+ */
+function alignedSide(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, rot: number): -1 | 0 | 1 {
+  const pitches = ids
+    .map((id) => byId.get(id)!.f.text)
+    .filter((t) => t && t.confidence >= 0.4 && t.pitch)
+    .map((t) => t!.pitch!)
+    .sort((a, b) => a - b);
+  if (!pitches.length) return 0;
+  const pitch = pitches[Math.floor(pitches.length / 2)];
+  const rows = new Map<number, number[]>();
+  for (const id of ids) {
+    const f = byId.get(id)!.f;
+    const img = f.input.rgba;
+    if (!img) continue;
+    const P = poseCompose({ theta: rot, tx: 0, ty: 0 }, pose.get(id)!);
+    const c = Math.cos(P.theta);
+    const s = Math.sin(P.theta);
+    const paper = f.paper ? 0.299 * f.paper[0] + 0.587 * f.paper[1] + 0.114 * f.paper[2] : 210;
+    const { mask, x0, y0 } = f.input;
+    for (let r = 0; r < mask.height; r += 2) {
+      for (let col = 0; col < mask.width; col += 2) {
+        const i = r * mask.width + col;
+        if (!mask.data[i] || f.depth[i] < 6) continue;
+        const k = 4 * i;
+        const lum = 0.299 * img.data[k] + 0.587 * img.data[k + 1] + 0.114 * img.data[k + 2];
+        if (lum > paper - 50) continue;
+        const x = x0 + col + 0.5;
+        const y = y0 + r + 0.5;
+        const px = c * x - s * y + P.tx;
+        const py = s * x + c * y + P.ty;
+        const b = Math.floor(py / pitch);
+        const l = rows.get(b);
+        if (l) l.push(px);
+        else rows.set(b, [px]);
+      }
+    }
+  }
+  const lefts: number[] = [];
+  const rights: number[] = [];
+  for (const xs of rows.values()) {
+    if (xs.length < 40) continue;
+    xs.sort((a, b) => a - b);
+    lefts.push(xs[Math.floor(0.01 * xs.length)]);
+    rights.push(xs[Math.floor(0.99 * xs.length)]);
+  }
+  if (lefts.length < 6) return 0;
+  const tol = 0.4 * pitch;
+  const cluster = (v: number[]) => {
+    let best = 0;
+    for (const a of v) best = Math.max(best, v.filter((b) => Math.abs(b - a) <= tol).length);
+    return best;
+  };
+  const cl = cluster(lefts);
+  const cr = cluster(rights);
+  if (cl >= 4 && cl >= 2 * cr) return 1;
+  if (cr >= 4 && cr >= 2 * cl) return -1;
+  return 0;
 }
 
 function extent(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, rot: number): [number, number] {

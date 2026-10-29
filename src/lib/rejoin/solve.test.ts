@@ -3,7 +3,7 @@ import { museContentCheck, fragmentsFromSegments, type ChooseContinuation, type 
 import { poseApply, poseCompose, poseInvert, type Pose } from "./geom";
 import { renderChoiceSheet, renderSeam } from "./seam";
 import { renderPage } from "./render";
-import { contentRequests, prepare, solve } from "./solve";
+import { askPlanned, contentRequests, finish, prepare, solve } from "./solve";
 import { gridTear, scatterPage } from "./__tests__/synth";
 import type { ContentCheck, FragmentInput, SolveResult } from "./types";
 
@@ -109,6 +109,26 @@ describe("stack tears: identical outlines on different pages", async () => {
     }
     expect(placedCorrectly(res, inputs, truth)).toBe(8);
     expect(res.joins.some((j) => j.decidedBy === "content")).toBe(true);
+  });
+
+  it("the tree strategy reads fewer sheets and rebuilds the same pages", async () => {
+    const asked = { all: 0, tree: 0 };
+    for (const strategy of ["all", "tree"] as const) {
+      const prep = prepare(inputs, { twinStrategy: strategy });
+      const byId = new Map(prep.match.candidates.map((c) => [c.id, c] as const));
+      const oracle: ContentCheck = async (req) => {
+        if (req.kind === "pair") return { kind: "pair", id: req.id, same: pageOf(byId.get(req.candidate)!.a) === pageOf(byId.get(req.candidate)!.b), confidence: 0.95 };
+        const k = req.candidates.findIndex((id) => pageOf(byId.get(id)!.a) === pageOf(byId.get(id)!.b));
+        return { kind: "choice", id: req.id, choice: k >= 0 ? k : null, confidence: 0.95 };
+      };
+      const { reqs, verdicts } = await askPlanned(prep, oracle, 4);
+      asked[strategy] = reqs.filter((r) => r.kind === "choice").length;
+      const res = finish(prep, reqs, verdicts);
+      expect(res.pages).toHaveLength(2);
+      for (const p of res.pages) expect(new Set(p.fragments.map((f) => pageOf(f.id))).size).toBe(1);
+      expect(placedCorrectly(res, inputs, truth)).toBe(8);
+    }
+    expect(asked.tree).toBeLessThan(asked.all);
   });
 
   it("renders the k-way sheet and the pair seam the content check reads", () => {

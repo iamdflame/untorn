@@ -13,6 +13,10 @@
 //   --json FILE         write per-case results as JSON
 //   --renders DIR       save the content-check images of the first case (pair + choice sheets) as PNG
 //   --twin-sides one|both  ask each stack slot from both classes of twins (default) or one
+//   --strategy all|tree    ask every twin seam (default) or along a spanning tree of slots (plan.ts)
+//   --no-twin-loops        do not accept twin seams that close a loop without a read
+//   --compare RATES        compare the strategies with the oracle at each error rate (e.g. 0,0.05,0.1), --trials N
+//                          oracle seeds per case (default 5); geometry is prepared once per case
 //   --cuts              also match straight cuts (opt-in; for scissor-cut and ShredBench-style pieces)
 //
 // Metrics: a fragment is placed correctly when its pose is within 3 px (at its centroid) and 1° of the truth, up to
@@ -25,14 +29,14 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { fitRigid, poseApply, poseCompose, poseInvert, rng, type Pose } from "../../src/lib/rejoin/geom";
 import { encodePng } from "../../src/lib/rejoin/render";
-import { askAll, contentRequests, finish, prepare } from "../../src/lib/rejoin/solve";
+import { askPlanned, finish, prepare } from "../../src/lib/rejoin/solve";
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, SolveResult } from "../../src/lib/rejoin/types";
 import { listCases, loadCase, trueRelative, type BenchCase, type GroundTruth } from "./cases";
 
-type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string; twinSides: "one" | "both"; cuts: boolean };
+type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string; twinSides: "one" | "both"; cuts: boolean; strategy: "all" | "tree"; twinLoops: boolean; compare?: number[]; trials: number };
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both", cuts: false };
+  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both", cuts: false, strategy: "all", twinLoops: true, trials: 5 };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     const v = argv[i + 1];
@@ -44,7 +48,13 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--json") a.json = v;
     else if (k === "--renders") a.renders = v;
     else if (k === "--twin-sides") a.twinSides = v as "one" | "both";
-    else if (k === "--cuts") {
+    else if (k === "--strategy") a.strategy = v as "all" | "tree";
+    else if (k === "--compare") a.compare = v.split(",").map(Number);
+    else if (k === "--trials") a.trials = Number(v);
+    else if (k === "--no-twin-loops") {
+      a.twinLoops = false;
+      continue;
+    } else if (k === "--cuts") {
       a.cuts = true;
       continue;
     }
@@ -252,8 +262,59 @@ function alignedFragments(mine: { id: string; pose: Pose }[], gtOf: Map<string, 
 
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(1)}%` : "–");
 
+/** Strategies × oracle error rates × seeds, on geometry prepared once per case. */
+async function compare(args: Args) {
+  const all = listCases(args.root);
+  const fams = args.family ?? [...new Set(all.map((d) => d.replace(/-\d+$/, "")))].filter((f) => !f.startsWith("dev"));
+  type Acc = { frags: number; correct: number; split: number; misplaced: number; unplaced: number; perfect: number; pages: number; reads: number[]; joinsOk: number; joins: number };
+  const acc = new Map<string, Acc>();
+  for (const fam of fams) {
+    for (const name of listCases(args.root, [fam]).slice(0, args.limit || undefined)) {
+      const c = loadCase(path.join(args.root, name), args.masks);
+      const base = prepare(c.inputs, { twinSides: args.twinSides, match: { cuts: args.cuts }, assemble: { twinLoops: args.twinLoops } });
+      const cands = new Map(base.match.candidates.map((x) => [x.id, x] as const));
+      for (const strategy of ["all", "tree"] as const) {
+        const prep = { ...base, options: { ...base.options, twinStrategy: strategy } };
+        for (const rate of args.compare!) {
+          for (let t = 0; t < args.trials; t++) {
+            const check = oracle(c.gt, prep.byId, cands, rate, c.gt.seed + 7919 * t);
+            const { reqs, verdicts } = await askPlanned(prep, check, 8);
+            const res = finish(prep, reqs, verdicts);
+            const s = score(c, prep.byId, res);
+            const key = `${strategy} ${rate}`;
+            const a = acc.get(key) ?? { frags: 0, correct: 0, split: 0, misplaced: 0, unplaced: 0, perfect: 0, pages: 0, reads: [], joinsOk: 0, joins: 0 };
+            a.frags += s.fragments;
+            a.correct += s.correct;
+            a.split += s.split;
+            a.misplaced += s.misplaced;
+            a.unplaced += s.unplaced;
+            a.perfect += s.perfectPages;
+            a.pages += s.gtPages;
+            a.joinsOk += s.joinsCorrect;
+            a.joins += s.joinsAccepted;
+            a.reads.push(reqs.length);
+            acc.set(key, a);
+          }
+        }
+      }
+      process.stdout.write(`${name} `);
+    }
+  }
+  console.log(`
+
+| Strategy | Oracle error | Runs | Placed correctly | Split off | Mis-placed | Unplaced | Join precision | Perfect pages | Reads median (mean, max) |`);
+  console.log("|---|---|---|---|---|---|---|---|---|---|");
+  for (const [key, a] of acc) {
+    const [strategy, rate] = key.split(" ");
+    const r = [...a.reads].sort((x, y) => x - y);
+    const mean = r.reduce((x, y) => x + y, 0) / r.length;
+    console.log(`| ${strategy} | ${(100 * Number(rate)).toFixed(0)}% | ${r.length} | ${pct(a.correct, a.frags)} | ${a.split} | ${a.misplaced} | ${a.unplaced} | ${pct(a.joinsOk, a.joins)} | ${a.perfect}/${a.pages} | ${r[Math.floor(r.length / 2)]} (${mean.toFixed(1)}, ${r[r.length - 1]}) |`);
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.compare) return compare(args);
   const all = listCases(args.root);
   const fams = args.family ?? [...new Set(all.map((d) => d.replace(/-\d+$/, "")))].filter((f) => !f.startsWith("dev"));
   const external = args.content.startsWith("module:") ? await loadModule(args.content.slice(7)) : null;
@@ -263,18 +324,17 @@ async function main() {
     for (const name of names) {
       const c = loadCase(path.join(args.root, name), args.masks);
       const t0 = performance.now();
-      const prep = prepare(c.inputs, { twinSides: args.twinSides, match: { cuts: args.cuts } });
+      const prep = prepare(c.inputs, { twinSides: args.twinSides, twinStrategy: args.strategy, match: { cuts: args.cuts }, assemble: { twinLoops: args.twinLoops } });
       let reqs: ContentRequest[] = [];
       let verdicts: (ContentVerdict | null)[] = [];
       if (args.content !== "none") {
-        reqs = contentRequests(prep);
         const cands = new Map(prep.match.candidates.map((x) => [x.id, x] as const));
         const check = external ?? oracle(c.gt, prep.byId, cands, Number(args.content.split(":")[1] ?? 0.1), c.gt.seed);
+        ({ reqs, verdicts } = await askPlanned(prep, check, 8));
         if (args.renders && !results.length) {
           mkdirSync(args.renders, { recursive: true });
           reqs.slice(0, 12).forEach((r, k) => writeFileSync(path.join(args.renders!, `${name}-${k}-${r.kind}.png`), encodePng(r.render())));
         }
-        verdicts = await askAll(reqs, check, 8);
       }
       const res = finish(prep, reqs, verdicts);
       const total = performance.now() - t0;

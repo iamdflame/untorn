@@ -2,6 +2,7 @@
 // profile peaky when projected along them). The angle is ambiguous by 180°; an ascender/descender asymmetry vote
 // (Latin script has more ascenders than descenders) says which way is up when the evidence is clear.
 
+import { rng } from "./geom";
 import { luminance, paperTone } from "./raster";
 import type { Mask, Rgba } from "./types";
 
@@ -58,14 +59,23 @@ export function textOrientation(
     }
   }
   if (xs.length < minInk) return null;
-  const stride = Math.max(1, Math.ceil(xs.length / maxSamples));
-  const n = Math.ceil(xs.length / stride);
+  // Subsample at random, not every k-th pixel in raster order: a fixed stride over rows of ink makes a lattice whose
+  // diagonal can out-score the text lines (a 4800 px photo's piece read 135° instead of 3°).
+  const keep: number[] = [];
+  if (xs.length <= maxSamples) for (let i = 0; i < xs.length; i++) keep.push(i);
+  else {
+    const rand = rng(xs.length);
+    const p = maxSamples / xs.length;
+    for (let i = 0; i < xs.length; i++) if (rand() < p) keep.push(i);
+  }
+  const n = keep.length;
   const X = new Float64Array(n);
   const Y = new Float64Array(n);
   const W = new Float64Array(n);
   let cx = 0;
   let cy = 0;
-  for (let k = 0, i = 0; i < xs.length; i += stride, k++) {
+  for (let k = 0; k < n; k++) {
+    const i = keep[k];
     X[k] = xs[i];
     Y[k] = ys[i];
     W[k] = ws[i];
@@ -78,55 +88,30 @@ export function textOrientation(
     X[k] -= cx;
     Y[k] -= cy;
   }
-  // Paper under the ink, sampled the same way: the criterion compares ink per bin with paper per bin, so the piece's
-  // own shape does not count (projected along its long axis an elongated piece bunches any ink into few bins).
-  const paperXs: number[] = [];
-  const paperYs: number[] = [];
-  let paperCount = 0;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (depth[y * w + x] >= margin) paperCount++;
-  const pStride = Math.max(1, Math.ceil(paperCount / maxSamples));
-  for (let y = 0, q = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (depth[y * w + x] < margin) continue;
-      if (q++ % pStride === 0) {
-        paperXs.push(x + 0.5 - cx);
-        paperYs.push(y + 0.5 - cy);
-      }
-    }
-  }
   const R = Math.ceil(Math.hypot(w, h)) + 2;
   const hist = new Float64Array(2 * R + 1);
-  const paperHist = new Float64Array(2 * R + 1);
-  const splat = (out: Float64Array, r: number, wgt: number) => {
-    // linear splat into two bins: rounding to the nearest bin aliases with the pixel lattice (at 45° the projected
-    // pixel centres fall on a 1/√2 grid, and the profile looks peaky without any text lines)
-    const b = Math.floor(r);
-    const f = r - b;
-    out[b] += wgt * (1 - f);
-    out[b + 1] += wgt * f;
-  };
-  /** E[d²] / E[d]² of the ink density d (ink per paper) across bins, paper-weighted: 1 when the ink is uniform. */
   const crit = (theta: number) => {
     hist.fill(0);
-    paperHist.fill(0);
     const s = Math.sin(theta);
     const c = Math.cos(theta);
-    for (let k = 0; k < n; k++) splat(hist, -X[k] * s + Y[k] * c + R, W[k]);
-    for (let k = 0; k < paperXs.length; k++) splat(paperHist, -paperXs[k] * s + paperYs[k] * c + R, 1);
-    let pmax = 0;
-    for (let b = 0; b < paperHist.length; b++) pmax = Math.max(pmax, paperHist[b]);
-    let sp = 0;
-    let sd = 0;
-    let sdd = 0;
-    for (let b = 0; b < hist.length; b++) {
-      const p = paperHist[b];
-      if (p < 0.2 * pmax) continue;
-      const d = hist[b] / p;
-      sp += p;
-      sd += p * d;
-      sdd += p * d * d;
+    let tot = 0;
+    for (let k = 0; k < n; k++) {
+      const r = -X[k] * s + Y[k] * c;
+      hist[Math.round(r) + R] += W[k];
+      tot += W[k];
     }
-    return sd > 0 ? (sdd * sp) / (sd * sd) : 1;
+    let ss = 0;
+    let lo = -1;
+    let hi = -1;
+    for (let b = 0; b < hist.length; b++) {
+      if (!hist[b]) continue;
+      ss += hist[b] * hist[b];
+      if (lo < 0) lo = b;
+      hi = b;
+    }
+    // energy times extent: ink spread evenly over the piece scores 1 in every direction, so a narrow piece's short
+    // axis no longer beats its text lines (a diagonal strip read 135° instead of 3°); banded lines score above 1
+    return (ss / (tot * tot)) * (hi - lo + 1);
   };
   const coarse = new Float64Array(180);
   let best = 0;
@@ -160,7 +145,11 @@ export function textOrientation(
   return { angle, strength, confidence, pitch, up, upConfidence: conf, ink: xs.length };
 }
 
-/** The dominant period (px) of a projection profile, from its autocorrelation, or null. */
+/**
+ * The dominant period (px) of a projection profile, from its autocorrelation, or null: the first autocorrelation peak
+ * that comes close to the strongest one. (At high resolution a text line's own structure, the top and foot of the
+ * x-height band, makes early minor peaks; a later peak at twice the pitch is a harmonic.)
+ */
 function linePitch(p: Float64Array): number | null {
   const n = p.length;
   let lo = 0;
@@ -176,24 +165,21 @@ function linePitch(p: Float64Array): number | null {
   let a0 = 0;
   for (let i = 0; i < q.length; i++) a0 += q[i] * q[i];
   if (a0 <= 0) return null;
-  const maxLag = Math.min(160, Math.floor(q.length / 2));
-  let bestLag = 0;
-  let bestVal = 0.15;
-  let prev = 1;
-  let falling = true;
-  for (let lag = 6; lag <= maxLag; lag++) {
+  const maxLag = Math.min(320, Math.floor(q.length / 2));
+  const ac = new Float64Array(maxLag + 2);
+  for (let lag = 6; lag <= maxLag + 1 && lag < q.length; lag++) {
     let a = 0;
     for (let i = 0; i + lag < q.length; i++) a += q[i] * q[i + lag];
-    a /= a0;
-    if (falling && a > prev) falling = false;
-    if (!falling && a > bestVal) {
-      bestVal = a;
-      bestLag = lag;
-    }
-    if (!falling && bestLag && a < bestVal - 0.15) break;
-    prev = a;
+    ac[lag] = a / a0;
   }
-  return bestLag || null;
+  // local maxima after the autocorrelation first stops falling
+  const peaks: number[] = [];
+  let lag = 7;
+  while (lag <= maxLag && ac[lag] <= ac[lag - 1]) lag++;
+  for (; lag <= maxLag; lag++) if (ac[lag] > 0.15 && ac[lag] >= ac[lag - 1] && ac[lag] > ac[lag + 1]) peaks.push(lag);
+  if (!peaks.length) return null;
+  const top = Math.max(...peaks.map((k) => ac[k]));
+  return peaks.find((k) => ac[k] >= 0.8 * top) ?? null;
 }
 
 /** Ascender vs descender ink around each text line: more ink just above the x-height band means upright. */

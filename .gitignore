@@ -26,3 +26,8 @@ Thumbs.db
 # Playwright artifacts
 test-results/
 playwright-report/
+
+# local run store (dev, e2e)
+.data/
+
+.vercel

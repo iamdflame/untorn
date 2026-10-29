@@ -1,0 +1,231 @@
+{
+  "note": "The fixed samples. The first screen replays `default`'s recorded run (switch with /?sample=<name>); the hourly health run checks `health` against its answer key. A sample needs data/samples/<name>/photo.jpg (server, live runs) and public/samples/<name>/ (recorded run: result.json, and result-lite.json for the first screen made by scripts/make-lite-recording.mjs; photos). `twins` names a stack trial for the twins beat.",
+  "default": "fdr-1927",
+  "health": "chouteau-1903",
+  "samples": {
+    "chouteau-1903": {
+      "name": "chouteau-1903",
+      "title": "A letter of 1903, torn into 10 pieces",
+      "caption": "Simulated tear of a real public-domain letter (Pierre Chouteau to Mary Louise Dalton, 5 September 1903, Missouri Historical Society via DPLA). The outlines, seam readings and joins are the real pipeline's.",
+      "honesty": "Simulated tear of a real 1903 letter, recorded run.",
+      "credit": "The letter is a simulated tear of a real public-domain letter (Pierre Chouteau to Mary Louise Dalton, 1903, Missouri Historical Society via DPLA).",
+      "recorded": "/samples/chouteau-1903/result-lite.json",
+      "file": "data/samples/chouteau-1903/photo.jpg",
+      "photo": {
+        "url": "/samples/chouteau-1903/photo.jpg",
+        "width": 2400,
+        "height": 1800,
+        "sources": [
+          {
+            "url": "/samples/chouteau-1903/photo-800.webp",
+            "w": 800
+          },
+          {
+            "url": "/samples/chouteau-1903/photo-1200.webp",
+            "w": 1200
+          },
+          {
+            "url": "/samples/chouteau-1903/photo-1600.webp",
+            "w": 1600
+          },
+          {
+            "url": "/samples/chouteau-1903/photo-2400.webp",
+            "w": 2400
+          }
+        ],
+        "hires": "/samples/chouteau-1903/photo-2400.webp",
+        "lqip": "data:image/webp;base64,UklGRtwEAABXRUJQVlA4INAEAABQNwCdASrwALQAPrVYoksnJiMhrVj4sOAWiWdu4DaJIS7l6uaOVCu6O4wfw5gOoBqWE/MKnVDs/H5x/vLRS8MGcLiF+EmQRDZ48JIqBHBCxZrI3bFWybwFU9IBkMmD7jUKnm7Fq5TJrEv+8foas/qbx1BOvaTk1Iep4cPtGYk7MDHIxtCkJblFkLPL9FhKxny4PnKrd+rBJROd33jpvJ6brNtWuH82vJvc4UjYK1NcHJ1/R2hhZfSPUrP+dfb9tXaR4YSqXkObsa8Ff2/NysBUAoe2l+lWf8p9eyG63J8ISR8s1bhSP/x+4sOcPfXDnv8VceXC10BZWc24NXYyVjo88OTIH+xdJRYnvKWXy/A5x9rMZuNxSRRpM++h/jAynsa66BSyM2Q201jUfCihneLNbvhCD/rDk2kM4dlSGXJ3Z6M03mSf+WneJdARf9OolRESc6hbNIBf5L/lB6k54Dicy2odm96lY7j4E2P2AW3V8iFGzFa6WUeKBx3sOmpaEvHGUWns/01DEc00sB2mbLrcsjFUlENjv68hu9S2z78xQ3lCXvtoTE6/AIHdtpfR/cjeyw3p5Zq/XXR5TpWwEx+T0mpwAP7uhQB6mTqMlrDbvsrA7VepvnvYF7g4gBJoyWd8jdpFRis0TimhDdPHbHZ9+jqF4HxdhaUToBSf3n6GP8A9WhMLvnd9HJeXmvXQhm8cVv/gBoJG7R/eJoh1Dk9S90LrId0UlDh4SqDYYuLDwtR88o6pL8ooLPxkSbJr/Ig1TcRgxGa2cumKzZ3CJUtFFu6UMAlOcI5kU65qJhFHlsm1RBMKUhUcxahAO7q72sHmOVo8JDMoR443+UN3V8t+jrPVPMpK4LVg4Wt5hJaEV2gALXQxdL68vaCvV4Jsv2rnAEP5R7L3QA/NlXLj0sLzBxCqozB8RCrDDO/3wAmH+nzPMCXiqdZkOLC7kRFW7scx25x/BS97xU9M1cfDa8kZGNSHaLHZX+k/1ntEtBKjWf/iFHx1JRi9sjWf0vRxg6DUArKyPCJoWxbqyK7X7ZGQ4WMg2cWsqKCUk+6ph60w5n/Ktg4C3J1rzoraxxIhNeWRLnoZTyMrWfjCw5tTbaB/G+jJ/pdl6Wv1AAcFxUJbJXFo7eM+sbx4yHN6/2Bcm/r3lACGphBHMVj3lKnGwN78fO5ddjYJbVZ0zKLDwMYNxJnqHQxtKSFN6ey+bxA1VOEXy4ytWjNPDMCImDHf8WMhGEdhq4vyFMf6Y/6dUE0DYAN//2DrTc51W4a4HgvGPp7Ay+UYQlzLzFQKrjRg83Ym6DZ41yIZLjrthF4F98srYQ4YKvWXxV1MdcoIhJpix1lSRyMwwJORIFEKVKuxGvvPhcW473mYJzZWdy30hsukV/ub+P+6V2dtpDJYmMFISAIE/u+AVOq2yZCq5lgCOMYlLLHMS0oUbelsd5zUSn6SwVH58qoXR1pKku0Kb1w2ILuiwKrB9JOiI/E3lEBK/idVOS1FEGlBdUJCjKuzsNWoriCluZLUC9ifQcbFZDngalhaxVXCkDHzPO2anjgmvGi3Bc0Y+nvqJaHbFqk7vCd1ZznQFTcnUL2PIn3EABD9pQFPdexfKfEUxqTC9Y3o/uFEbuWbLmGQlPP/zoQPUxgAAA=="
+      },
+      "twins": "stack-3-letters",
+      "download": "/samples/chouteau-1903/result.json"
+    },
+    "fdr-1927": {
+      "name": "fdr-1927",
+      "title": "A letter of 1927, torn into 10 pieces",
+      "caption": "Simulated tear of a real public-domain letter (Franklin D. Roosevelt to Julian Goldman, 8 April 1927, Science History Institute via DPLA and Wikimedia Commons). The outlines, seam readings and joins are the real pipeline’s.",
+      "honesty": "Simulated tear of a real 1927 letter, recorded run.",
+      "credit": "The letter is a simulated tear of a real public-domain letter (Franklin D. Roosevelt to Julian Goldman, 1927, Science History Institute via DPLA).",
+      "recorded": "/samples/fdr-1927/result-lite.json",
+      "file": "data/samples/fdr-1927/photo.jpg",
+      "photo": {
+        "url": "/samples/fdr-1927/photo.jpg",
+        "width": 4800,
+        "height": 3600,
+        "sources": [
+          {
+            "url": "/samples/fdr-1927/photo-800.webp",
+            "w": 800
+          },
+          {
+            "url": "/samples/fdr-1927/photo-1200.webp",
+            "w": 1200
+          },
+          {
+            "url": "/samples/fdr-1927/photo-1600.webp",
+            "w": 1600
+          },
+          {
+            "url": "/samples/fdr-1927/photo-2400.webp",
+            "w": 2400
+          },
+          {
+            "url": "/samples/fdr-1927/photo-3200.webp",
+            "w": 3200
+          }
+        ],
+        "hires": "/samples/fdr-1927/photo-full.webp",
+        "lqip": "data:image/webp;base64,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"
+      },
+      "twins": "stack-3-letters",
+      "download": "/samples/fdr-1927/result.json"
+    },
+    "stack-3-letters": {
+      "name": "stack-3-letters",
+      "title": "Three letters torn together, 24 pieces",
+      "caption": "Simulated stack tear of three real public-domain letters (F. D. Roosevelt 1927, Science History Institute; C. W. Ayars 1918, Missouri History Museum; Ho Chi Minh 1945, page 2), torn along the same paths so their outlines repeat. The outlines, readings and joins are the real pipeline’s.",
+      "honesty": "Simulated stack tear of three real letters, recorded run.",
+      "credit": "The pages are a simulated stack tear of three real public-domain letters (F. D. Roosevelt 1927, Science History Institute via DPLA; C. W. Ayars 1918, Missouri History Museum; Ho Chi Minh 1945, page 2), re-levelled to one paper tone.",
+      "recorded": "/samples/stack-3-letters/result-lite.json",
+      "file": "data/samples/stack-3-letters/photo.jpg",
+      "photo": {
+        "url": "/samples/stack-3-letters/photo.jpg",
+        "width": 6000,
+        "height": 4400,
+        "sources": [
+          {
+            "url": "/samples/stack-3-letters/photo-800.webp",
+            "w": 800
+          },
+          {
+            "url": "/samples/stack-3-letters/photo-1200.webp",
+            "w": 1200
+          },
+          {
+            "url": "/samples/stack-3-letters/photo-1600.webp",
+            "w": 1600
+          },
+          {
+            "url": "/samples/stack-3-letters/photo-2400.webp",
+            "w": 2400
+          },
+          {
+            "url": "/samples/stack-3-letters/photo-3200.webp",
+            "w": 3200
+          }
+        ],
+        "hires": "/samples/stack-3-letters/photo-full.webp",
+        "lqip": "data:image/webp;base64,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"
+      },
+      "twins": "stack-3-letters",
+      "download": "/samples/stack-3-letters/result.json"
+    }
+  },
+  "stacks": {
+    "stack-cw3": {
+      "name": "stack-cw3",
+      "label": "Simulated stack: composites cut from one real page, so the three edges are identical by construction.",
+      "images": {
+        "L": {
+          "url": "/samples/stack-cw3/twin-L.webp",
+          "w": 215,
+          "h": 150
+        },
+        "A": {
+          "url": "/samples/stack-cw3/twin-A.webp",
+          "w": 244,
+          "h": 150
+        },
+        "B": {
+          "url": "/samples/stack-cw3/twin-B.webp",
+          "w": 244,
+          "h": 150
+        },
+        "C": {
+          "url": "/samples/stack-cw3/twin-C.webp",
+          "w": 244,
+          "h": 150
+        }
+      },
+      "slotX": 176,
+      "truth": "C",
+      "choice": "C",
+      "confidence": 0.97,
+      "words": [
+        "bo|rn",
+        "di|ed"
+      ],
+      "reason": "o+rn makes born and di+ed makes died with matching 1724-1778 dates forming a coherent biography.",
+      "rings": [
+        [
+          187,
+          29
+        ],
+        [
+          184,
+          64
+        ]
+      ],
+      "summary": {
+        "trials": 12,
+        "answered": 12,
+        "correct": 12,
+        "chance": 3,
+        "model": "Muse Spark 1.3, low effort",
+        "source": "reading bench, stack set cw3, trial 7"
+      }
+    },
+    "stack-3-letters": {
+      "name": "stack-3-letters",
+      "label": "Simulated stack tear of three real letters: the same tear paths cut all three pages, so the three edges are identical. A recorded read from the real pipeline.",
+      "images": {
+        "L": {
+          "url": "/samples/stack-3-letters/twin-L.webp",
+          "w": 378,
+          "h": 210
+        },
+        "A": {
+          "url": "/samples/stack-3-letters/twin-A.webp",
+          "w": 372,
+          "h": 210
+        },
+        "B": {
+          "url": "/samples/stack-3-letters/twin-B.webp",
+          "w": 372,
+          "h": 210
+        },
+        "C": {
+          "url": "/samples/stack-3-letters/twin-C.webp",
+          "w": 372,
+          "h": 210
+        }
+      },
+      "slotX": 268,
+      "truth": "C",
+      "choice": "C",
+      "confidence": 0.97,
+      "words": [
+        "a|m",
+        "witne|ss"
+      ],
+      "reason": "Left endings I a-, tract, witne-, th join C beginnings m, which, ss,, an to form am, contract, witness, than with aligned baselines.",
+      "rings": [
+        [
+          362,
+          33
+        ],
+        [
+          314,
+          97
+        ]
+      ],
+      "summary": {
+        "trials": 22,
+        "answered": 22,
+        "correct": 22,
+        "chance": 3,
+        "model": "Muse Spark 1.3, low effort",
+        "source": "recorded stack run rec-stack-3-letters-5cc28e (3 letters, 24 pieces), sheet twin-p3-65"
+      }
+    }
+  }
+}

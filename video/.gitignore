@@ -1,0 +1,5 @@
+# renders, captures and other large binaries stay local
+node_modules/
+out/
+capture/
+public/capture

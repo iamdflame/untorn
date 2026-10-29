@@ -2,6 +2,7 @@
 // profile peaky when projected along them). The angle is ambiguous by 180°; an ascender/descender asymmetry vote
 // (Latin script has more ascenders than descenders) says which way is up when the evidence is clear.
 
+import { rng } from "./geom";
 import { luminance, paperTone } from "./raster";
 import type { Mask, Rgba } from "./types";
 
@@ -58,14 +59,23 @@ export function textOrientation(
     }
   }
   if (xs.length < minInk) return null;
-  const stride = Math.max(1, Math.ceil(xs.length / maxSamples));
-  const n = Math.ceil(xs.length / stride);
+  // Subsample at random, not every k-th pixel in raster order: a fixed stride over rows of ink makes a lattice whose
+  // diagonal can out-score the text lines (a 4800 px photo's piece read 135° instead of 3°).
+  const keep: number[] = [];
+  if (xs.length <= maxSamples) for (let i = 0; i < xs.length; i++) keep.push(i);
+  else {
+    const rand = rng(xs.length);
+    const p = maxSamples / xs.length;
+    for (let i = 0; i < xs.length; i++) if (rand() < p) keep.push(i);
+  }
+  const n = keep.length;
   const X = new Float64Array(n);
   const Y = new Float64Array(n);
   const W = new Float64Array(n);
   let cx = 0;
   let cy = 0;
-  for (let k = 0, i = 0; i < xs.length; i += stride, k++) {
+  for (let k = 0; k < n; k++) {
+    const i = keep[k];
     X[k] = xs[i];
     Y[k] = ys[i];
     W[k] = ws[i];
@@ -91,8 +101,17 @@ export function textOrientation(
       tot += W[k];
     }
     let ss = 0;
-    for (let b = 0; b < hist.length; b++) ss += hist[b] * hist[b];
-    return ss / (tot * tot);
+    let lo = -1;
+    let hi = -1;
+    for (let b = 0; b < hist.length; b++) {
+      if (!hist[b]) continue;
+      ss += hist[b] * hist[b];
+      if (lo < 0) lo = b;
+      hi = b;
+    }
+    // energy times extent: ink spread evenly over the piece scores 1 in every direction, so a narrow piece's short
+    // axis no longer beats its text lines (a diagonal strip read 135° instead of 3°); banded lines score above 1
+    return (ss / (tot * tot)) * (hi - lo + 1);
   };
   const coarse = new Float64Array(180);
   let best = 0;

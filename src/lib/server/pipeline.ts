@@ -63,7 +63,7 @@ export type PipelineOptions = {
   twinStrategy?: TwinStrategy;
   /** k-way sheets: candidates on their own under the left piece ("stacked"), or each joined to it ("joined"). */
   choiceSheet?: "stacked" | "joined";
-  /** k-way sheet strip size (px); the default is the pair image's 420 x 150. */
+  /** k-way sheet strip size (px): 640 x 280 shows more lines across the tear than the pair image's 420 x 150. */
   sheetWindow?: [number, number];
   /** Start a duplicate Muse request when a seam read hasn't answered after this long (median 7–9 s, p90 ~13 s). */
   readHedgeMs?: number;
@@ -87,7 +87,7 @@ const MIN_ANCHOR_INK = 800;
 export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "all";
 /** The k-way sheet layout for live runs (S6b measured both on the real stack sample). */
 export const DEFAULT_CHOICE_SHEET: "stacked" | "joined" = "stacked";
-export const DEFAULT_SHEET_WINDOW: [number, number] = [420, 150];
+export const DEFAULT_SHEET_WINDOW: [number, number] = [640, 280];
 const PAGE_MARGIN = 8;
 
 /** Run the whole pipeline on one photo. Emits events as it goes; returns the stored result. Throws RunError. */

@@ -529,6 +529,12 @@ function upright(ids: string[], byId: Map<string, MatchData>, pose: Map<string, 
     rot = -axis + (vote < 0 ? Math.PI : 0);
     flipKnown = Math.abs(vote) > 0.25 * wt;
     by = "text";
+    // typed lines start at one margin and end ragged: when the line ends say so clearly, they settle up and down
+    const side = alignedSide(ids, byId, pose, rot);
+    if (side !== 0 && (side < 0 || !flipKnown)) {
+      if (side < 0) rot += Math.PI;
+      flipKnown = true;
+    }
   } else {
     // page edges: dominant direction modulo 90°, then portrait
     let ex = 0;
@@ -551,6 +557,69 @@ function upright(ids: string[], byId: Map<string, MatchData>, pose: Map<string, 
   }
   if (rot) for (const id of ids) pose.set(id, poseCompose({ theta: rot, tx: 0, ty: 0 }, pose.get(id)!));
   return { by, flipKnown };
+}
+
+/**
+ * Which side of the turned page the text lines are aligned on: +1 the left (upright), -1 the right (the page is upside
+ * down), 0 unclear. Ink is binned into line slots; the left and right ends of the slots are compared by how tightly
+ * they cluster (a margin) against how ragged they are.
+ */
+function alignedSide(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, rot: number): -1 | 0 | 1 {
+  const pitches = ids
+    .map((id) => byId.get(id)!.f.text)
+    .filter((t) => t && t.confidence >= 0.4 && t.pitch)
+    .map((t) => t!.pitch!)
+    .sort((a, b) => a - b);
+  if (!pitches.length) return 0;
+  const pitch = pitches[Math.floor(pitches.length / 2)];
+  const rows = new Map<number, number[]>();
+  for (const id of ids) {
+    const f = byId.get(id)!.f;
+    const img = f.input.rgba;
+    if (!img) continue;
+    const P = poseCompose({ theta: rot, tx: 0, ty: 0 }, pose.get(id)!);
+    const c = Math.cos(P.theta);
+    const s = Math.sin(P.theta);
+    const paper = f.paper ? 0.299 * f.paper[0] + 0.587 * f.paper[1] + 0.114 * f.paper[2] : 210;
+    const { mask, x0, y0 } = f.input;
+    for (let r = 0; r < mask.height; r += 2) {
+      for (let col = 0; col < mask.width; col += 2) {
+        const i = r * mask.width + col;
+        if (!mask.data[i] || f.depth[i] < 6) continue;
+        const k = 4 * i;
+        const lum = 0.299 * img.data[k] + 0.587 * img.data[k + 1] + 0.114 * img.data[k + 2];
+        if (lum > paper - 50) continue;
+        const x = x0 + col + 0.5;
+        const y = y0 + r + 0.5;
+        const px = c * x - s * y + P.tx;
+        const py = s * x + c * y + P.ty;
+        const b = Math.floor(py / pitch);
+        const l = rows.get(b);
+        if (l) l.push(px);
+        else rows.set(b, [px]);
+      }
+    }
+  }
+  const lefts: number[] = [];
+  const rights: number[] = [];
+  for (const xs of rows.values()) {
+    if (xs.length < 40) continue;
+    xs.sort((a, b) => a - b);
+    lefts.push(xs[Math.floor(0.01 * xs.length)]);
+    rights.push(xs[Math.floor(0.99 * xs.length)]);
+  }
+  if (lefts.length < 6) return 0;
+  const tol = 0.4 * pitch;
+  const cluster = (v: number[]) => {
+    let best = 0;
+    for (const a of v) best = Math.max(best, v.filter((b) => Math.abs(b - a) <= tol).length);
+    return best;
+  };
+  const cl = cluster(lefts);
+  const cr = cluster(rights);
+  if (cl >= 4 && cl >= 2 * cr) return 1;
+  if (cr >= 4 && cr >= 2 * cl) return -1;
+  return 0;
 }
 
 function extent(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, rot: number): [number, number] {

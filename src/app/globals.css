@@ -1813,7 +1813,8 @@ h2 {
     font-size: 13px;
   }
   .tw-verdict .note {
-    display: none;
+    font-size: 12px;
+    line-height: 1.35;
   }
   .climax {
     left: 0;

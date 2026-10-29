@@ -38,6 +38,38 @@
       },
       "twins": "stack-cw3",
       "download": "/samples/chouteau-1903/result.json"
+    },
+    "fdr-1927": {
+      "name": "fdr-1927",
+      "title": "A letter of 1927, torn into 10 pieces",
+      "caption": "Simulated tear of a real public-domain letter (Franklin D. Roosevelt to Julian Goldman, 8 April 1927, Science History Institute via DPLA and Wikimedia Commons). The outlines, seam readings and joins are the real pipeline’s.",
+      "honesty": "Simulated tear of a real 1927 letter, recorded run.",
+      "credit": "The letter is a simulated tear of a real public-domain letter (Franklin D. Roosevelt to Julian Goldman, 1927, Science History Institute via DPLA).",
+      "recorded": "/samples/fdr-1927/result-lite.json",
+      "file": "data/samples/fdr-1927/photo.jpg",
+      "photo": {
+        "url": "/samples/fdr-1927/photo.jpg",
+        "width": 4800,
+        "height": 3600
+      },
+      "twins": "stack-3-letters",
+      "download": "/samples/fdr-1927/result.json"
+    },
+    "stack-3-letters": {
+      "name": "stack-3-letters",
+      "title": "Three letters torn together, 24 pieces",
+      "caption": "Simulated stack tear of three real public-domain letters (F. D. Roosevelt 1927, Science History Institute; C. W. Ayars 1918, Missouri History Museum; Ho Chi Minh 1945, page 2), torn along the same paths so their outlines repeat. The outlines, readings and joins are the real pipeline’s.",
+      "honesty": "Simulated stack tear of three real letters, recorded run.",
+      "credit": "The pages are a simulated stack tear of three real public-domain letters (F. D. Roosevelt 1927, Science History Institute via DPLA; C. W. Ayars 1918, Missouri History Museum; Ho Chi Minh 1945, page 2), re-levelled to one paper tone.",
+      "recorded": "/samples/stack-3-letters/result-lite.json",
+      "file": "data/samples/stack-3-letters/photo.jpg",
+      "photo": {
+        "url": "/samples/stack-3-letters/photo.jpg",
+        "width": 6000,
+        "height": 4400
+      },
+      "twins": "stack-3-letters",
+      "download": "/samples/stack-3-letters/result.json"
     }
   },
   "stacks": {

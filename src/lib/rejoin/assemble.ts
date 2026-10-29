@@ -18,6 +18,9 @@ export type AssembleOptions = {
   minContentScore: number;
   /** A twin (stack tear) needs this many concordant content reads: one unconfirmed pick never places a piece. */
   minTwinVotes: number;
+  /** Geometry this unambiguous (margin over every rival, and score) outvotes a single contrary read. */
+  overrideMargin: number;
+  overrideScore: number;
   /** Loop closure tolerance: px at the fragment's centroid, and degrees. */
   loopPx: number;
   loopDeg: number;
@@ -40,6 +43,8 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   minMargin: 1.4,
   minContentScore: 30,
   minTwinVotes: 2,
+  overrideMargin: 5,
+  overrideScore: 300,
   loopPx: 6,
   loopDeg: 2,
   overlapPx: 300,
@@ -68,6 +73,13 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
     if (ev && ev.votes > 0 && ev.logOdds !== 0) {
       const same = ev.logOdds > 0;
       const content = { same, confidence: sigmoid(Math.abs(ev.logOdds)), votes: ev.votes };
+      // one contrary read does not veto an overwhelming fit (a margin no false fit reaches): the edge decides, and the
+      // join map shows that Muse disagreed. Twins and straight cuts never get here: geometry cannot decide them.
+      const overwhelming = !c.twinGroup && c.edge !== "cut" && c.margin >= o.overrideMargin && c.score >= o.overrideScore && ev.votes === 1;
+      if (!same && overwhelming) {
+        out.push({ c, combined: sigmoid(logit(g) + ev.logOdds), decidedBy: "geometry", content });
+        continue;
+      }
       if (!same || c.score < o.minContentScore) continue;
       // inside a twin group geometry is tied: content decides, and only when confirmed; elsewhere both clues agree
       const twin = c.twinGroup !== null;

@@ -12,7 +12,7 @@ const yieldToMain = () => new Promise<void>((r) => setTimeout(r, 0));
 
 const toInput = (p: ScenePiece): CutPieceInput => ({ c: p.c, poly: p.poly, bbox: p.bbox });
 
-function viaWorker(img: HTMLImageElement, worldW: number, pieces: ScenePiece[], onPiece?: (i: number, c: Cutout) => void): Promise<Cutout[]> {
+function viaWorker(src: string, worldW: number, pieces: ScenePiece[], onPiece?: (i: number, c: Cutout) => void): Promise<Cutout[]> {
   return new Promise((resolve, reject) => {
     let worker: Worker;
     try {
@@ -39,17 +39,15 @@ function viaWorker(img: HTMLImageElement, worldW: number, pieces: ScenePiece[], 
       worker.terminate();
       reject(e);
     };
-    createImageBitmap(img).then(
-      (bitmap) => worker.postMessage({ bitmap, scale: worldW / img.naturalWidth, pieces: pieces.map(toInput) }, [bitmap]),
-      (e) => {
-        worker.terminate();
-        reject(e);
-      },
-    );
+    // the worker fetches and decodes the photo itself, off the main thread
+    worker.postMessage({ src: new URL(src, location.href).href, worldW, pieces: pieces.map(toInput) });
   });
 }
 
-async function onMain(img: HTMLImageElement, worldW: number, pieces: ScenePiece[], onPiece?: (i: number, c: Cutout) => void, signal?: { cancelled: boolean }): Promise<Cutout[]> {
+async function onMain(src: string, worldW: number, pieces: ScenePiece[], onPiece?: (i: number, c: Cutout) => void, signal?: { cancelled: boolean }): Promise<Cutout[]> {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
   const scale = worldW / img.naturalWidth;
   const make = (w: number, h: number) => {
     const c = document.createElement("canvas");
@@ -68,16 +66,16 @@ async function onMain(img: HTMLImageElement, worldW: number, pieces: ScenePiece[
   return out;
 }
 
-/** Cut every piece out of `img` (the photo at any resolution; `worldW` is its width in world units). */
-export async function makeCutouts(img: HTMLImageElement, worldW: number, pieces: ScenePiece[], onPiece?: (i: number, c: Cutout) => void, signal?: { cancelled: boolean }): Promise<Cutout[]> {
+/** Cut every piece out of the photo at `src` (any resolution; `worldW` is its width in world units). */
+export async function makeCutouts(src: string, worldW: number, pieces: ScenePiece[], onPiece?: (i: number, c: Cutout) => void, signal?: { cancelled: boolean }): Promise<Cutout[]> {
   if (typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined" && typeof createImageBitmap !== "undefined") {
     try {
-      return await viaWorker(img, worldW, pieces, onPiece);
+      return await viaWorker(src, worldW, pieces, onPiece);
     } catch {
       // the main thread does it instead
     }
   }
-  return onMain(img, worldW, pieces, onPiece, signal);
+  return onMain(src, worldW, pieces, onPiece, signal);
 }
 
 /* ---------------- shared between the hero and the result plate ---------------- */
@@ -120,14 +118,16 @@ export function readPoint(line: number[], mid: [number, number], a: { cut: Cutou
   const hw = 130 * K;
   const hh = 46 * K;
   let best: { p: [number, number]; v: number } = { p: at(total / 2), v: -1 };
+  const ta = { cut: a.cut, x: a.x, y: a.y, c: Math.cos(-a.ang), s: Math.sin(-a.ang) };
+  const tb = { cut: b.cut, x: b.x, y: b.y, c: Math.cos(-b.ang), s: Math.sin(-b.ang) };
   for (const frac of [0.5, 0.35, 0.65, 0.2, 0.8]) {
     const p = at(frac * total);
     let ia = 0;
     let ib = 0;
     for (let v = -hh; v <= hh; v += 4) {
       for (let u = -hw; u <= hw; u += 4) {
-        ia += inkAt(a.cut, a.x, a.y, a.ang, p[0] + u, p[1] + v);
-        ib += inkAt(b.cut, b.x, b.y, b.ang, p[0] + u, p[1] + v);
+        ia += inkAt(ta, p[0] + u, p[1] + v);
+        ib += inkAt(tb, p[0] + u, p[1] + v);
       }
     }
     const val = Math.min(ia, ib) + 0.01 * (ia + ib);
@@ -136,13 +136,12 @@ export function readPoint(line: number[], mid: [number, number], a: { cut: Cutou
   return best.p;
 }
 
-function inkAt(c: Cutout, px: number, py: number, a: number, x: number, y: number): number {
-  const ca = Math.cos(-a);
-  const sa = Math.sin(-a);
-  const dx = x - px;
-  const dy = y - py;
-  const cx = Math.floor((dx * ca - dy * sa - c.off[0]) / c.scale);
-  const cy = Math.floor((dx * sa + dy * ca - c.off[1]) / c.scale);
+function inkAt(t: { cut: Cutout; x: number; y: number; c: number; s: number }, x: number, y: number): number {
+  const c = t.cut;
+  const dx = x - t.x;
+  const dy = y - t.y;
+  const cx = Math.floor((dx * t.c - dy * t.s - c.off[0]) / c.scale);
+  const cy = Math.floor((dx * t.s + dy * t.c - c.off[1]) / c.scale);
   if (cx < 0 || cy < 0 || cx >= c.w || cy >= c.h) return 0;
   return c.ink[cy * c.w + cx];
 }

@@ -10,6 +10,9 @@ export type CutResult<I> = {
   scale: number;
   plain: I;
   lit: I;
+  /** The backlight along the torn edge, baked once (`edgePad` image px of margin). */
+  edge: I;
+  edgePad: number;
   /** Shadows: `pad` image px of margin around the cut-out, at `shScale` of the cut-out's resolution. */
   shadow: I;
   contact: I;
@@ -128,5 +131,17 @@ export function cutPiece(img: CanvasImageSource, scale: number, p: CutPieceInput
   };
   const shadow = mk(Math.max(4, 7 / scale));
   const contact = mk(Math.max(1, 1.1 / scale));
-  return { off: [x0 * scale - p.c[0], y0 * scale - p.c[1]], scale, plain, lit, shadow, contact, pad, shScale, ink, w, h };
+
+  // edge light: the backlight catching the torn fibres (stroked once with its glow; drawn with alpha per frame)
+  const edgePad = 14;
+  const edge = make(w + 2 * edgePad, h + 2 * edgePad);
+  const eg = ctx(edge);
+  eg.translate(edgePad, edgePad);
+  eg.lineJoin = "round";
+  eg.shadowColor = "rgba(255,236,200,0.9)";
+  eg.shadowBlur = 8;
+  eg.strokeStyle = "rgba(255,246,228,0.85)";
+  eg.lineWidth = Math.max(1.4, 1.9 / scale);
+  eg.stroke(path);
+  return { off: [x0 * scale - p.c[0], y0 * scale - p.c[1]], scale, plain, lit, edge, edgePad, shadow, contact, pad, shScale, ink, w, h };
 }

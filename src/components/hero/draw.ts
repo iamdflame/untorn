@@ -74,20 +74,16 @@ export function drawPiece(g: CanvasRenderingContext2D, cut: Cutout | null, ps: P
   g.restore();
 }
 
-/** Edge light: the backlight catching the torn fibres along every edge. */
-export function edgeLight(g: CanvasRenderingContext2D, path: Path2D, ps: Pose, c: Cam, a: number, dpr: number) {
-  if (a <= 0.01) return;
+/** Edge light: the backlight catching the torn fibres along every edge (baked per piece). */
+export function edgeLight(g: CanvasRenderingContext2D, cut: Cutout | null, ps: Pose, a: number) {
+  if (!cut || a <= 0.01) return;
   g.save();
   g.translate(ps.x, ps.y);
   g.rotate(ps.a);
   if (ps.sc !== 1) g.scale(ps.sc, ps.sc);
-  g.globalAlpha = a;
-  g.lineJoin = "round";
-  g.shadowColor = "rgba(255,236,200,0.9)";
-  g.shadowBlur = 10 * dpr;
-  g.strokeStyle = "rgba(255,246,228,0.85)";
-  g.lineWidth = 1.3 / c.s;
-  g.stroke(path);
+  g.scale(cut.scale, cut.scale);
+  g.globalAlpha *= a;
+  g.drawImage(cut.edge, cut.off[0] / cut.scale - cut.edgePad, cut.off[1] / cut.scale - cut.edgePad);
   g.restore();
 }
 

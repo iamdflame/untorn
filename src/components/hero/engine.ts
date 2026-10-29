@@ -49,7 +49,8 @@ export type EngineInput = {
   /** Identity of the run: the clock restarts when it changes. */
   key: string;
   mode: "recorded" | "live" | "replay";
-  photo: { src: string; width: number; height: number } | null;
+  /** The photo: `src` at full resolution (cut-outs, close-ups); `stage` the sizes the page preloaded for the first frames. */
+  photo: { src: string; width: number; height: number; stage?: { srcset: string; sizes: string } | null } | null;
   pieces: PieceOut[];
   pages: PageOut[];
   joins: JoinOut[];
@@ -128,6 +129,11 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   let readAtDone = false;
   const photo = new Image();
   photo.decoding = "async";
+  // the stage-sized photo the page preloaded (the same srcset and sizes, so the browser reuses that response)
+  const stagePhoto = new Image();
+  stagePhoto.decoding = "async";
+  stagePhoto.onload = () => (dirty = true);
+  let stageKey = "";
   let photoOk = false;
   photo.onload = () => {
     photoOk = true;
@@ -310,7 +316,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
 
   /* ---------------- cut-outs, then where text crosses each seam ---------------- */
   function startCutouts() {
-    if (!photoOk || !scene || !input?.photo) return;
+    if (!(photoOk || cutAllowed) || !scene || !input?.photo) return;
     const key = cutoutKey(input.photo.src, scene.pieces);
     if (key === cutKey) return;
     cutKey = key;
@@ -321,8 +327,9 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     cuts = new Map();
     const ps = scene.pieces;
     const worldW = input.photo.width;
+    const src = input.photo.src;
     sharedCutouts(key, () =>
-      makeCutouts(photo, worldW, ps, (i, c) => {
+      makeCutouts(src, worldW, ps, (i, c) => {
         if (sig.cancelled || cutKey !== key) return;
         cuts.set(ps[i].id, c);
         litScale = c.scale;
@@ -342,6 +349,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     if (readAtDone || !cutsReady || !assembled) return;
     readAtDone = true;
     for (const s of seams) {
+      if (!s.read) continue;
       const ca = cuts.get(pieces[s.a].id);
       const cb = cuts.get(pieces[s.b].id);
       if (!ca || !cb) continue;
@@ -565,7 +573,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   function drawHero(t: number, j: number) {
     const g = ctx;
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
-    const ph = photoOk ? photo : placeholder && placeholder.complete && placeholder.naturalWidth ? placeholder : null;
+    const ph = photoOk ? photo : stagePhoto.complete && stagePhoto.naturalWidth ? stagePhoto : null;
     if (!input?.photo || !ph) {
       // nothing to draw yet: let the server-rendered photo show through
       g.clearRect(0, 0, W, H);
@@ -624,7 +632,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
         g.globalAlpha = 1;
       });
     g.imageSmoothingEnabled = true;
-    if (litA > 0.02 && z < 0.5) zo.forEach((i) => edgeLight(g, pieces[i].path, poses[i], c, litA * (liveTesting.has(i) ? 1 : 0.55) * (1 - z * 2) * dimA(i), DPR));
+    if (litA > 0.02 && z < 0.5) zo.forEach((i) => edgeLight(g, cuts.get(pieces[i].id) ?? null, poses[i], litA * (liveTesting.has(i) ? 1 : 0.55) * (1 - z * 2) * dimA(i)));
 
     // SAM's outlines: traced on the photo, then they hand over to the paper's own edges
     g.lineJoin = "round";
@@ -1289,7 +1297,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
 
   /** How far the clock may run on what has arrived so far. */
   function gate(): number {
-    if (!input?.photo || !(photoOk || (placeholder?.complete && placeholder.naturalWidth))) return 0;
+    if (!input?.photo || !(photoOk || (stagePhoto.complete && stagePhoto.naturalWidth))) return 0;
     if (!pieces.length) return T.trace0 - 0.01;
     if (!cutsReady) return T.lift0;
     if (!assembled) return input.mode === "live" ? HOLD : T.exp0;
@@ -1461,10 +1469,17 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
 
   /** The full-resolution photo waits until the page has loaded (the stage shows the server-rendered photo meanwhile). */
   let photoWant = "";
-  function loadPhoto(src: string) {
+  let cutAllowed = false;
+  function loadPhoto(src: string, stage: boolean) {
     photoWant = src;
+    cutAllowed = false;
+    // with a stage photo to draw, the full-resolution one is only fetched (in the worker) for the cut-outs
     const go = () => {
-      if (photoWant === src) photo.src = src;
+      if (photoWant !== src) return;
+      if (stage) {
+        cutAllowed = true;
+        startCutouts();
+      } else photo.src = src;
     };
     if (document.readyState === "complete" || !placeholder) go();
     else
@@ -1481,9 +1496,14 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
 
   /** The twins' scraps load after the page has (they appear 20 s in). */
   function loadTwins() {
-    const go = () => root.querySelectorAll<HTMLImageElement>(".twins img[data-src]").forEach((im) => {
-      if (!im.getAttribute("src")) im.src = im.dataset.src!;
-    });
+    const go = () =>
+      root.querySelectorAll<HTMLCanvasElement>(".twins canvas[data-src]").forEach((cv) => {
+        if (cv.dataset.done) return;
+        cv.dataset.done = "1";
+        const im = new Image();
+        im.onload = () => cv.getContext("2d")?.drawImage(im, 0, 0, cv.width, cv.height);
+        im.src = cv.dataset.src!;
+      });
     if (document.readyState === "complete") setTimeout(go, 1500);
     else addEventListener("load", () => setTimeout(go, 1500), { once: true });
   }
@@ -1510,10 +1530,18 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       setJ(0);
       if (!reduced) setPlaying(true);
     }
-    if (next.photo && (newRun || prev?.photo?.src !== next.photo.src)) {
-      if (photo.src !== new URL(next.photo.src, location.href).href) {
+    const sk = next.photo?.stage ? next.photo.stage.srcset : "";
+    if (sk !== stageKey) {
+      stageKey = sk;
+      if (next.photo?.stage) {
+        stagePhoto.sizes = next.photo.stage.sizes;
+        stagePhoto.srcset = next.photo.stage.srcset;
+      } else stagePhoto.removeAttribute("srcset");
+    }
+    if (next.photo && (newRun || prev?.photo?.src !== next.photo.src || !!prev?.photo?.stage !== !!next.photo.stage)) {
+      if (photoWant !== next.photo.src || newRun) {
         photoOk = false;
-        loadPhoto(next.photo.src);
+        loadPhoto(next.photo.src, !!next.photo.stage);
       }
     }
     const piecesChanged = newRun || prev?.pieces !== next.pieces || prev?.pages !== next.pages || prev?.joins !== next.joins;

@@ -54,7 +54,15 @@ export function Hero({
 
   const latest = useRef<EngineInput | null>(null);
   const reducedRef = useRef(reduced);
-  // the engine loads after the first paint (the server-rendered photo and headline are the first screen)
+  // the engine loads after the first paint (the headline and the blur-up are the first screen); the stage photo starts
+  // loading at the same time (the engine asks for the same srcset and sizes, so the browser reuses the response)
+  const warmSrcset = sample?.photo.sources ? srcSet(sample) : null;
+  useEffect(() => {
+    if (!warmSrcset) return;
+    const im = new Image();
+    im.sizes = PHOTO_SIZES;
+    im.srcset = warmSrcset;
+  }, [warmSrcset]);
   useEffect(() => {
     let h: HeroApi | null = null;
     let gone = false;
@@ -87,7 +95,7 @@ export function Hero({
     () => ({
       key: runKey,
       mode,
-      photo: photoSrc && pw ? { src: photoSrc, width: pw, height: ph } : null,
+      photo: photoSrc && pw ? { src: photoSrc, width: pw, height: ph, stage: fromSample && sample?.photo.sources ? { srcset: srcSet(sample)!, sizes: PHOTO_SIZES } : null } : null,
       pieces: state.pieces,
       pages: state.pages,
       joins: state.joins,
@@ -96,7 +104,7 @@ export function Hero({
       progress: { stage, asks: state.asks.length, done: state.status === "done", failed: state.status === "error" },
       twins: mode === "recorded" ? twins : null,
     }),
-    [runKey, mode, photoSrc, pw, ph, state.pieces, state.pages, state.joins, state.reads, transcript, stage, state.asks.length, state.status, twins],
+    [runKey, mode, photoSrc, pw, ph, fromSample, sample, state.pieces, state.pages, state.joins, state.reads, transcript, stage, state.asks.length, state.status, twins],
   );
   useEffect(() => {
     latest.current = input;
@@ -106,9 +114,10 @@ export function Hero({
   const showPlaceholder = mode === "recorded" && sample;
   return (
     <section ref={root} className="hero" id="top" aria-labelledby="h1" data-mode={mode}>
-      {showPlaceholder && (
+      {showPlaceholder && sample.photo.lqip && (
+        // a blur-up of the photo, painted with the HTML; the canvas covers it with the real pixels as soon as they load
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="hero-photo" src={sample.photo.sources?.[1]?.url ?? sample.photo.url} srcSet={srcSet(sample)} sizes={PHOTO_SIZES} alt={photoAlt} fetchPriority="high" decoding="async" width={sample.photo.width} height={sample.photo.height} />
+        <img className="hero-photo" src={sample.photo.lqip} alt={photoAlt} width={240} height={180} />
       )}
       <canvas className="plate" aria-hidden="true" />
       {!showPlaceholder && <p className="sr">{photoAlt}</p>}
@@ -231,12 +240,11 @@ function Twins({ d }: { d: StackTrial }) {
         </strong>
       </figcaption>
       <div className="tw-stage">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="tw tw-L" data-src={d.images.L.url} alt="The piece on the page, its torn edge waiting for a scrap" width={d.images.L.w} height={d.images.L.h} />
+        {/* the scraps are painted into canvases when the beat comes (late images would read as the page's largest paint) */}
+        <canvas className="tw tw-L" data-src={d.images.L.url} role="img" aria-label="The piece on the page, its torn edge waiting for a scrap" width={d.images.L.w} height={d.images.L.h} />
         {(["A", "B", "C"] as const).map((k) => (
           <button key={k} type="button" className="tw tw-c" data-k={k} aria-label={`Scrap ${k}`} tabIndex={-1} style={{ width: d.images[k].w, height: d.images[k].h }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img data-src={d.images[k].url} alt="" width={d.images[k].w} height={d.images[k].h} />
+            <canvas data-src={d.images[k].url} aria-hidden="true" width={d.images[k].w} height={d.images[k].h} />
             <svg viewBox={`0 0 ${d.images[k].w} ${d.images[k].h}`} aria-hidden="true">
               <path className="strike" d={`M6 ${d.images[k].h - 10} 58 8`} />
             </svg>

@@ -258,10 +258,7 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
     let cancelled = false;
     const key = cutoutKey(photoSrc, scene.pieces);
     sharedCutouts(key, async () => {
-      const img = new Image();
-      img.src = photoSrc;
-      await img.decode();
-      const list = await makeCutouts(img, result.photo.width, scene.pieces);
+      const list = await makeCutouts(photoSrc, result.photo.width, scene.pieces);
       return new Map(list.map((c, i) => [scene.pieces[i].id, c] as const));
     })
       .then((m) => !cancelled && setCuts(m))

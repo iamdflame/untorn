@@ -442,7 +442,7 @@ function makeScene(input: SceneInput): Scene {
       const src = input.pieces[p.i].polygon as Vec[];
       const pose = where.get(p.id)!.pose;
       const o = pages[p.page].origin;
-      pts = densify(src, 2).map((q) => {
+      pts = densify(src, 3).map((q) => {
         const h = applyPose(pose, q);
         return [h[0] + o[0], h[1] + o[1]] as Vec;
       });

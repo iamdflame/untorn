@@ -668,7 +668,7 @@ i.bar {
   will-change: transform, opacity;
 }
 .tw-L,
-.tw-c img {
+.tw-c canvas {
   filter: drop-shadow(0 1px 1px oklch(0.15 0.02 60 / 0.5)) drop-shadow(0 14px 22px oklch(0.15 0.02 60 / 0.45));
 }
 .tw-c {
@@ -679,7 +679,7 @@ i.bar {
   border-radius: 2px;
   color: var(--room);
 }
-.tw-c img {
+.tw-c canvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -721,8 +721,8 @@ i.bar {
   background: var(--violet);
   color: #fff;
 }
-.tw-c.ask:hover img,
-.tw-c.ask:focus-visible img {
+.tw-c.ask:hover canvas,
+.tw-c.ask:focus-visible canvas {
   filter: drop-shadow(0 2px 2px oklch(0.15 0.02 60 / 0.5)) drop-shadow(0 22px 30px oklch(0.15 0.02 60 / 0.55)) brightness(1.05);
 }
 .tw-c.ask {

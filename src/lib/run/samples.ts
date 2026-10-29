@@ -22,7 +22,17 @@ export type Sample = {
   /** Full-resolution photo, bundled with the server functions (repo path). */
   file: string;
   /** The display photo of the recorded run, for the first paint (before the recording loads). */
-  photo: { url: string; width: number; height: number; sources?: PhotoSource[]; hires?: string };
+  photo: {
+    url: string;
+    width: number;
+    height: number;
+    /** Sizes for the stage (srcset). */
+    sources?: PhotoSource[];
+    /** Full resolution, for the cut-outs and close-ups. */
+    hires?: string;
+    /** A 240 px blur-up placeholder (data URI) painted with the HTML; the canvas replaces it with real pixels. */
+    lqip?: string;
+  };
   /** A stack trial for the twins beat. */
   twins?: string;
 };

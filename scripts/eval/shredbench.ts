@@ -15,7 +15,7 @@
 //   --root DIR          data and runs (default scripts/bench/shredbench/out, or $SHREDBENCH_ROOT)
 //   --run NAME          run name (default main); --budget USD stops new live work past this total spend (default 24)
 //   --set official|replica, --pieces 8,12,16, --domains news_en,news_zh,code,table, --split dev|test|all,
-//   --only <substr,…>, --limit N, --concurrency N, --max-reads N (seam readings per sample, default 2N − 2)
+//   --only <substr,…>, --every K (every K-th document per domain), --limit N, --concurrency N, --max-reads N (seam readings per sample, default 2N − 2)
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -127,7 +127,7 @@ async function solveStage(samples: Sample[], ledger: Ledger) {
     const reader = async (seam: Rgba, uprightKnown: boolean, c: { id: string }): Promise<SeamVerdict | null> => {
       if (overBudget(ledger)) return null;
       const out = await verifySeam(png(seam), { ...quiet, rotated: uprightKnown ? undefined : png(rotate180(seam)) });
-      ledger.add({ stage: "solve", sample: s.key, fn: "verifySeam", cost: out.meta.costUsd, ms: out.meta.ms, ok: out.ok, candidate: c.id });
+      ledger.add({ stage: "solve", run, sample: s.key, fn: "verifySeam", cost: out.meta.costUsd, ms: out.meta.ms, ok: out.ok, candidate: c.id });
       readMs = Math.max(readMs, out.meta.ms);
       return out.ok ? { same: out.value.same_place, confidence: out.value.confidence } : null;
     };
@@ -176,7 +176,7 @@ async function readStage(samples: Sample[], ledger: Ledger) {
     const solved = readJson<{ complete: boolean }>(path.join(dir, "solve.json"));
     const image = { data: new Uint8Array(readFileSync(path.join(dir, "read.png"))), mime: "image/png" as const, detail: "high" as const };
     const r = await readPage(image, { ...quiet, prompt: solved.complete ? "markdown" : "parts", maxOutputTokens: 12000 });
-    ledger.add({ stage: "read", sample: s.key, fn: "readPage", cost: r.meta.costUsd, ms: r.meta.ms, ok: r.ok });
+    ledger.add({ stage: "read", run, sample: s.key, fn: "readPage", cost: r.meta.costUsd, ms: r.meta.ms, ok: r.ok });
     if (!r.ok) {
       console.log(`${s.key}: read failed (${r.error.code})`);
       return;
@@ -230,8 +230,9 @@ function scoreStage(samples: Sample[], ledger: Ledger) {
   const costs = new Map<string, number>();
   if (existsSync(ledger.file)) {
     for (const line of readFileSync(ledger.file, "utf8").split("\n").filter(Boolean)) {
-      const e = JSON.parse(line) as { sample: string; stage: string; cost: number };
-      if (e.stage === "baseline") continue;
+      const e = JSON.parse(line) as { sample: string; stage: string; cost: number; run?: string };
+      // this run's own calls, plus the segmentation it reuses (older entries carry no run: an upper bound)
+      if (e.stage === "baseline" || (e.run !== undefined && e.run !== run)) continue;
       costs.set(e.sample, (costs.get(e.sample) ?? 0) + (e.cost || 0));
     }
   }
@@ -289,6 +290,7 @@ async function main() {
     split: argValue("--split") ?? "all",
     only: list("--only"),
     limit: argValue("--limit") ? Number(argValue("--limit")) : undefined,
+    every: argValue("--every") ? Number(argValue("--every")) : undefined,
   });
   if (!samples.length) throw new Error(`no samples under ${root} (run scripts/bench/shredbench/fetch.ts first)`);
   const ledger = new Ledger(root);

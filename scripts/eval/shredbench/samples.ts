@@ -72,7 +72,7 @@ export function replicaSamples(root: string): Sample[] {
   return out;
 }
 
-export type SampleFilter = { set?: string; pieces?: number[]; domains?: string[]; split?: string; only?: string[]; limit?: number };
+export type SampleFilter = { set?: string; pieces?: number[]; domains?: string[]; split?: string; only?: string[]; limit?: number; every?: number };
 
 export function selectSamples(root: string, f: SampleFilter): Sample[] {
   let s = [...(f.set === "replica" ? [] : officialSamples(root)), ...(f.set === "official" ? [] : replicaSamples(root))];
@@ -80,5 +80,11 @@ export function selectSamples(root: string, f: SampleFilter): Sample[] {
   if (f.domains?.length) s = s.filter((x) => f.domains!.includes(x.domain));
   if (f.split && f.split !== "all") s = s.filter((x) => x.split === f.split);
   if (f.only?.length) s = s.filter((x) => f.only!.some((o) => x.key.includes(o)));
+  if (f.every && f.every > 1) {
+    // a stratified subset: every k-th document of each domain, in name order (the same documents at every piece count)
+    const names = new Map<string, string[]>();
+    for (const x of s) names.set(x.domain, [...new Set([...(names.get(x.domain) ?? []), x.name])].sort());
+    s = s.filter((x) => x.set === "official" || names.get(x.domain)!.indexOf(x.name) % f.every! === 0);
+  }
   return f.limit ? s.slice(0, f.limit) : s;
 }

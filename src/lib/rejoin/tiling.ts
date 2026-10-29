@@ -34,6 +34,8 @@ export type TilingOptions = {
   minUp: number;
   /** Two blank seams that agree on a placement must cross at least this angle (degrees). */
   minSeamAngle: number;
+  /** A Muse reading counts (as a content clue or as a veto) only at this confidence or above. */
+  minReadConfidence: number;
 };
 
 export const TILING_DEFAULTS: TilingOptions = {
@@ -49,6 +51,7 @@ export const TILING_DEFAULTS: TilingOptions = {
   step: 6,
   minUp: 0.8,
   minSeamAngle: 20,
+  minReadConfidence: 0.6,
 };
 
 /** A content verdict on one candidate (Muse's verifySeam): same place or not, with its confidence. */
@@ -101,7 +104,9 @@ export function assembleTiles(shapes: PieceShape[], cands: StraightCandidate[], 
 
   // the clues of each candidate
   const scored = cands.map((c) => {
-    const v = verdicts?.get(c.id) ?? null;
+    // a reading counts only when Muse is sure of it: a 0.25 "same" or "no" is "can't tell", neither a clue nor a veto
+    const read = verdicts?.get(c.id) ?? null;
+    const v = read && read.same !== null && read.confidence >= o.minReadConfidence ? read : null;
     const muse = v && v.same !== null ? (v.same ? 1 : -1) * 4 * Math.max(0.5, Math.min(0.99, v.confidence)) : 0;
     // a corner-aligned side pair is the geometry clue. A pair with no corner aligned slides freely along the cut, and
     // text lines make the ink along a cut nearly periodic (one line further along correlates almost as well), so its

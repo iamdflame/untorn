@@ -7,7 +7,8 @@
 
 // .1: the measured bench runs (seam v1/v2/flush, choice v1). .2: verifySeam defaults to seam v2 after the bench.
 // .3: readPage gains the "markdown" and "parts" wordings (ShredBench's conversion rules); its default is unchanged.
-export const PROMPTS_VERSION = "2026-10-28.3";
+// .4: the parts wording allows a loose piece to be upside down.
+export const PROMPTS_VERSION = "2026-10-29.4";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -159,12 +160,13 @@ const READ_MARKDOWN =
   "5. Output: a clear Markdown structure with line breaks between elements; only the converted content, no remarks.\n" +
   "Return the Markdown as text, the language as a BCP 47 code, and in uncertain each word you are not sure of.";
 
-/** parts: the same rules for a document that could only be partly reassembled (parts and loose pieces, all upright). */
+/** parts: the same rules for a document that could only be partly reassembled (parts and loose pieces). */
 const READ_PARTS =
   "You are an AI assistant specialized in reconstructing torn documents and converting them to Markdown format. The " +
   "input image shows the pieces of a single document: some pieces have already been put back together into larger " +
-  "parts, the rest are shown on their own, and every part is upright. They are numbered, but the numbers are not " +
-  "their order. Mentally put the parts back in their original order (a word or sentence cut at an edge continues on " +
+  "parts, the rest are shown on their own. Every part has its text lines horizontal, but a loose piece may be upside " +
+  "down: read it whichever way up its text makes sense. The parts' order on the sheet is not their order in the " +
+  "document. Mentally put the parts back in their original order (a word or sentence cut at an edge continues on " +
   "the part that completes it) and transcribe the whole document once, from its beginning to its end.\n" +
   "1. Text: accurately recognize all text, verbatim. Do not summarize, interpret, or hallucinate content. If the " +
   "document is code, transcribe the code exactly. Ignore cut lines, labels, shadows and background. Where text is " +

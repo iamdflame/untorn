@@ -83,8 +83,9 @@ const SEAM_JPEG_QUALITY = 90;
  *  from 46/60 to 34/40 right. */
 const MIN_INK = 300;
 const MIN_ANCHOR_INK = 800;
-/** The read strategy for live runs (S6b measured both on Bench-S and on the real stack sample). */
-export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "all";
+/** The read strategy for live runs: on the real stack sample "tree" placed the same 18 of 24 with 0 misplaced as "all",
+ *  with 22 reads instead of 46 ($0.32 against $0.60), so a stack fits the read deadline (S6b). */
+export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "tree";
 /** The k-way sheet layout for live runs (S6b measured both on the real stack sample). */
 export const DEFAULT_CHOICE_SHEET: "stacked" | "joined" = "stacked";
 export const DEFAULT_SHEET_WINDOW: [number, number] = [640, 280];

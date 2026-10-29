@@ -327,8 +327,12 @@ export function seamRead(join: JoinOut, reads: ReadOut[]): SeamRead | null {
   const tokens = splitWords(jr.words);
   let word: string | null = null;
   let split: [string, string] | null = null;
+  // A split is drawn only when the pipeline verified it on the paper (the tear runs through ink on that text line).
+  // Muse's stated splits alone are not shown as fact: on real and simulated tears it named in-word splits
+  // ("h+ope") where the tear ran between words.
+  const verified = (jr as { splitVerified?: boolean }).splitVerified === true;
   for (const t of [...tokens].sort((a, b) => b.length - a.length)) {
-    const s = statedSplit(t, jr.reason);
+    const s = verified ? statedSplit(t, jr.reason) : null;
     if (s && (!split || t.length > (word?.length ?? 0))) {
       word = t;
       split = s;
@@ -362,7 +366,8 @@ export function chooseClimax(seams: SceneSeam[], minConfidence = 0.9): Climax | 
   }
   if (!best) return null;
   const read = best.seam.read!;
-  return { seam: best.seam.i, word: best.word, split: statedSplit(best.word, read.reason), read };
+  // the climax word's split is drawn only when the seam read carries a verified split (see seamRead)
+  return { seam: best.seam.i, word: best.word, split: read.split ? statedSplit(best.word, read.reason) : null, read };
 }
 
 /* ---------------- the scene ---------------- */

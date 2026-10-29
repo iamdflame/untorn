@@ -96,6 +96,30 @@ export type Candidate = {
    * join is only ever accepted with the content clue.
    */
   edge: "torn" | "cut";
+  /**
+   * Do the two pieces' text lines continue into each other under this pose? Null when either piece has no trusted
+   * line grid (blank, handwritten, too few lines).
+   */
+  text?: TextCheck | null;
+};
+
+/** The text-line test of a candidate join (textlines.ts). */
+export type TextCheck = {
+  /** Angle between the line directions once joined (rad, axial). */
+  angle: number;
+  /** Line-phase mismatch at the seam, as a fraction of the pitch (−0.5…0.5). */
+  phase: number;
+  pitchRatio: number;
+  /** 0–1: how far both line grids can be trusted. */
+  weight: number;
+  /** Both text angles are clear (the direction test counts). */
+  angleValid: boolean;
+  /** Both line grids are regular and agree on the pitch (the phase test counts). */
+  phaseValid: boolean;
+  /** Both pieces clearly know which way is up, and the join turns one of them upside down. */
+  flipped: boolean;
+  /** Evidence for the join (log-likelihood ratio, true vs chance), already scaled by `weight`. */
+  logLR: number;
 };
 
 /** Candidates from different fragments that fit the same stretch of edge equally well (stack tears). */
@@ -152,6 +176,8 @@ export type Join = {
   appearance: Appearance | null;
   /** Fused content evidence for this join (null when no verdict). */
   content: { same: boolean; confidence: number; votes: number } | null;
+  /** The text-line test (null without trusted line grids on both pieces). */
+  text?: TextCheck | null;
   /** Which clue decided: geometry alone, both, or content breaking a geometric tie (twins). */
   decidedBy: Clue;
   /** Combined confidence, 0–1. */

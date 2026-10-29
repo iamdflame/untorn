@@ -458,6 +458,8 @@ export type RealScore = {
   trueSeams: number;
   pages: number;
   tolerance: { px: number; deg: number };
+  /** Each placed piece's error under its page's best alignment to the truth (px at the centroid, degrees). */
+  errors: Record<string, { px: number; deg: number }>;
 };
 
 /**
@@ -494,8 +496,18 @@ export function scoreReal(
     return Math.hypot(x1 - x2, y1 - y2) <= tolPx && dth <= (tolDeg * Math.PI) / 180;
   };
   const groups: { page: number; ids: string[] }[] = [];
+  const errors: Record<string, { px: number; deg: number }> = {};
+  const errorOf = (G: Pose, id: string, pose: Pose) => {
+    const pred = poseCompose(G, pose);
+    const tr = truth.get(id)!;
+    const c = centroid(id);
+    const [x1, y1] = poseApply(pred, c[0], c[1]);
+    const [x2, y2] = poseApply(tr, c[0], c[1]);
+    return { px: Math.hypot(x1 - x2, y1 - y2), deg: (Math.abs(Math.atan2(Math.sin(pred.theta - tr.theta), Math.cos(pred.theta - tr.theta))) * 180) / Math.PI };
+  };
   pages.forEach((pg, k) => {
     let best: string[] = [];
+    let bestG: Pose | null = null;
     for (const anchor of pg.pieces) {
       if (!truth.has(anchor.id)) continue;
       let G = poseCompose(truth.get(anchor.id)!, poseInvert(anchor.pose));
@@ -517,8 +529,12 @@ export function scoreReal(
           if (ok2.length >= ok.length) ok = ok2;
         }
       }
-      if (ok.length > best.length) best = ok.map((m) => m.id);
+      if (ok.length > best.length) {
+        best = ok.map((m) => m.id);
+        bestG = G;
+      }
     }
+    if (bestG) for (const m of pg.pieces) if (truth.has(m.id)) errors[m.id] = errorOf(bestG, m.id, m.pose);
     groups.push({ page: k, ids: best.length >= 2 ? best : [] });
   });
   groups.sort((x, y) => y.ids.length - x.ids.length);
@@ -554,6 +570,7 @@ export function scoreReal(
     trueSeams: gt.adjacency.length,
     pages: pages.length,
     tolerance: { px: tolPx, deg: tolDeg },
+    errors,
   };
 }
 
@@ -603,15 +620,21 @@ export function candidateError(gt: RealGt, frags: Map<string, Fragment>, a: stri
 export async function prepareCase(
   c: RealCase,
   options: Parameters<typeof prepare>[1] = {},
-  k = 1,
+  k: number | "auto" = "auto",
   factor?: Map<string, number>,
-): Promise<{ prep: Prepared; inputs: FragmentInput[]; ms: number }> {
+): Promise<{ prep: Prepared; inputs: FragmentInput[]; ms: number; working: number }> {
   const torn = await loadRgb(c.photo);
   let inputs = fragmentsFromSegments(rgbToRgba(torn), loadSegments(c));
-  if (k < 1 || factor) inputs = inputs.map((inp) => downscaleInput(inp, k * (factor?.get(inp.id) ?? 1)));
   const t0 = performance.now();
-  const prep = prepare(inputs, options);
-  return { prep, inputs, ms: performance.now() - t0 };
+  if (factor) {
+    // experiments: every piece pre-shrunk by its own factor; the solver then runs at that scale (1)
+    const kk = k === "auto" ? 1 : k;
+    inputs = inputs.map((inp) => downscaleInput(inp, kk * (factor.get(inp.id) ?? 1)));
+    const prep = prepare(inputs, { ...options, scale: 1 });
+    return { prep, inputs, ms: performance.now() - t0, working: kk };
+  }
+  const prep = prepare(inputs, { ...options, scale: k });
+  return { prep, inputs, ms: performance.now() - t0, working: prep.scale };
 }
 
 /**
@@ -662,35 +685,44 @@ export function experimentFactors(gt: RealGt, mode: string | undefined): Map<str
 }
 
 /** Solve a case (geometry only) and score it; pages are rendered for a look. */
-async function solveCase(c: RealCase, out: string, k: number, pieceScale?: string) {
+async function solveCase(c: RealCase, out: string, k: number | "auto", pieceScale?: string) {
   const gt0 = loadGt(c);
   const factor = experimentFactors(gt0, pieceScale);
-  const gt = gtWorking(gt0, k, factor);
-  const { prep, inputs, ms } = await prepareCase(c, {}, k, factor);
+  const { prep, inputs, ms, working } = await prepareCase(c, process.env.SOLVE_OPTS ? JSON.parse(process.env.SOLVE_OPTS) : {}, k, factor);
   const t0 = performance.now();
   const res = finish(prep);
   const total = ms + performance.now() - t0;
-  // scored in working coordinates (the truth was taken there)
+  // results come back in photo px; per-piece experiments are scored where their pieces were pre-shrunk
+  const gt = factor ? gtWorking(gt0, working, factor) : gt0;
   const pages = res.pages.map((pg) => ({ pieces: pg.fragments.map((f) => ({ id: f.id, pose: f.pose })) }));
   const joins = res.joins.map((j) => ({ a: j.a, b: j.b, pose: j.pose }));
-  const s = scoreReal(gt, shapesOf(prep.fragments), pages, joins, inputs.map((i) => i.id));
+  const s = scoreReal(gt, shapesOf(prep.fragments, prep.scale), pages, joins, inputs.map((i) => i.id));
   console.log(
-    `${c.name} (scale ${k}): ${s.correct.length}/${s.pieces} placed correctly, ${s.split.length} split off, ${s.misplaced.length} misplaced, ${s.unplaced.length} unplaced; ` +
+    `${c.name} (scale ${working.toFixed(3)}${prep.pitch ? `, pitch ${prep.pitch.toFixed(1)} px` : ""}): ${s.correct.length}/${s.pieces} placed correctly, ${s.split.length} split off, ${s.misplaced.length} misplaced, ${s.unplaced.length} unplaced; ` +
       `pages ${res.pages.map((p) => p.fragments.length).join("+") || "none"}; joins ${s.joinsRight} right, ${s.joinsWrong} wrong (of ${s.trueSeams} true seams); ${(total / 1000).toFixed(1)} s`,
   );
-  for (const j of s.joins) console.log(`  ${j.a}–${j.b}: ${j.right ? "right" : `WRONG (${j.why})`}`);
+  s.joins.forEach((j, n) => {
+    const rj = res.joins[n];
+    const t = rj?.text;
+    const lines = t ? `lines ${((t.angle * 180) / Math.PI).toFixed(1)}° phase ${t.phase.toFixed(2)}${t.phaseValid ? "" : "?"} logLR ${t.logLR.toFixed(1)}` : "no lines";
+    console.log(`  ${j.a}–${j.b}: ${j.right ? "right" : `WRONG (${j.why})`}  [${rj?.decidedBy} score ${rj?.geometry.score.toFixed(0)} margin ${rj?.geometry.margin.toFixed(2)} ${lines}${rj?.loop ? " loop" : ""}]`);
+  });
   if (s.misplaced.length) console.log(`  misplaced: ${s.misplaced.join(", ")}`);
+  console.log(`  piece errors: ${Object.entries(s.errors).map(([id, e]) => `${id} ${e.px.toFixed(0)}px/${e.deg.toFixed(1)}°`).join(", ")}`);
   mkdirSync(out, { recursive: true });
-  res.pages.forEach((p, i) => writeFileSync(path.join(out, `${c.name}-k${k}-page-${i}.png`), encodePng(renderPage(p, prep.fragments, { background: [255, 255, 255, 255] }))));
+  res.pages.forEach((p, i) =>
+    writeFileSync(path.join(out, `${c.name}-page-${i}.png`), encodePng(renderPage(p, factor ? prep.fragments : prep.photo, { background: [255, 255, 255, 255], scale: factor ? 1 : 0.4 }))),
+  );
   return { score: s, res, prep };
 }
 
-async function diagnose(c: RealCase, out: string, k: number, pieceScale?: string) {
+async function diagnose(c: RealCase, out: string, k: number | "auto", pieceScale?: string) {
   const gt0 = loadGt(c);
   const factor = experimentFactors(gt0, pieceScale);
-  const gt = gtWorking(gt0, k, factor);
-  const { prep, ms } = await prepareCase(c, {}, k, factor);
-  console.log(`working scale ${k}`);
+  const { prep, ms, working } = await prepareCase(c, {}, k, factor);
+  // candidates live in working coordinates: take the truth there
+  const gt = gtWorking(gt0, working, factor);
+  console.log(`working scale ${working.toFixed(3)}${prep.pitch ? ` (pitch ${prep.pitch.toFixed(1)} photo px)` : ""}`);
   const tolPx = 0.015 * gt.pageWidth;
   console.log(`${c.name}: prepare ${(ms / 1000).toFixed(1)} s (analyse ${(prep.timings.analyse / 1000).toFixed(1)} s, match ${(prep.timings.match / 1000).toFixed(1)} s), ${prep.match.candidates.length} candidates; tolerance ${tolPx.toFixed(0)} px / 2°`);
   console.log(`truth: scale ${gt.scale.toFixed(4)} (pieces ${gt.scaleRange.map((v) => v.toFixed(4)).join("–")}), page width ${gt.pageWidth.toFixed(0)} px`);
@@ -749,6 +781,8 @@ async function diagnose(c: RealCase, out: string, k: number, pieceScale?: string
   writeFileSync(path.join(out, `${c.name}-diagnosis-k${k}${pieceScale ? `-${pieceScale}` : ""}.json`), JSON.stringify({ seams: seamRows, candidates: rows.map((r) => ({ id: r.x.id, ok: r.ok, err: r.e, score: r.x.score, overlap: r.x.overlap, rms: r.x.rms, fine: r.x.fineRms, shape: r.x.shapeRms, margin: r.x.margin })) }, null, 1));
 }
 
+const scaleArg = (v: string | undefined): number | "auto" => (v === undefined || v === "auto" ? "auto" : Number(v));
+
 // ── CLI ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -765,11 +799,11 @@ async function main() {
     return;
   }
   if (cmd === "diagnose") {
-    for (const c of cases) await diagnose(c, out, Number(opt("--scale") ?? 1), opt("--piece-scale"));
+    for (const c of cases) await diagnose(c, out, scaleArg(opt("--scale")), opt("--piece-scale"));
     return;
   }
   if (cmd === "solve") {
-    for (const c of cases) await solveCase(c, out, Number(opt("--scale") ?? 1), opt("--piece-scale"));
+    for (const c of cases) await solveCase(c, out, scaleArg(opt("--scale")), opt("--piece-scale"));
     return;
   }
   if (cmd === "score") {

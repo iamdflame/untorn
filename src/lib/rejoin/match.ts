@@ -12,6 +12,7 @@
 import { axialDiff, fitRigid, PointGrid, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
 import { seamAppearance } from "./appearance";
 import { matchCuts } from "./cuts";
+import { gridTrusted, lineConsensus, photoGrid, textCheck } from "./textlines";
 import type { Candidate, Fragment, TwinGroup } from "./types";
 
 export type MatchOptions = {
@@ -53,6 +54,23 @@ export type MatchOptions = {
    * cut candidate is a coincidence of straight page edges, and only the content clue can accept one.
    */
   cuts: boolean;
+  /**
+   * Drop candidates whose text lines contradict the join (both line grids trusted at `textPruneWeight`): directions
+   * more than `textMaxAngle` apart (rad), lines more than `textMaxPhase` of a pitch out of phase, or a piece turned
+   * upside down. On printed pages this removes most chance fits before they compete with true ones.
+   */
+  textPrune: boolean;
+  textPruneWeight: number;
+  textMaxAngle: number;
+  textMaxAngleLoose: number;
+  textMaxPhase: number;
+  /**
+   * Also seed pairs whose text lines are both trusted from the lines themselves: the lines fix the rotation (the up
+   * votes the turn), and outline points with facing normals vote for the translation, weighted by line phase. Finds
+   * seams the turning functions miss when fibre rims and curl blur the edge's fine shape.
+   */
+  textSeeds: boolean;
+  textSeedsPerPair: number;
 };
 
 export const MATCH_DEFAULTS: MatchOptions = {
@@ -77,6 +95,13 @@ export const MATCH_DEFAULTS: MatchOptions = {
   twinFootprint: 0.8,
   twinMinScore: 40,
   cuts: false,
+  textPrune: true,
+  textPruneWeight: 0.5,
+  textMaxAngle: (6 * Math.PI) / 180,
+  textMaxAngleLoose: Math.PI,
+  textMaxPhase: 0.3,
+  textSeeds: true,
+  textSeedsPerPair: 4,
 };
 
 /** Matching data for one fragment. */
@@ -582,57 +607,67 @@ export type MatchResult = {
   /** Pieces sharing an outline (stack tears): fragment id → class id (the class's smallest fragment id). */
   twinClass: Map<string, string>;
   data: MatchData[];
-  stats: { seeds: number; screened: number; icp: number };
+  stats: { seeds: number; screened: number; icp: number; textPruned: number };
 };
 
 /** All candidate joins between the fragments, ranked, with twin groups. */
 export function matchFragments(frags: Fragment[], options: Partial<MatchOptions> = {}): MatchResult {
   const o = { ...MATCH_DEFAULTS, ...options };
   const data = frags.map((f) => matchData(f, o));
-  const seeds: Seed[] = [];
+  const consensus = lineConsensus(frags);
+  // Starting poses: turning-function seeds (shape), then rotation-fixed Hough seeds from the text lines.
+  type Start = { a: number; b: number; pose: Pose; minRun: number; q: number };
+  const starts: Start[] = [];
   const pairSeeds: Seed[] = [];
+  let seedCount = 0;
   for (let i = 0; i < data.length; i++) {
     for (let j = i + 1; j < data.length; j++) {
       pairSeeds.length = 0;
       for (const sa of data[i].sigs) for (const sb of data[j].sigs) seedPair(data[i], data[j], sa, sb, o, pairSeeds);
       pairSeeds.sort((x, y) => x.q - y.q);
-      for (let k = 0; k < Math.min(o.seedsPerPair, pairSeeds.length); k++) seeds.push(pairSeeds[k]);
+      for (let k = 0; k < Math.min(o.seedsPerPair, pairSeeds.length); k++) {
+        const s = pairSeeds[k];
+        const fit = seedPose(data[i], data[j], s);
+        seedCount++;
+        if (fit.rms <= 3.5) starts.push({ a: s.a, b: s.b, pose: fit.pose, minRun: Math.max(o.minOverlap / o.step, 0.7 * s.w), q: s.q });
+      }
     }
   }
-  seeds.sort((x, y) => x.q - y.q);
+  starts.sort((x, y) => x.q - y.q);
   const byIndex = new Map(data.map((d) => [d.f.index, d] as const));
   const raw: Candidate[] = [];
   const perPair = new Map<string, Candidate[]>();
   const spaces = new Map<number, Matching>();
   let screened = 0;
   let icpRuns = 0;
-  for (const s of seeds) {
+  let textPruned = 0;
+  const prunedPoses = new Map<string, Pose[]>();
+  const tryStart = (s: Start) => {
     const A = byIndex.get(s.a)!;
     const B = byIndex.get(s.b)!;
     const key = `${s.a}|${s.b}`;
-    const fit = seedPose(A, B, s);
-    if (fit.rms > 3.5) continue;
     const known = perPair.get(key) ?? [];
-    if (known.some((c) => samePose(c.pose, fit.pose, B.f.centroid, 2.5, 8))) continue;
+    if (known.some((c) => samePose(c.pose, s.pose, B.f.centroid, 2.5, 8))) return;
+    if (prunedPoses.get(key)?.some((p) => samePose(p, s.pose, B.f.centroid, 2.5, 8))) return;
     let w = spaces.get(B.f.index);
     if (!w) {
       w = workspace(B.sample.length);
       spaces.set(B.f.index, w);
     }
     // one-pass screen: the seam must hold beyond noise at the seed pose
-    correspond(A, B, fit.pose, 4, w);
+    correspond(A, B, s.pose, 4, w);
     const pre = bestRun(w.inl, B.brk, 15);
     screened++;
-    if (!pre || pre[2] < Math.max(o.minOverlap / o.step, 0.7 * s.w)) continue;
+    if (!pre || pre[2] < s.minRun) return;
     icpRuns++;
-    const r = icp(A, B, fit.pose, o, w);
-    if (!r) continue;
-    if (known.some((c) => samePose(c.pose, r.pose, B.f.centroid, 1, 3))) continue;
+    const r = icp(A, B, s.pose, o, w);
+    if (!r) return;
+    if (known.some((c) => samePose(c.pose, r.pose, B.f.centroid, 1, 3))) return;
     const overlap = r.inliers * o.step;
-    if (overlap < o.minOverlap || r.rms > o.maxRms) continue;
+    if (overlap < o.minOverlap || r.rms > o.maxRms) return;
     const areaOverlap = interpenetration(A, B, r.pose, o.deepPx, o.step);
     const score = geometryScore({ overlap, fineRms: r.fineRms, conditioning: r.conditioning, areaOverlap }, o);
-    if (score <= 0) continue;
+    if (score <= 0) return;
     const seamA = coverRange(r.matchedA, A.n);
     const seamB = coverRange(r.matchedB, B.n);
     const cand: Candidate = {
@@ -657,9 +692,41 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
       twinGroup: null,
       edge: "torn",
     };
+    const mid = (seamA[0] + Math.floor(seamA[1] / 2)) % A.n;
+    cand.text = textCheck(A.f, B.f, r.pose, [A.X[mid], A.Y[mid]], consensus);
+    const t = cand.text;
+    // the direction test is strict where both text angles are clear, coarse (or off) where one of them is less sure
+    const maxAngle = t?.angleValid ? o.textMaxAngle : o.textMaxAngleLoose;
+    if (o.textPrune && t && t.weight >= o.textPruneWeight && (t.angle > maxAngle || (t.phaseValid && Math.abs(t.phase) > o.textMaxPhase) || t.flipped)) {
+      textPruned++;
+      prunedPoses.set(key, [...(prunedPoses.get(key) ?? []), r.pose]);
+      return;
+    }
     known.push(cand);
     perPair.set(key, known);
     raw.push(cand);
+  };
+  for (const s of starts) tryStart(s);
+  if (o.textSeeds) {
+    // Stack tears: pieces with a twin (the same outline on another page) are left to the shape seeds and to reading.
+    // A seed from the lines finds the in-phase twin and not the others, which would hide the ambiguity reading must
+    // settle.
+    const twins = new Set(twinClassesOf(rank([...raw], data, o).congruent).keys());
+    const fromText: Start[] = [];
+    for (let i = 0; i < data.length; i++) {
+      for (let j = i + 1; j < data.length; j++) {
+        if (twins.has(data[i].f.id) || twins.has(data[j].f.id)) continue;
+        if (!gridTrusted(data[i].f, consensus) || !gridTrusted(data[j].f, consensus)) continue;
+        for (const h of textSeeds(data[i], data[j], o)) fromText.push({ a: data[i].f.index, b: data[j].f.index, pose: h.pose, minRun: o.minOverlap / o.step, q: -h.votes });
+      }
+    }
+    seedCount += fromText.length;
+    for (const s of fromText.sort((x, y) => x.q - y.q)) tryStart(s);
+    // ranking again below starts from a clean slate
+    for (const c of raw) {
+      c.twinGroup = null;
+      c.margin = Infinity;
+    }
   }
   if (o.cuts) {
     for (const c of matchCuts(data, o)) {
@@ -681,7 +748,121 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
   const frag = new Map(frags.map((f) => [f.id, f] as const));
   for (const c of ranked.candidates) if (c.score >= 25) c.appearance = seamAppearance(frag.get(c.a)!, frag.get(c.b)!, c);
   const { congruent, ...rest } = ranked;
-  return { ...rest, data, twinClass: twinClassesOf([...ranked.congruent, ...congruent]), stats: { seeds: seeds.length, screened, icp: icpRuns } };
+  return { ...rest, data, twinClass: twinClassesOf([...ranked.congruent, ...congruent]), stats: { seeds: seedCount, screened, icp: icpRuns, textPruned } };
+}
+
+/**
+ * Rotation-fixed Hough seeds for a pair whose text lines are both trusted: the lines give the rotation b → a up to a
+ * half turn (the up votes settle it when both pieces know which way is up; ±1.5° absorbs their error). For each
+ * rotation, every pair of torn outline samples (one per piece, every 4 px) with facing normals votes for the
+ * translation that brings them together, weighted by how well the text lines would then be in phase. A true seam
+ * piles its votes into one place; the best peaks become starting poses for ICP.
+ */
+export function textSeeds(A: MatchData, B: MatchData, o: MatchOptions): { pose: Pose; votes: number }[] {
+  const ga = photoGrid(A.f);
+  const gb = photoGrid(B.f);
+  if (!ga || !gb || ga.weight < o.textPruneWeight || gb.weight < o.textPruneWeight) return [];
+  const ta = A.f.text!;
+  const tb = B.f.text!;
+  const base = ga.angle - gb.angle;
+  const known = ta.up !== 0 && tb.up !== 0 && ta.upConfidence >= 0.5 && tb.upConfidence >= 0.5;
+  const turns = known ? [base + (ta.up === -1 ? Math.PI : 0) - (tb.up === -1 ? Math.PI : 0)] : [base, base + Math.PI];
+  const pick = (D: MatchData) => {
+    const idx: number[] = [];
+    for (let i = 0; i < D.n; i += 4) if (D.torn[i]) idx.push(i);
+    return idx;
+  };
+  const ia = pick(A);
+  const ib = pick(B);
+  if (ia.length < 8 || ib.length < 8) return [];
+  const pitch = 0.5 * (ga.period + gb.period);
+  // a grid locked onto a harmonic: no phase weighting
+  const phaseOk = ga.period / gb.period > 0.87 && ga.period / gb.period < 1.15;
+  const nax = -Math.sin(ga.angle);
+  const nay = Math.cos(ga.angle);
+  const BIN = 3;
+  const out: { pose: Pose; votes: number }[] = [];
+  for (const turn of turns) {
+    for (const dth of [-1.5, 0, 1.5]) {
+      const th = turn + (dth * Math.PI) / 180;
+      const c = Math.cos(th);
+      const s = Math.sin(th);
+      // where b's lines land: n_a·t ≡ offset_a − sign·offset_b (mod pitch), sign = n_a·(R n_b)
+      const sign = nax * -Math.sin(gb.angle + th) + nay * Math.cos(gb.angle + th) >= 0 ? 1 : -1;
+      const want = ga.offset - sign * gb.offset;
+      const bx = new Float64Array(ib.length);
+      const by = new Float64Array(ib.length);
+      const bnx = new Float64Array(ib.length);
+      const bny = new Float64Array(ib.length);
+      let minx = Infinity;
+      let maxx = -Infinity;
+      let miny = Infinity;
+      let maxy = -Infinity;
+      ib.forEach((i, k) => {
+        bx[k] = c * B.X[i] - s * B.Y[i];
+        by[k] = s * B.X[i] + c * B.Y[i];
+        bnx[k] = c * B.NX[i] - s * B.NY[i];
+        bny[k] = s * B.NX[i] + c * B.NY[i];
+        minx = Math.min(minx, bx[k]);
+        maxx = Math.max(maxx, bx[k]);
+        miny = Math.min(miny, by[k]);
+        maxy = Math.max(maxy, by[k]);
+      });
+      let ax0 = Infinity;
+      let ax1 = -Infinity;
+      let ay0 = Infinity;
+      let ay1 = -Infinity;
+      for (const i of ia) {
+        ax0 = Math.min(ax0, A.X[i]);
+        ax1 = Math.max(ax1, A.X[i]);
+        ay0 = Math.min(ay0, A.Y[i]);
+        ay1 = Math.max(ay1, A.Y[i]);
+      }
+      const tx0 = ax0 - maxx;
+      const ty0 = ay0 - maxy;
+      const nx = Math.ceil((ax1 - minx - tx0) / BIN) + 1;
+      const ny = Math.ceil((ay1 - miny - ty0) / BIN) + 1;
+      const grid = new Float32Array(nx * ny);
+      for (const i of ia) {
+        const ax = A.X[i];
+        const ay = A.Y[i];
+        const anx = A.NX[i];
+        const any = A.NY[i];
+        for (let k = 0; k < ib.length; k++) {
+          if (anx * bnx[k] + any * bny[k] > -0.85) continue;
+          const tx = ax - bx[k];
+          const ty = ay - by[k];
+          let ph = (nax * tx + nay * ty - want) / pitch;
+          ph -= Math.round(ph);
+          const wgt = phaseOk ? Math.exp(-(ph * ph) / (2 * 0.15 * 0.15)) : 1;
+          grid[Math.floor((ty - ty0) / BIN) * nx + Math.floor((tx - tx0) / BIN)] += wgt;
+        }
+      }
+      // 3×3 box sum, then the best local maxima at least 5 bins apart
+      const sm = new Float32Array(nx * ny);
+      for (let y = 1; y < ny - 1; y++) {
+        for (let x = 1; x < nx - 1; x++) {
+          let v = 0;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) v += grid[(y + dy) * nx + x + dx];
+          sm[y * nx + x] = v;
+        }
+      }
+      const peaks: [number, number][] = [];
+      for (let q = 0; q < sm.length; q++) if (sm[q] >= 6) peaks.push([q, sm[q]]);
+      peaks.sort((p, q) => q[1] - p[1]);
+      const kept: number[] = [];
+      for (const [q, v] of peaks) {
+        const x = q % nx;
+        const y = (q - x) / nx;
+        if (kept.some((r) => Math.abs((r % nx) - x) <= 5 && Math.abs(Math.floor(r / nx) - y) <= 5)) continue;
+        kept.push(q);
+        out.push({ pose: { theta: th, tx: tx0 + (x + 0.5) * BIN, ty: ty0 + (y + 0.5) * BIN }, votes: v });
+        if (kept.length >= 3) break;
+      }
+    }
+  }
+  out.sort((p, q) => q.votes - p.votes);
+  return out.slice(0, o.textSeedsPerPair);
 }
 
 function samePose(p: Pose, q: Pose, at: [number, number], deg: number, px: number): boolean {

@@ -139,7 +139,7 @@ async function main() {
   }
   const res = finish(prep, reqs, verdicts);
   const ms = performance.now() - t0 - (prep.timings.content ?? 0);
-  res.pages.forEach((p, k) => writeFileSync(path.join(out, `page-${k}.png`), encodePng(renderPage(p, prep.fragments, { background: [255, 255, 255, 255] }))));
+  res.pages.forEach((p, k) => writeFileSync(path.join(out, `page-${k}.png`), encodePng(renderPage(p, prep.photo, { background: [255, 255, 255, 255] }))));
   const summary = {
     photo: photoFile,
     pieces: inputs.length,

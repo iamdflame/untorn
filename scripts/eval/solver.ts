@@ -14,6 +14,8 @@
 //   --renders DIR       save the content-check images of the first case (pair + choice sheets) as PNG
 //   --twin-sides one|both  ask each stack slot from both classes of twins (default) or one
 //   --cuts              also match straight cuts (opt-in; for scissor-cut and ShredBench-style pieces)
+//   --scale auto|K     working scale of the geometry (default auto: text lines ~32 px apart, never enlarged)
+//   --match JSON, --assemble JSON   override solver options (experiments), e.g. --match '{"textSeeds":false}'
 //
 // Metrics: a fragment is placed correctly when its pose is within 3 px (at its centroid) and 1° of the truth, up to
 // one rigid transform per page; joins are correct when the pair is adjacent on the page and the joined pose agrees
@@ -25,14 +27,27 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { fitRigid, poseApply, poseCompose, poseInvert, rng, type Pose } from "../../src/lib/rejoin/geom";
 import { encodePng } from "../../src/lib/rejoin/render";
-import { askAll, contentRequests, finish, prepare } from "../../src/lib/rejoin/solve";
+import { askAll, contentRequests, finish, photoCandidate, prepare } from "../../src/lib/rejoin/solve";
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, SolveResult } from "../../src/lib/rejoin/types";
 import { listCases, loadCase, trueRelative, type BenchCase, type GroundTruth } from "./cases";
 
-type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string; twinSides: "one" | "both"; cuts: boolean };
+type Args = {
+  root: string;
+  family?: string[];
+  content: string;
+  masks: "sam" | "gt";
+  limit: number;
+  json?: string;
+  renders?: string;
+  twinSides: "one" | "both";
+  cuts: boolean;
+  scale: number | "auto";
+  match: Record<string, unknown>;
+  assemble: Record<string, unknown>;
+};
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both", cuts: false };
+  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both", cuts: false, scale: "auto", match: {}, assemble: {} };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     const v = argv[i + 1];
@@ -44,6 +59,9 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--json") a.json = v;
     else if (k === "--renders") a.renders = v;
     else if (k === "--twin-sides") a.twinSides = v as "one" | "both";
+    else if (k === "--scale") a.scale = v === "auto" ? "auto" : Number(v);
+    else if (k === "--match") a.match = JSON.parse(v);
+    else if (k === "--assemble") a.assemble = JSON.parse(v);
     else if (k === "--cuts") {
       a.cuts = true;
       continue;
@@ -263,13 +281,18 @@ async function main() {
     for (const name of names) {
       const c = loadCase(path.join(args.root, name), args.masks);
       const t0 = performance.now();
-      const prep = prepare(c.inputs, { twinSides: args.twinSides, match: { cuts: args.cuts } });
+      const prep = prepare(c.inputs, { twinSides: args.twinSides, match: { cuts: args.cuts, ...args.match }, assemble: args.assemble, scale: args.scale });
+      // the solver works at prep.scale; the truth and the result are in photo px
+      const k = prep.scale;
+      const shapes = new Map(
+        prep.fragments.map((f) => [f.id, k === 1 ? f : ({ ...f, centroid: [f.centroid[0] / k, f.centroid[1] / k], outline: f.outline.map((v) => v / k) } as Fragment)] as const),
+      );
       let reqs: ContentRequest[] = [];
       let verdicts: (ContentVerdict | null)[] = [];
       if (args.content !== "none") {
         reqs = contentRequests(prep);
-        const cands = new Map(prep.match.candidates.map((x) => [x.id, x] as const));
-        const check = external ?? oracle(c.gt, prep.byId, cands, Number(args.content.split(":")[1] ?? 0.1), c.gt.seed);
+        const cands = new Map(prep.match.candidates.map((x) => [x.id, photoCandidate(x, k)] as const));
+        const check = external ?? oracle(c.gt, shapes, cands, Number(args.content.split(":")[1] ?? 0.1), c.gt.seed);
         if (args.renders && !results.length) {
           mkdirSync(args.renders, { recursive: true });
           reqs.slice(0, 12).forEach((r, k) => writeFileSync(path.join(args.renders!, `${name}-${k}-${r.kind}.png`), encodePng(r.render())));
@@ -278,7 +301,7 @@ async function main() {
       }
       const res = finish(prep, reqs, verdicts);
       const total = performance.now() - t0;
-      const s = score(c, prep.byId, res);
+      const s = score(c, shapes, res);
       const row: CaseResult = {
         ...s,
         contentAsked: reqs.length,
@@ -290,7 +313,8 @@ async function main() {
           `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
           (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups} appearance-picks ${row.twinAppearanceHits}/${row.twinAppearanceGroups}  ` : "") +
           (reqs.length ? `asked ${reqs.length}  ` : "") +
-          `${row.ms.total.toFixed(0)} ms`,
+          `${row.ms.total.toFixed(0)} ms` +
+          (k !== 1 ? `  scale ${k.toFixed(2)}` : ""),
       );
     }
   }

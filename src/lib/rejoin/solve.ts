@@ -10,6 +10,8 @@
 import { assemble, ASSEMBLE_DEFAULTS, type AssembleOptions, type ContentEvidence } from "./assemble";
 import { analyzeFragment, type FragmentOptions } from "./fragment";
 import { matchFragments, type MatchOptions, type MatchResult } from "./match";
+import type { Pose } from "./geom";
+import { downscaleInput, workingScale, type ScaleOptions } from "./scale";
 import { renderChoiceSheet, renderSeam, type SeamRenderOptions } from "./seam";
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, FragmentInput, SolveResult, Unplaced } from "./types";
 
@@ -31,12 +33,25 @@ export type SolveOptions = {
   match?: Partial<MatchOptions>;
   assemble?: Partial<AssembleOptions>;
   render?: SeamRenderOptions;
+  /**
+   * Working scale of the geometry (photo px × scale, never above 1). "auto" (default): text lines about
+   * `scaleOptions.targetPitch` px apart, measured on the pieces; without text, by the pieces' size. Poses, lengths and
+   * page sizes in the result are always in photo px.
+   */
+  scale?: number | "auto";
+  scaleOptions?: Partial<ScaleOptions>;
   onProgress?: (stage: "analyse" | "match" | "content" | "assemble", done: number, total: number) => void;
 };
 
 export type Prepared = {
+  /** The pieces analysed at the working scale (their coordinates are photo px × scale). */
   fragments: Fragment[];
   byId: Map<string, Fragment>;
+  /** The working scale, and the median text-line pitch it was set from (photo px; null without text). */
+  scale: number;
+  pitch: number | null;
+  /** The pieces as given, in photo px: page renders use these with the result's poses. */
+  photo: Map<string, { input: FragmentInput }>;
   /** Inputs whose masks gave no usable outline. */
   unusable: Unplaced[];
   match: MatchResult;
@@ -49,9 +64,13 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
 /** Geometry: outlines, edges, text angles, and ranked candidate joins with twin groups. Synchronous. */
 export function prepare(inputs: FragmentInput[], options: SolveOptions = {}): Prepared {
   const t0 = now();
+  const { scale, pitch } =
+    typeof options.scale === "number" ? { scale: Math.min(1, Math.max(0.05, options.scale)), pitch: null } : workingScale(inputs, options.scaleOptions);
+  const work = scale < 1 ? inputs.map((inp) => downscaleInput(inp, scale)) : inputs;
+  const tScale = now();
   const fragments: Fragment[] = [];
   const unusable: Unplaced[] = [];
-  inputs.forEach((inp, i) => {
+  work.forEach((inp, i) => {
     const f = analyzeFragment(inp, i, options.fragment);
     if (f) fragments.push(f);
     else unusable.push({ id: inp.id, reason: "no-match" });
@@ -64,11 +83,25 @@ export function prepare(inputs: FragmentInput[], options: SolveOptions = {}): Pr
   return {
     fragments,
     byId: new Map(fragments.map((f) => [f.id, f] as const)),
+    scale,
+    pitch,
+    photo: new Map(inputs.map((inp) => [inp.id, { input: inp }] as const)),
     unusable,
     match,
-    timings: { analyse: t1 - t0, match: t2 - t1 },
+    timings: { scale: tScale - t0, analyse: t1 - tScale, match: t2 - t1 },
     options,
   };
+}
+
+/** A working-scale pose (coordinates photo px × k on both sides) in photo px. */
+export function photoPose(p: Pose, k: number): Pose {
+  return k === 1 ? p : { theta: p.theta, tx: p.tx / k, ty: p.ty / k };
+}
+
+/** A candidate with its pose and lengths in photo px (a copy: requests keep rendering from the working one). */
+export function photoCandidate(c: Candidate, k: number): Candidate {
+  if (k === 1) return c;
+  return { ...c, pose: photoPose(c.pose, k), overlap: c.overlap / k, rms: c.rms / k, shapeRms: c.shapeRms / k, fineRms: c.fineRms / k, areaOverlap: c.areaOverlap / (k * k) };
 }
 
 /**
@@ -183,12 +216,16 @@ export function finish(prep: Prepared, reqs: ContentRequest[] = [], verdicts: (C
   const r = assemble(prep.fragments, prep.match.data, prep.match.candidates, evidence, prep.options.assemble);
   const t1 = now();
   prep.options.onProgress?.("assemble", 1, 1);
+  // everything back in photo px
+  const k = prep.scale;
   return {
-    pages: r.pages,
-    joins: r.joins,
+    pages: r.pages.map((p) =>
+      k === 1 ? p : { ...p, width: p.width / k, height: p.height / k, rms: p.rms / k, fragments: p.fragments.map((f) => ({ ...f, pose: photoPose(f.pose, k) })) },
+    ),
+    joins: r.joins.map((j) => (k === 1 ? j : { ...j, pose: photoPose(j.pose, k), geometry: { ...j.geometry, rms: j.geometry.rms / k, overlap: j.geometry.overlap / k } })),
     unplaced: [...prep.unusable, ...r.unplaced],
     twinGroups: prep.match.twinGroups,
-    candidates: prep.match.candidates,
+    candidates: prep.match.candidates.map((c) => photoCandidate(c, k)),
     content: { asked: reqs.length, answered: verdicts.filter((v) => v).length },
     timings: { ...prep.timings, assemble: t1 - t0 },
   };

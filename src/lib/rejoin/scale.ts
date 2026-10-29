@@ -1,34 +1,61 @@
 // Working scale. The solver's geometry (outline smoothing, straight-edge detection, seed windows, ICP bands, the
-// fine-residual floor) is designed for pages about 1000 px wide with text lines about 40 px apart: the scale of
-// Bench-S, and of a phone photo shrunk to about 1500 px. A full-resolution phone photo is 2–3× larger, and every
-// pixel parameter would be off by that factor (and matching 6× slower). So the geometry runs on a downscaled copy of
-// each piece, and the result's poses are converted back to photo pixels.
+// fine-residual floor) works in pixels, and real tears have a physical scale: fibre rims and raggedness of a fraction
+// of a millimetre, shapes of centimetres. So the geometry runs at a scale where text lines are a fixed number of
+// pixels apart (the text-line pitch is the one length every printed page carries), and the result's poses are
+// converted back to photo pixels. Pages without text fall back to the pieces' size.
 
+import { depthMap } from "./raster";
+import { textOrientation } from "./orientation";
 import type { FragmentInput } from "./types";
 
-/** Median piece area (photo px²) above which photos are downscaled, and the area a piece is brought to. */
-const AREA_TRIGGER = 250_000;
-const AREA_TARGET = 160_000;
-/** Median text pitch (px) above which photos are downscaled, and the pitch they are brought to. */
-const PITCH_TRIGGER = 64;
-const PITCH_TARGET = 40;
+export type ScaleOptions = {
+  /** Text-line pitch (working px) the geometry runs at. */
+  targetPitch: number;
+  /** …but never so small that the median piece covers less than this (working px²): small pieces lose their shape. */
+  minPieceArea: number;
+  /** Without text: median piece area (photo px²) above which photos are shrunk, and the area they are brought to. */
+  areaTrigger: number;
+  areaTarget: number;
+};
+
+export const SCALE_DEFAULTS: ScaleOptions = { targetPitch: 32, minPieceArea: 60_000, areaTrigger: 400_000, areaTarget: 160_000 };
+
+const median = (v: number[]) => {
+  const s = [...v].sort((a, b) => a - b);
+  return s.length ? s[Math.floor(s.length / 2)] : 0;
+};
+
+export const maskArea = (inp: FragmentInput) => {
+  let a = 0;
+  for (let i = 0; i < inp.mask.data.length; i++) if (inp.mask.data[i]) a++;
+  return a;
+};
 
 /**
- * The working scale for a set of pieces: 1 for photos already near the design point (every Bench-S case), less for
- * larger ones. Uses the median piece area and, when known, the median text-line pitch (photo px); the stronger
- * reduction wins. Never enlarges.
+ * The working scale for a set of pieces (≤ 1: geometry never runs above photo resolution), and the median text-line
+ * pitch it was taken from (photo px; null without text). The pitch is measured on copies at most ~550 px across.
  */
-export function autoScale(areas: number[], pitches: number[] = []): number {
-  const med = (v: number[]) => {
-    const s = [...v].sort((a, b) => a - b);
-    return s.length ? s[Math.floor(s.length / 2)] : 0;
-  };
-  let k = 1;
-  const area = med(areas);
-  if (area > AREA_TRIGGER) k = Math.min(k, Math.sqrt(AREA_TARGET / area));
-  const pitch = med(pitches);
-  if (pitch > PITCH_TRIGGER) k = Math.min(k, PITCH_TARGET / pitch);
-  return Math.max(0.15, Math.min(1, k));
+export function workingScale(inputs: FragmentInput[], options: Partial<ScaleOptions> = {}): { scale: number; pitch: number | null } {
+  const o = { ...SCALE_DEFAULTS, ...options };
+  const area = median(inputs.map(maskArea));
+  if (!area) return { scale: 1, pitch: null };
+  const k0 = Math.min(1, Math.sqrt(300_000 / area));
+  const pitches: number[] = [];
+  for (const inp of inputs) {
+    if (!inp.rgba) continue;
+    const small = downscaleInput(inp, k0);
+    const t = textOrientation(small.rgba!, small.mask, depthMap(small.mask));
+    if (!t || t.confidence < 0.5) continue;
+    const p = t.grid && t.grid.regularity >= 0.3 ? t.grid.period : t.pitch;
+    if (p) pitches.push(p / k0);
+  }
+  // the pitch of most pieces: a heading or a stray reading on one piece does not move it
+  if (pitches.length >= Math.min(3, inputs.length)) {
+    const pitch = median(pitches);
+    const floor = Math.sqrt(o.minPieceArea / area);
+    return { scale: Math.max(0.12, Math.min(1, Math.max(floor, o.targetPitch / pitch))), pitch };
+  }
+  return { scale: area > o.areaTrigger ? Math.max(0.12, Math.sqrt(o.areaTarget / area)) : 1, pitch: null };
 }
 
 /**

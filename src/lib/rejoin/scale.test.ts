@@ -1,23 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { autoScale, downscaleInput } from "./scale";
+import { downscaleInput, workingScale } from "./scale";
 import { gridTear, scatterPiece } from "./__tests__/synth";
 import { analyzeFragment } from "./fragment";
+import type { FragmentInput } from "./types";
+
+/** A piece photographed f× closer (nearest-neighbour enlargement). */
+function enlarge(inp: FragmentInput, f: number): FragmentInput {
+  const W = inp.mask.width * f;
+  const H = inp.mask.height * f;
+  const data = new Uint8Array(W * H);
+  const px = new Uint8ClampedArray(4 * W * H);
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const i = Math.floor(r / f) * inp.mask.width + Math.floor(c / f);
+      data[r * W + c] = inp.mask.data[i];
+      px.set(inp.rgba!.data.subarray(4 * i, 4 * i + 4), 4 * (r * W + c));
+    }
+  }
+  return { id: inp.id, mask: { width: W, height: H, data }, x0: inp.x0 * f, y0: inp.y0 * f, rgba: { width: W, height: H, data: px } };
+}
 
 describe("working scale", () => {
-  it("leaves photos at the design point alone and shrinks large ones", () => {
-    // Bench-S: pieces of ~130k px², text pitch 17–59 px
-    expect(autoScale([90e3, 130e3, 210e3], [20, 35, 59])).toBe(1);
-    // a 24 MP phone photo of one page in 10 pieces: ~1 Mpx² pieces, ~100 px pitch
-    const k = autoScale([0.4e6, 1.0e6, 1.1e6, 1.6e6], [96, 100, 104]);
-    expect(k).toBeGreaterThan(0.36);
-    expect(k).toBeLessThan(0.42);
-    // pitch alone can trigger (many small pieces of a large photo)
-    expect(autoScale([60e3, 80e3], [110, 120])).toBeCloseTo(40 / 120, 2);
+  const page = gridTear(420, 360, 2, 2, 5);
+  const pieces = [0, 1, 2, 3].map((k) => scatterPiece(page, k, { theta: 0.3 + k, tx: 500 + 400 * k, ty: 500 }));
+
+  it("brings text lines to the target pitch, and never enlarges", () => {
+    // lines every 22 px: already below the 32 px target
+    expect(workingScale(pieces).scale).toBe(1);
+    const big = pieces.map((p) => enlarge(p, 3));
+    const { scale, pitch } = workingScale(big);
+    expect(pitch!).toBeGreaterThan(62);
+    expect(pitch!).toBeLessThan(70);
+    expect(scale).toBeCloseTo(32 / pitch!, 5);
+  });
+
+  it("falls back to the pieces' size without text", () => {
+    const blank = pieces.map((p) => ({ ...enlarge(p, 4), rgba: undefined }));
+    const { scale, pitch } = workingScale(blank);
+    expect(pitch).toBeNull();
+    expect(scale).toBeLessThan(1);
   });
 
   it("resamples a piece onto the working grid: area × k², same place", () => {
-    const page = gridTear(400, 360, 2, 2, 5);
-    const inp = scatterPiece(page, 1, { theta: 0.4, tx: 700, ty: 500 });
+    const inp = pieces[1];
     const k = 0.4;
     const out = downscaleInput(inp, k);
     const area = (m: { data: Uint8Array }) => m.data.reduce((s, v) => s + v, 0);

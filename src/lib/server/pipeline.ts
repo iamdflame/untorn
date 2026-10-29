@@ -257,7 +257,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const pageJpegs = new Map<string, Uint8Array>();
   await Promise.all(
     res.pages.map(async (p, k) => {
-      const img = renderPage(p, prep.byId, { margin: PAGE_MARGIN });
+      const img = renderPage(p, prep.photo, { margin: PAGE_MARGIN });
       const raw = sharp(Buffer.from(img.data.buffer, img.data.byteOffset, img.data.length), { raw: { width: img.width, height: img.height, channels: 4 } });
       const [png, jpeg] = await Promise.all([
         raw.clone().png({ compressionLevel: 6 }).toBuffer(),

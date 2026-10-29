@@ -159,3 +159,46 @@ describe("S2 adapters", () => {
     expect(f.rgba!.data[0]).toBe(photo.data[4 * (1 * 6 + 2)]);
   });
 });
+
+describe("working scale", async () => {
+  // the same torn page photographed 3× closer: text lines 66 px apart
+  const page = gridTear(520, 420, 3, 2, 21);
+  const { inputs, poses } = scatterPage(page, 5, { noise: 0.6 });
+  const f = 3;
+  const big: FragmentInput[] = inputs.map((inp) => {
+    const W = inp.mask.width * f;
+    const H = inp.mask.height * f;
+    const data = new Uint8Array(W * H);
+    const px = new Uint8ClampedArray(4 * W * H);
+    for (let r = 0; r < H; r++) {
+      for (let c = 0; c < W; c++) {
+        const i = Math.floor(r / f) * inp.mask.width + Math.floor(c / f);
+        data[r * W + c] = inp.mask.data[i];
+        px.set(inp.rgba!.data.subarray(4 * i, 4 * i + 4), 4 * (r * W + c));
+      }
+    }
+    return { id: inp.id, mask: { width: W, height: H, data }, x0: inp.x0 * f, y0: inp.y0 * f, rgba: { width: W, height: H, data: px } };
+  });
+  // page → photo poses of the enlarged photo
+  const truth = new Map(big.map((b, k) => [b.id, poseCompose({ theta: 0, tx: 0, ty: 0 }, { theta: poses[k].theta, tx: f * poses[k].tx, ty: f * poses[k].ty })] as const));
+  const prep = prepare(big);
+  const res = await solve(big);
+
+  it("runs the geometry at the text-line target and answers in photo px", () => {
+    expect(prep.scale).toBeGreaterThan(0.4);
+    expect(prep.scale).toBeLessThan(0.55);
+    expect(res.pages).toHaveLength(1);
+    expect(res.pages[0].fragments).toHaveLength(6);
+    // poses in photo px: a 3 px tolerance at photo scale is 3× tighter than at the working scale, so allow 9 px
+    const G = poseCompose(poseInvert(truth.get(res.pages[0].fragments[0].id)!), poseInvert(res.pages[0].fragments[0].pose));
+    for (const pf of res.pages[0].fragments) {
+      const inp = big.find((x) => x.id === pf.id)!;
+      const c: [number, number] = [inp.x0 + inp.mask.width / 2, inp.y0 + inp.mask.height / 2];
+      const [x1, y1] = poseApply(poseCompose(G, pf.pose), ...c);
+      const [x2, y2] = poseApply(poseInvert(truth.get(pf.id)!), ...c);
+      expect(Math.hypot(x1 - x2, y1 - y2)).toBeLessThan(9);
+    }
+    // the page is about 3 × 520 px wide in photo px
+    expect(Math.max(res.pages[0].width, res.pages[0].height)).toBeGreaterThan(1300);
+  });
+});

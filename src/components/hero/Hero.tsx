@@ -246,7 +246,7 @@ function Twins({ d }: { d: StackTrial }) {
           <button key={k} type="button" className="tw tw-c" data-k={k} aria-label={`Scrap ${k}`} tabIndex={-1} style={{ width: d.images[k].w, height: d.images[k].h }}>
             <canvas data-src={d.images[k].url} aria-hidden="true" width={d.images[k].w} height={d.images[k].h} />
             <svg viewBox={`0 0 ${d.images[k].w} ${d.images[k].h}`} aria-hidden="true">
-              <path className="strike" d={`M6 ${d.images[k].h - 10} 58 8`} />
+              <path className="strike" pathLength={100} d={`M6 ${d.images[k].h - 10} 58 8`} />
             </svg>
             <span className="tag">{k}</span>
           </button>
@@ -271,7 +271,7 @@ function Twins({ d }: { d: StackTrial }) {
             .
           </strong>
           <span className="tw-why">
-            The edge is a three-way tie; reading decides. In {trials} stack trials Muse picked the right scrap {correct === trials ? `all ${trials} times` : `${correct} times`}; chance is 1 in {chance}.
+            The edge is a three-way tie; reading decides. In {trials} stack trials Muse picked the right scrap {correct === trials ? `all ${trials} times` : `${correct} times`}; chance is 1&nbsp;in&nbsp;{chance}.
           </span>
           <span className="note">{d.label}</span>
         </p>

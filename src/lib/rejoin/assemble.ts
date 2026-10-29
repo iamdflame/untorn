@@ -6,7 +6,7 @@
 // Every accepted join must leave its seams unused, agree with the page when it closes a loop, and not make placed
 // pieces overlap. Fragments that join nothing stay unplaced: never force a fit.
 
-import { competitors, correspond, interpenetration, measureSeam, workspace, type MatchData } from "./match";
+import { competitors, correspond, interpenetration, measureSeam, MATCH_DEFAULTS, workspace, type MatchData } from "./match";
 import { poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
 import { gridTrusted, lineConsensus } from "./textlines";
 import type { Candidate, Clue, Fragment, Join, Page, Unplaced } from "./types";
@@ -30,6 +30,8 @@ export type AssembleOptions = {
    * a rotation with ~3·10⁵; this weighs each piece's own lines about as much as one seam.
    */
   linesStiffness: number;
+  /** Fibre-rim overlap a seam may rest at (px), as in matching (MatchOptions.rimMax). */
+  rimMax: number;
   linesMaxPhase: number;
   /** Loop closure tolerance: px at the fragment's centroid, and degrees. */
   loopPx: number;
@@ -56,6 +58,7 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   linesMaxAngle: (6 * Math.PI) / 180,
   linesMaxPhase: 0.3,
   linesStiffness: 3e4,
+  rimMax: MATCH_DEFAULTS.rimMax,
   loopPx: 6,
   loopDeg: 2,
   overlapPx: 300,
@@ -168,7 +171,7 @@ export function assemble(
       // merge b's page into a's: X ↦ T ∘ pose_X, T from the join, then refined on every seam the merge creates
       const moved = members.get(cb)!;
       const staying = members.get(ca)!;
-      const T = alignComponents(poseCompose(pa, poseCompose(c.pose, poseInvert(pb))), moved, staying, byId, pose, radius);
+      const T = alignComponents(poseCompose(pa, poseCompose(c.pose, poseInvert(pb))), moved, staying, byId, pose, radius, Math.min(o.rimMax, c.rim ?? 0));
       for (const x of moved) {
         const px = poseCompose(T, pose.get(x)!);
         for (const y of staying) if (overlapping(byId.get(x)!, px, byId.get(y)!, pose.get(y)!, radius, o)) return no("overlap");
@@ -239,9 +242,14 @@ export function assemble(
     const pageId = `page-${pageNo++}`;
     const pageJoins = accepted.filter((d) => comp.get(d.c.a) === root);
     // Once placed, every pair whose outlines meet is a seam: use all of them to refine, not only the accepted joins.
-    let implied = impliedSeams(ids, byId, pose, direct, radius);
-    const refined = refine(ids, [...pageJoins.map((d) => d.c), ...implied], byId, pose, o.refineIters, lineDirs, o.linesStiffness);
-    implied = impliedSeams(ids, byId, pose, direct, radius);
+    // Fibre rims: each accepted join keeps the overlap it was matched at; seams the layout implies may rest at up to the
+    // page's median rim (0 where seams just touch, as on clean cuts and simulations)
+    const rims = pageJoins.map((d) => d.c.rim ?? 0).sort((x, y) => x - y);
+    const pageRim = Math.min(o.rimMax, rims.length ? rims[Math.floor(rims.length / 2)] : 0);
+    let implied = impliedSeams(ids, byId, pose, direct, radius, pageRim);
+    const seams = [...pageJoins.map((d) => ({ a: d.c.a, b: d.c.b, rim: Math.min(o.rimMax, d.c.rim ?? 0) })), ...implied];
+    const refined = refine(ids, seams, byId, pose, o.refineIters, lineDirs, o.linesStiffness);
+    implied = impliedSeams(ids, byId, pose, direct, radius, pageRim);
     const up = upright(ids, byId, pose);
     // bounding box of the placed outlines → origin at the top-left
     let minx = Infinity;
@@ -316,10 +324,10 @@ export function assemble(
   return { pages, joins, unplaced };
 }
 
-type Seam = { a: string; b: string; seamA: [number, number]; seamB: [number, number]; score: number; rms: number; overlap: number };
+type Seam = { a: string; b: string; seamA: [number, number]; seamB: [number, number]; score: number; rms: number; overlap: number; rim: number };
 
 /** Seams between placed fragments that no accepted join covers: pairs whose outlines meet where the page puts them. */
-function impliedSeams(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, direct: Set<string>, radius: Map<string, number>): Seam[] {
+function impliedSeams(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, direct: Set<string>, radius: Map<string, number>, rimMax = 0): Seam[] {
   const out: Seam[] = [];
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
@@ -331,9 +339,9 @@ function impliedSeams(ids: string[], byId: Map<string, MatchData>, pose: Map<str
       const [bx, by] = poseApply(pose.get(b)!, ...B.f.centroid);
       if (Math.hypot(ax - bx, ay - by) > radius.get(a)! + radius.get(b)! + 4) continue;
       const rel = poseCompose(poseInvert(pose.get(a)!), pose.get(b)!);
-      const m = measureSeam(A, B, rel, { minOverlap: 40 });
+      const m = measureSeam(A, B, rel, { minOverlap: 40, rimMax });
       if (!m || m.score < 25 || m.rms > 2) continue;
-      out.push({ a, b, seamA: m.seamA, seamB: m.seamB, score: m.score, rms: m.rms, overlap: m.overlap });
+      out.push({ a, b, seamA: m.seamA, seamB: m.seamB, score: m.score, rms: m.rms, overlap: m.overlap, rim: m.rim });
     }
   }
   return out;
@@ -351,6 +359,7 @@ function alignComponents(
   byId: Map<string, MatchData>,
   pose: Map<string, Pose>,
   radius: Map<string, number>,
+  rimMax = 0,
 ): Pose {
   let T = T0;
   for (let it = 0; it < 4; it++) {
@@ -371,7 +380,9 @@ function alignComponents(
         if (Math.hypot(xcx - ycx, xcy - ycy) > radius.get(x)! + radius.get(y)! + 4) continue;
         const rel = poseCompose(poseInvert(py), px); // X's photo → Y's photo
         const w = workspace(X.sample.length);
-        correspond(Y, X, rel, 4, w);
+        // the seams between the two groups rest at the joining seam's rim overlap
+        const delta = rimMax;
+        correspond(Y, X, rel, 4, w, delta);
         const c = Math.cos(py.theta);
         const s = Math.sin(py.theta);
         for (let k = 0; k < X.sample.length; k++) {
@@ -379,7 +390,9 @@ function alignComponents(
           const a = w.ai[k];
           const q = poseApply(py, w.qx[k], w.qy[k]);
           const ap = poseApply(py, Y.X[a], Y.Y[a]);
-          pts.push([q[0], q[1], ap[0] - q[0], ap[1] - q[1], Math.atan2(s * Y.NX[a] + c * Y.NY[a], c * Y.NX[a] - s * Y.NY[a])]);
+          // the target is A's outline moved in by the rim overlap: the seam rests there
+          const nA = Math.atan2(s * Y.NX[a] + c * Y.NY[a], c * Y.NX[a] - s * Y.NY[a]);
+          pts.push([q[0], q[1], ap[0] - delta * Math.cos(nA) - q[0], ap[1] - delta * Math.sin(nA) - q[1], nA]);
           cx += q[0];
           cy += q[1];
           n++;
@@ -447,7 +460,7 @@ function overlapping(X: MatchData, px: Pose, Y: MatchData, py: Pose, radius: Map
  */
 function refine(
   ids: string[],
-  joins: { a: string; b: string }[],
+  joins: { a: string; b: string; rim?: number }[],
   byId: Map<string, MatchData>,
   pose: Map<string, Pose>,
   iters: number,
@@ -471,7 +484,8 @@ function refine(
       const pb = pose.get(c.b)!;
       const rel = poseCompose(poseInvert(pa), pb);
       const w = workspace(B.sample.length);
-      correspond(A, B, rel, 3, w);
+      const delta = c.rim ?? 0;
+      correspond(A, B, rel, 3, w, delta);
       const ia = index.get(c.a)!;
       const ib = index.get(c.b)!;
       const ca = Math.cos(pa.theta);
@@ -484,7 +498,7 @@ function refine(
         const qb = poseApply(pa, w.qx[k], w.qy[k]);
         const nx = ca * A.NX[a] - sa * A.NY[a];
         const ny = sa * A.NX[a] + ca * A.NY[a];
-        const r = nx * (qb[0] - qa[0]) + ny * (qb[1] - qa[1]);
+        const r = nx * (qb[0] - qa[0]) + ny * (qb[1] - qa[1]) + delta;
         ss += r * r;
         cnt++;
         const wt = Math.abs(r) <= 1.5 ? 1 : 1.5 / Math.abs(r);

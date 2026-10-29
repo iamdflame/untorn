@@ -42,6 +42,15 @@ export type MatchOptions = {
   fineScale: number;
   /** Depth (px) beyond which overlapping paper counts as interpenetration. */
   deepPx: number;
+  /**
+   * Fibre rim: a hand tear leaves a white fringe of fibres protruding on one side, so at the true join the two
+   * outlines overlap by its width. With this > 0 the edge fit allows a per-seam overlap up to it (px), estimated as
+   * the median overlap of the seam. Off by default: measured (S7), the overlap the outline fit recovers is small on
+   * the real photo (median 0.6 working px; the rim's offset curve fits the partner worse than a smaller overlap) and
+   * just as large on rim-less simulations (Bench-S large p90 1.7 px), where enforcing it in assembly cost 3 px
+   * precision on 50 of 271 pieces.
+   */
+  rimMax: number;
   /** When both fragments have a confident text angle, their lines must be parallel within this (rad) to seed. */
   textTol: number;
   textConfidence: number;
@@ -89,6 +98,7 @@ export const MATCH_DEFAULTS: MatchOptions = {
   fineFloor: 0.6,
   fineScale: 0.16,
   deepPx: 3,
+  rimMax: 0,
   textTol: (6 * Math.PI) / 180,
   textConfidence: 0.85,
   twinRatio: 0.5,
@@ -296,7 +306,7 @@ const NEAR = 7;
  * Transform B's samples and match each to A's nearest outline point (facing it). inl = 1: within tau (an inlier);
  * inl = 2: within NEAR only (bridges a run); 0: no facing point near.
  */
-export function correspond(A: MatchData, B: MatchData, pose: Pose, tau: number, w: Matching) {
+export function correspond(A: MatchData, B: MatchData, pose: Pose, tau: number, w: Matching, delta = 0) {
   const c = Math.cos(pose.theta);
   const s = Math.sin(pose.theta);
   const m = B.sample.length;
@@ -307,7 +317,7 @@ export function correspond(A: MatchData, B: MatchData, pose: Pose, tau: number, 
     w.qx[k] = x;
     w.qy[k] = y;
     w.inl[k] = 0;
-    const a = A.grid.nearest(x, y, Math.max(tau, NEAR));
+    const a = A.grid.nearest(x, y, Math.max(tau, NEAR) + delta);
     w.ai[k] = a;
     if (a < 0) continue;
     const r = A.NX[a] * (x - A.X[a]) + A.NY[a] * (y - A.Y[a]);
@@ -318,11 +328,24 @@ export function correspond(A: MatchData, B: MatchData, pose: Pose, tau: number, 
     if (nbx * A.NX[a] + nby * A.NY[a] > -0.2) continue;
     const dx = x - A.X[a];
     const dy = y - A.Y[a];
-    w.inl[k] = Math.abs(r) <= tau && dx * dx + dy * dy <= (tau + 1.5) ** 2 ? 1 : 2;
+    // an overlap of `delta` (fibre rim) is the seam's rest position: r = −delta
+    w.inl[k] = Math.abs(r + delta) <= tau && dx * dx + dy * dy <= (tau + 1.5 + delta) ** 2 ? 1 : 2;
   }
 }
 
-type IcpResult = SeamStats & { pose: Pose };
+/** The seam's overlap (fibre rim): the median of −r over the run's inliers, within [0, rimMax]. */
+export function rimOverlap(w: Matching, run: [number, number, number], m: number, rimMax: number): number {
+  if (rimMax <= 0) return 0;
+  const v: number[] = [];
+  forRun(run, m, (k) => {
+    if (w.inl[k] === 1) v.push(-w.res[k]);
+  });
+  if (v.length < 8) return 0;
+  v.sort((a, b) => a - b);
+  return Math.max(0, Math.min(rimMax, v[Math.floor(v.length / 2)]));
+}
+
+type IcpResult = SeamStats & { pose: Pose; rim: number };
 
 export function workspace(m: number): Matching {
   return { ai: new Int32Array(m), res: new Float64Array(m), qx: new Float64Array(m), qy: new Float64Array(m), inl: new Uint8Array(m) };
@@ -335,13 +358,16 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
   let pose = { ...pose0 };
   let run: [number, number, number] | null = null;
   const minSamples = Math.ceil(o.minOverlap / o.step);
+  let delta = 0;
   for (let it = 0; it <= o.icpIters; it++) {
     const final = it === o.icpIters;
     const tau = final ? o.inlier : it < 3 ? 6 : it < 6 ? 4.5 : o.inlier + 0.5;
-    correspond(A, B, pose, tau, w);
+    correspond(A, B, pose, tau, w, delta);
     run = bestRun(w.inl, B.brk, 15);
     if (!run || run[2] < minSamples) return null;
     if (final) break;
+    // once the coarse stages have settled the seam, let it rest at its rim overlap
+    if (it >= 3) delta = rimOverlap(w, run, m, o.rimMax);
     let cx = 0;
     let cy = 0;
     let cnt = 0;
@@ -350,7 +376,7 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
       if (w.inl[k] !== 1) return;
       cx += w.qx[k];
       cy += w.qy[k];
-      ss += w.res[k] * w.res[k];
+      ss += (w.res[k] + delta) ** 2;
       cnt++;
     });
     // early exit: after the coarse stages a seam this poor will not become a candidate
@@ -367,11 +393,11 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
       const ny = A.NY[a];
       const rx = w.qx[k] - cx;
       const ry = w.qy[k] - cy;
-      const r = w.res[k];
+      const r = w.res[k] + delta;
       const wt = Math.abs(r) <= 1.5 ? 1 : 1.5 / Math.abs(r);
       addJ(H, g, -ry * nx + rx * ny, nx, ny, r, wt);
-      addJ(H, g, -ry, 1, 0, w.qx[k] - A.X[a], lam * wt);
-      addJ(H, g, rx, 0, 1, w.qy[k] - A.Y[a], lam * wt);
+      addJ(H, g, -ry, 1, 0, w.qx[k] - A.X[a] + delta * nx, lam * wt);
+      addJ(H, g, rx, 0, 1, w.qy[k] - A.Y[a] + delta * ny, lam * wt);
     });
     const x = solveSPD(H, Float64Array.from([-g[0], -g[1], -g[2]]), 3, 1e-6);
     const dth = Math.max(-0.2, Math.min(0.2, x[0]));
@@ -381,8 +407,8 @@ export function icp(A: MatchData, B: MatchData, pose0: Pose, o: MatchOptions, w:
     if (it >= 8 && Math.abs(dth) < 2e-5 && Math.hypot(x[1], x[2]) < 0.005) it = o.icpIters - 1;
   }
   if (!run) return null;
-  const seam = seamFromRun(A, B, w, run, minSamples);
-  return seam ? { pose, ...seam } : null;
+  const seam = seamFromRun(A, B, w, run, minSamples, delta);
+  return seam ? { pose, rim: delta, ...seam } : null;
 }
 
 type SeamStats = {
@@ -396,7 +422,7 @@ type SeamStats = {
 };
 
 /** Residual statistics of a seam run: RMS, its coarse (18 px moving average) and fine parts, and conditioning. */
-function seamFromRun(A: MatchData, B: MatchData, w: Matching, run: [number, number, number], minSamples: number): SeamStats | null {
+function seamFromRun(A: MatchData, B: MatchData, w: Matching, run: [number, number, number], minSamples: number, delta = 0): SeamStats | null {
   const m = B.sample.length;
   let ss = 0;
   let sxx = 0;
@@ -407,7 +433,7 @@ function seamFromRun(A: MatchData, B: MatchData, w: Matching, run: [number, numb
   const seq: number[] = [];
   forRun(run, m, (k) => {
     if (w.inl[k] !== 1) return;
-    const r = w.res[k];
+    const r = w.res[k] + delta;
     seq.push(r);
     ss += r * r;
     const a = w.ai[k];
@@ -451,6 +477,8 @@ function seamFromRun(A: MatchData, B: MatchData, w: Matching, run: [number, numb
 
 export type SeamMeasure = {
   overlap: number;
+  /** The seam's rim overlap (px). */
+  rim: number;
   rms: number;
   fineRms: number;
   shapeRms: number;
@@ -465,15 +493,23 @@ export type SeamMeasure = {
 export function measureSeam(A: MatchData, B: MatchData, pose: Pose, options: Partial<MatchOptions> = {}): SeamMeasure | null {
   const o = { ...MATCH_DEFAULTS, ...options };
   const w = workspace(B.sample.length);
-  correspond(A, B, pose, o.inlier, w);
+  // the rim overlap at this pose: from the seam found with a band wide enough to hold it
+  let delta = 0;
+  if (o.rimMax > 0) {
+    correspond(A, B, pose, o.inlier + o.rimMax, w);
+    const wide = bestRun(w.inl, B.brk, 15);
+    if (wide) delta = rimOverlap(w, wide, B.sample.length, o.rimMax);
+  }
+  correspond(A, B, pose, o.inlier, w, delta);
   const run = bestRun(w.inl, B.brk, 15);
   if (!run) return null;
-  const st = seamFromRun(A, B, w, run, Math.ceil(o.minOverlap / o.step));
+  const st = seamFromRun(A, B, w, run, Math.ceil(o.minOverlap / o.step), delta);
   if (!st) return null;
   const overlap = st.inliers * o.step;
-  const areaOverlap = interpenetration(A, B, pose, o.deepPx, o.step);
+  const areaOverlap = interpenetration(A, B, pose, o.deepPx + delta, o.step);
   return {
     overlap,
+    rim: delta,
     rms: st.rms,
     fineRms: st.fineRms,
     shapeRms: st.shapeRms,
@@ -665,7 +701,7 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
     if (known.some((c) => samePose(c.pose, r.pose, B.f.centroid, 1, 3))) return;
     const overlap = r.inliers * o.step;
     if (overlap < o.minOverlap || r.rms > o.maxRms) return;
-    const areaOverlap = interpenetration(A, B, r.pose, o.deepPx, o.step);
+    const areaOverlap = interpenetration(A, B, r.pose, o.deepPx + r.rim, o.step);
     const score = geometryScore({ overlap, fineRms: r.fineRms, conditioning: r.conditioning, areaOverlap }, o);
     if (score <= 0) return;
     const seamA = coverRange(r.matchedA, A.n);
@@ -691,6 +727,7 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
       appearance: null,
       twinGroup: null,
       edge: "torn",
+      rim: r.rim,
     };
     const mid = (seamA[0] + Math.floor(seamA[1] / 2)) % A.n;
     cand.text = textCheck(A.f, B.f, r.pose, [A.X[mid], A.Y[mid]], consensus);

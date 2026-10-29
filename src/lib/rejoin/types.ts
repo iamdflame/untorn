@@ -76,6 +76,8 @@ export type Candidate = {
   shapeRms: number;
   /** RMS of the residual minus that average (px): fine misfit. Mask noise only on a true seam; the sharp clue. */
   fineRms: number;
+  /** Overlap of the two outlines at rest (px): the fibre rim of a hand tear (0 for clean cuts and simulations). */
+  rim?: number;
   /** Geometry score (px of well-fitting, well-conditioned seam, minus penalties). */
   score: number;
   /** Geometry confidence, 0–1, from the score and the competition. */

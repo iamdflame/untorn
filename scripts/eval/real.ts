@@ -524,9 +524,12 @@ export function scoreReal(
           }
         }
         if (a.length) {
-          G = fitRigid(Float64Array.from(a), Float64Array.from(b)).pose;
-          const ok2 = pg.pieces.filter((m) => truth.has(m.id) && agree(G, m.id, m.pose));
-          if (ok2.length >= ok.length) ok = ok2;
+          const G2 = fitRigid(Float64Array.from(a), Float64Array.from(b)).pose;
+          const ok2 = pg.pieces.filter((m) => truth.has(m.id) && agree(G2, m.id, m.pose));
+          if (ok2.length >= ok.length) {
+            ok = ok2;
+            G = G2;
+          }
         }
       }
       if (ok.length > best.length) {

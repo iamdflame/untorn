@@ -97,6 +97,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   const h1Seam = $<SVGPathElement>(".tseam path");
   const elIntro = $(".intro");
   const elTx = $(".tx");
+  const elTxH = root.querySelector<HTMLElement>(".tx-h");
   const elTxBody = $(".tx-body");
   const elTxMore = $(".tx-more");
   const elRdWord = $(".rd-word");
@@ -207,8 +208,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       const vx = hx - PCX;
       const vy = hy - PCY;
       const vl = Math.hypot(vx, vy) || 1;
-      const ex = p.placed ? hx + vx * 0.46 + (vx / vl) * 70 * K : p.c[0];
-      const ey = p.placed ? hy + vy * 0.46 + (vy / vl) * 70 * K : p.c[1];
+      const ex = p.placed ? hx + vx * 0.46 + (vx / vl) * 70 * K : hx;
+      const ey = p.placed ? hy + vy * 0.46 + (vy / vl) * 70 * K : hy;
       const dl = Math.hypot(ex - hx, ey - hy) || 1;
       return { ...p, path, ex, ey, ux: (ex - hx) / dl, uy: (ey - hy) / dl, jx: p.placed ? vx * 0.4 + (vx / vl) * 26 * K : 0, jy: p.placed ? vy * 0.4 + (vy / vl) * 26 * K : 0 };
     });
@@ -393,8 +394,9 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     }
     return b;
   }
+  // the pages and the tray of set-aside pieces beside them: the camera frames both
   const pagesB = (): Box => {
-    const pb = scene?.pagesBox ?? [0, 0, input?.photo?.width ?? 1600, input?.photo?.height ?? 1200];
+    const pb = scene?.box ?? [0, 0, input?.photo?.width ?? 1600, input?.photo?.height ?? 1200];
     return { x0: pb[0], y0: pb[1], x1: pb[2], y1: pb[3] };
   };
   function posesBox(list: [P, number, number, number][]) {
@@ -498,7 +500,13 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       y = p.c[1];
       a = 0;
       lift = Math.max(smooth(T.lift0, T.lift1, t), testing);
-      if (assembled && !p.placed) lift = smooth(T.lift0, T.lift1, t) * (1 - smooth(T.exp0, T.exp1, t));
+      if (assembled && !p.placed) {
+        // set aside: it slides to the tray beside the pages as they open up, and lies down there
+        const u = easeIO(smooth(T.exp0, T.exp1, t));
+        x = lerp(p.c[0], p.home[0], u);
+        y = lerp(p.c[1], p.home[1], u);
+        lift = smooth(T.lift0, T.lift1, t) * (1 - smooth(T.exp0, T.exp1, t));
+      }
     } else {
       const ts = T.stepT[i];
       if (t < ts) {
@@ -591,7 +599,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     const dimsA = smooth(T.exp0 + 0.4, T.exp1, t) * (1 - smooth(T.stepT[1] ?? T.exp1 + 1, (T.stepT[1] ?? T.exp1 + 1) + 0.6, t)) * (1 - j);
     const cornersA = assembled ? smooth(T.exp0 + 0.4, T.exp1, t) * (1 - smooth(T.stepT[1] ?? T.exp1 + 1, (T.stepT[1] ?? T.exp1 + 1) + 0.6, t)) : 0;
     const wholeA = smooth(T.whole, T.whole + 0.7, t);
-    const pb = assembled && scene ? scene.pagesBox : tableBox();
+    const pb = assembled && scene ? scene.box : tableBox();
 
     g.save();
     lightTable(g, c, pb as [number, number, number, number], (cutsReady ? smooth(T.lift0, T.lift1 + 0.3, t) : 0) * (1 - z));
@@ -623,7 +631,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     g.imageSmoothingEnabled = !crisp;
     const under = climaxSeam && z > 0 && t < T.seat + T.fly ? order[LAST].piece : -1;
     const zo = pieces.map((_, i) => i).sort((a, b) => Number(b === under) - Number(a === under) || poses[a].lift - poses[b].lift || (orderIdx[a] ?? 99) - (orderIdx[b] ?? 99));
-    const dimA = (i: number) => (assembled && !pieces[i].placed ? 1 - 0.55 * expl : 1);
+    const dimA = (i: number) => (assembled && !pieces[i].placed ? 1 - 0.4 * expl : 1);
     if (shadowA > 0) zo.forEach((i) => drawShadow(g, cuts.get(pieces[i].id) ?? null, poses[i], c, shadowA * (1 - z) * dimA(i)));
     if (litA > 0.001)
       zo.forEach((i) => {
@@ -1103,15 +1111,18 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     const lw = d.images.L.w;
     const mw0 = d.slotX + cw;
     if (phone) {
-      // the slot on top at near full width; the three scraps fanned below like a hand of cards, edges showing
+      // the slot on top at near full width; the three scraps side by side below, apart (a fanned pile of
+      // half-struck scraps read as a mess), each flying up into the slot to be read at the slot's size
       const avail = hostW - 24;
       const ms = Math.min(0.86, avail / mw0);
-      const cs = Math.min(0.66, (avail + 2 * 70) / (3 * cw));
+      const gap = 10;
+      const cs = Math.min(0.5, (avail - 2 * gap) / (3 * cw));
       const mw = mw0 * ms;
       const ox = (avail - mw) / 2;
-      const rowY = ch * ms + 26;
-      const step = (avail - cw * cs) / 2;
-      TWL = { w: avail, h: rowY + ch * cs + 16, ms, cs, L: [ox, 0], M: [ox + d.slotX * ms, 0], P: { A: [0, rowY + 16], B: [step, rowY + 8], C: [2 * step, rowY] } };
+      const rowY = ch * ms + 22;
+      const pitch = cw * cs + gap;
+      const rx = (avail - 3 * cw * cs - 2 * gap) / 2;
+      TWL = { w: avail, h: rowY + ch * cs + 4, ms, cs, L: [ox, 0], M: [ox + d.slotX * ms, 0], P: { A: [rx, rowY], B: [rx + pitch, rowY], C: [rx + 2 * pitch, rowY] } };
     } else {
       // the scraps carry the screen: as large as the stage allows
       const rowW = 3 * cw + 2 * 24;
@@ -1141,6 +1152,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     const vis = twinsVis(t);
     elTw.style.opacity = vis.toFixed(3);
     elTw.style.visibility = vis > 0.01 ? "visible" : "hidden";
+    // the stack carries its own honesty line; on a phone the page's line would print over it
+    root.classList.toggle("tw-up", vis > 0.01);
     if (vis <= 0.01) {
       if (twPick && t < T.tw0 - 1) twPick = null;
       return;
@@ -1150,6 +1163,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     const put = (el: HTMLElement, x: number, y: number, sc: number, o = 1) => {
       el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(${sc.toFixed(4)})`;
       el.style.opacity = String(o);
+      // phone: the A/B/C tag keeps a readable 22 px whatever the scrap's scale
+      if (phone) el.style.setProperty("--tg", (22 / 30 / sc).toFixed(3));
     };
     put(tw.L, TWL.L[0], TWL.L[1], TWL.ms);
     const list = tries();
@@ -1195,7 +1210,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       put(el, x, y, sc, o);
       el.style.zIndex = String(z);
       const sk = el.querySelector<SVGPathElement>(".strike");
-      if (sk) sk.style.strokeDashoffset = (150 * (1 - strike)).toFixed(1);
+      // dashes in the path's own length (pathLength 100): a shorter dash left a red tail on scraps never struck
+      if (sk) sk.style.strokeDashoffset = (100 * (1 - strike)).toFixed(1);
       el.classList.toggle("no", no);
       el.classList.toggle("yes", yes);
       el.classList.toggle("ask", asking);
@@ -1245,7 +1261,11 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     lastChars = -1;
     if (elTxMore) elTxMore.textContent = TEXT_LINES ? `Read all ${TEXT_LINES} lines` : "";
   }
+  let txHead = "";
   function transcriptAt(t: number) {
+    // a partial page reads with gaps: say so, or the […] marks read as noise
+    const head = assembled && (pieces.some((p) => !p.placed) || (scene?.pages.length ?? 0) > 1) ? "Muse read the joined pieces; […] marks a missing piece" : "Muse read the page";
+    if (head !== txHead && elTxH) elTxH.textContent = txHead = head;
     const vis = TEXT ? smooth(T.tx0 - 0.1, T.tx0 + 0.25, t) * (input?.mode === "recorded" ? 1 - smooth(T.loop - 0.7, T.loop - 0.1, t) : 1) : 0;
     elTx.style.opacity = vis.toFixed(3);
     elTx.style.visibility = vis > 0.01 ? "visible" : "hidden";
@@ -1276,7 +1296,14 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       s = `<b>${home}</b> of ${order.length} pieces home, <b>${Math.min(reads, scene?.reads ?? 0)}</b> of ${scene?.reads ?? 0} tears read`;
     } else {
       const placed = order.length;
-      s = `Whole: ${placed} piece${placed === 1 ? "" : "s"}${n > placed ? ` (${n - placed} left unplaced)` : ""}, ${scene?.reads ?? 0} tear${scene?.reads === 1 ? "" : "s"} read`;
+      const aside = n - placed;
+      const groups = scene?.pages.length ?? 0;
+      const read = `${scene?.reads ?? 0} tear${scene?.reads === 1 ? "" : "s"} read`;
+      // "whole" only when it is: a partial result says plainly what joined and what was set aside
+      s =
+        !aside && groups <= 1
+          ? `Whole: ${placed} piece${placed === 1 ? "" : "s"}, ${read}`
+          : `<b>${placed}</b> of ${n} pieces joined${groups > 1 ? ` in ${groups} groups` : ""}${aside ? `; ${aside} set aside, not forced` : ""}. ${read[0].toUpperCase()}${read.slice(1)}`;
       if (live && !inp.transcript && !inp.progress.done) s += ". Muse is reading the page…";
     }
     if (s !== stCache) {

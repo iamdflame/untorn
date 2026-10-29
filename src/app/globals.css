@@ -1256,6 +1256,10 @@ h2 {
   align-content: start;
   justify-items: start;
 }
+.drop .drop-msg {
+  margin: 16px 0 0;
+  font-size: 15px;
+}
 .drop .ways {
   display: grid;
   gap: 28px;

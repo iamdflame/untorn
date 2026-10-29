@@ -259,7 +259,7 @@ async function arxivTables(want: number): Promise<{ content: string; source: str
     await sleep(3000); // arXiv asks automated clients for one request every few seconds
     const page = await getText(`https://arxiv.org/html/${id}`);
     if (!page) continue;
-    const tables = [...page.matchAll(/<table[^>]*class="ltx_tabular[^"]*"[^>]*>[\s\S]*?<\/table>/g)].map((t) => plainTable(t[0])).filter((t): t is string => !!t);
+    const tables = [...page.matchAll(/<table\b[^>]*class="ltx_tabular[^"]*"[^>]*>[\s\S]*?<\/table>/g)].map((t) => plainTable(t[0])).filter((t): t is string => !!t);
     // one table per paper, the first usable one
     if (tables.length) out.push({ content: tables[0], source: `https://arxiv.org/html/${id}` });
     console.log(`arXiv ${id}: ${tables.length} usable table(s), ${out.length}/${want}`);

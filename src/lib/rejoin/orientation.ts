@@ -14,6 +14,12 @@ export type TextOrientation = {
   confidence: number;
   /** Line pitch (px) when the profile is periodic. */
   pitch: number | null;
+  /**
+   * The line grid at sub-pixel precision, when the profile is periodic: text lines are centred at r = offset + j·period,
+   * r = −x·sin(angle) + y·cos(angle) in the crop's pixel coordinates (crop pixel (c, r) covers [c, c+1) × [r, r+1)).
+   * `regularity` is the strength of that period in the ink profile (0–1).
+   */
+  grid: { period: number; offset: number; regularity: number } | null;
   /** +1: reading direction is `angle` (ascenders toward −perpendicular); −1: it is angle + π; 0: unknown. */
   up: -1 | 0 | 1;
   upConfidence: number;
@@ -123,7 +129,59 @@ export function textOrientation(
   let angle = bestAngle % Math.PI;
   if (angle < 0) angle += Math.PI;
   const confidence = Math.max(0, Math.min(1, (strength - 1.25) / 1.0)) * Math.min(1, n / (3 * minInk));
-  return { angle, strength, confidence, pitch, up, upConfidence: conf, ink: xs.length };
+  let grid: TextOrientation["grid"] = null;
+  if (pitch) {
+    const g = lineGrid(hist, R, pitch);
+    if (g) {
+      // centred r → crop r: add the centroid's r. Folding bestAngle into [0, π) flips the normal, and r with it.
+      const sgn = Math.abs(angle - bestAngle) < 1e-9 ? 1 : -1;
+      let offset = sgn * (g.offset + (-cx * s + cy * c));
+      offset -= g.period * Math.floor(offset / g.period);
+      grid = { period: g.period, offset, regularity: g.regularity };
+    }
+  }
+  return { angle, strength, confidence, pitch, grid, up, upConfidence: conf, ink: xs.length };
+}
+
+/**
+ * The strongest Fourier component of an ink profile (bins at integer r, centred at index R) near a coarse pitch:
+ * the line period at sub-pixel precision, and the offset of the line centres (in the profile's centred r).
+ */
+export function lineGrid(profile: Float64Array, R: number, pitch0: number): { period: number; offset: number; regularity: number } | null {
+  let total = 0;
+  for (let b = 0; b < profile.length; b++) total += profile[b];
+  if (total <= 0) return null;
+  const component = (p: number): [number, number] => {
+    const w = (2 * Math.PI) / p;
+    let re = 0;
+    let im = 0;
+    for (let b = 0; b < profile.length; b++) {
+      const v = profile[b];
+      if (!v) continue;
+      re += v * Math.cos(w * (b - R));
+      im -= v * Math.sin(w * (b - R));
+    }
+    return [re, im];
+  };
+  let best = pitch0;
+  let bestMag = -1;
+  const scan = (from: number, to: number, step: number) => {
+    for (let p = from; p <= to + 1e-9; p += step) {
+      const [re, im] = component(p);
+      const mag = re * re + im * im;
+      if (mag > bestMag) {
+        bestMag = mag;
+        best = p;
+      }
+    }
+  };
+  scan(Math.max(4, pitch0 - 2), pitch0 + 2, 0.05);
+  scan(best - 0.05, best + 0.05, 0.005);
+  const [re, im] = component(best);
+  // F = Σ v·e^(−iωr): ink concentrated at r0 + j·p gives arg F = −ω·r0
+  let offset = (-Math.atan2(im, re) * best) / (2 * Math.PI);
+  offset -= best * Math.floor(offset / best);
+  return { period: best, offset, regularity: Math.sqrt(bestMag) / total };
 }
 
 /** The dominant period (px) of a projection profile, from its autocorrelation, or null. */

@@ -3,7 +3,6 @@
 // "Tear your own": a QR code (and the code in text) for the phone, polled every 1.5 s, plus a drop zone for a photo
 // already on this computer. Either way, the parent starts a live run.
 
-import QRCode from "qrcode";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ERRORS } from "@/lib/run/errors";
 import type { ErrorCode } from "@/lib/run/types";
@@ -13,7 +12,7 @@ type Phase = { kind: "idle" } | { kind: "creating" } | { kind: "waiting"; sessio
 
 export const POLL_MS = 1500;
 
-export function TearYourOwn({ onPhoto, onFile, disabled }: { onPhoto: (photoId: string) => void; onFile: (file: File) => void; disabled?: boolean }) {
+export function TearYourOwn({ onPhoto, onFile, onSample, disabled, footer }: { onPhoto: (photoId: string) => void; onFile: (file: File) => void; onSample?: () => void; disabled?: boolean; footer?: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -27,6 +26,7 @@ export function TearYourOwn({ onPhoto, onFile, disabled }: { onPhoto: (photoId: 
         return setPhase({ kind: "error", code: j?.error?.code ?? "internal" });
       }
       const session = (await res.json()) as Session;
+      const { default: QRCode } = await import("qrcode");
       const svg = await QRCode.toString(session.url, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
       setPhase({ kind: "waiting", session, svg });
     } catch {
@@ -80,60 +80,27 @@ export function TearYourOwn({ onPhoto, onFile, disabled }: { onPhoto: (photoId: 
   };
 
   return (
-    <section className="tear-your-own" id="tear" aria-labelledby="tear-title">
-      <h2 id="tear-title">Tear your own</h2>
-      <p>Tear a page, spread the pieces on a dark table, and take one photo from straight above.</p>
-      <div className="tear-grid">
-        <div className="tear-phone">
-          <h3>With your phone</h3>
-          {phase.kind === "waiting" ? (
-            <>
-              <div className="qr" role="img" aria-label={`QR code for ${phase.session.url}`} dangerouslySetInnerHTML={{ __html: phase.svg }} />
-              <p>
-                Scan it, or open <strong className="mono">{phase.session.url.replace(/^https?:\/\//, "")}</strong>
-              </p>
-              <p>
-                Code <strong className="mono code">{phase.session.code}</strong> · waiting for the photo…
-              </p>
-            </>
-          ) : phase.kind === "expired" ? (
-            <>
-              <p>That code expired.</p>
-              <button type="button" className="btn" onClick={create} disabled={disabled}>
-                Make a new code
-              </button>
-            </>
-          ) : phase.kind === "error" ? (
-            <>
-              <p role="alert">{ERRORS[phase.code]?.title ?? ERRORS.internal.title}. You can still upload a photo here.</p>
-              <button type="button" className="btn" onClick={create} disabled={disabled}>
-                Try again
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-primary" onClick={create} disabled={disabled || phase.kind === "creating"}>
-              {phase.kind === "creating" ? "Making a code…" : "Show a QR code"}
-            </button>
-          )}
-        </div>
-        <div
-          className="tear-drop"
-          data-dragging={dragging ? "" : undefined}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            if (!disabled) take(e.dataTransfer.files);
-          }}
-        >
-          <h3>Or a photo on this computer</h3>
-          <p>Drop it here (JPEG, PNG or HEIC, up to 15 MB).</p>
-          <button type="button" className="btn" onClick={() => fileRef.current?.click()} disabled={disabled}>
-            Choose a photo
+    <section className="tear" id="tear" aria-labelledby="tear-title">
+      <div
+        className="drop"
+        data-dragging={dragging ? "" : undefined}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (!disabled) take(e.dataTransfer.files);
+        }}
+      >
+        <span className="rc" aria-hidden="true" />
+        <div className="how tear-drop">
+          <h2 id="tear-title">Tear your own.</h2>
+          <p>Tear a page, spread the pieces on something dark, text side up, and take one photo from straight above. Untorn runs the whole pipeline on it, live.</p>
+          <button type="button" className="cta tab" onClick={() => fileRef.current?.click()} disabled={disabled}>
+            <span>Choose a photo</span>
           </button>
           <input
             ref={fileRef}
@@ -147,14 +114,62 @@ export function TearYourOwn({ onPhoto, onFile, disabled }: { onPhoto: (photoId: 
               e.target.value = "";
             }}
           />
+          <p className="drop-msg">Or drop it here: JPEG, PNG or HEIC, up to 15&nbsp;MB.</p>
+        </div>
+        <div className="ways">
+          <div className="way tear-phone">
+            <h3>With your phone</h3>
+            {phase.kind === "waiting" ? (
+              <>
+                <div className="qr" role="img" aria-label={`QR code for ${phase.session.url}`} dangerouslySetInnerHTML={{ __html: phase.svg }} />
+                <p>
+                  Scan it, or open <strong className="mono">{phase.session.url.replace(/^https?:\/\//, "")}</strong>
+                </p>
+                <p>
+                  Code <strong className="code">{phase.session.code}</strong>. Waiting for the photo…
+                </p>
+              </>
+            ) : phase.kind === "expired" ? (
+              <>
+                <p>That code expired.</p>
+                <button type="button" className="btn" onClick={create} disabled={disabled}>
+                  Make a new code
+                </button>
+              </>
+            ) : phase.kind === "error" ? (
+              <>
+                <p role="alert">{ERRORS[phase.code]?.title ?? ERRORS.internal.title}. You can still choose a photo on this computer.</p>
+                <button type="button" className="btn" onClick={create} disabled={disabled}>
+                  Try again
+                </button>
+              </>
+            ) : (
+              <>
+                <p>Take the photo with the phone; the run plays here.</p>
+                <button type="button" className="btn" onClick={create} disabled={disabled || phase.kind === "creating"}>
+                  {phase.kind === "creating" ? "Making a code…" : "Show a QR code"}
+                </button>
+              </>
+            )}
+          </div>
+          {onSample && (
+            <div className="way">
+              <h3>No torn page to hand?</h3>
+              <p>Run the sample letter through the live pipeline now; it takes about 40 seconds.</p>
+              <button type="button" className="btn" onClick={onSample} disabled={disabled}>
+                Run the sample live
+              </button>
+            </div>
+          )}
+          <p className="privacy-line">Photos are deleted within 24 hours and never used for training.</p>
         </div>
       </div>
-      <p className="muted small">Photos are deleted within 24 hours and never used for training.</p>
+      {footer}
     </section>
   );
 }
 
 /** Open the file picker of the drop zone (used by error recovery). */
 export function openPicker() {
-  document.querySelector<HTMLInputElement>(".tear-drop input[type=file]")?.click();
+  document.querySelector<HTMLInputElement>("#tear input[type=file]")?.click();
 }

@@ -1,11 +1,8 @@
-import { preload } from "react-dom";
 import { FirstScreen } from "@/components/FirstScreen";
 import { DEFAULT_SAMPLE, SAMPLES } from "@/lib/run/samples";
 
+// The first paint is the HTML alone: the headline and a blur-up of the photo (inline). The stage-sized photo and the
+// recording are fetched once the page is interactive, so they don't compete with the first paint.
 export default function Home() {
-  const sample = SAMPLES[DEFAULT_SAMPLE];
-  // start loading the photo and the recording with the HTML, not after hydration
-  preload(sample.photo.url, { as: "image", fetchPriority: "high" });
-  preload(sample.recorded, { as: "fetch", crossOrigin: "anonymous" });
-  return <FirstScreen sample={sample} />;
+  return <FirstScreen sample={SAMPLES[DEFAULT_SAMPLE]} />;
 }

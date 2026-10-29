@@ -3,7 +3,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { DEFAULT_SAMPLE, SAMPLES } from "@/lib/run/samples";
+import { HEALTH_SAMPLE, SAMPLES } from "@/lib/run/samples";
 import type { RunEvent } from "@/lib/run/types";
 import { scoreRun, type AnswerKey, type RunScore } from "./accuracy";
 import { randomId } from "./ids";
@@ -41,7 +41,7 @@ export function cronAllowed(req: Request): boolean {
 }
 
 export async function runHealthCheck(store: Store, deps?: PipelineDeps): Promise<HealthRecord> {
-  const sample = DEFAULT_SAMPLE;
+  const sample = HEALTH_SAMPLE;
   const runId = `health-${randomId(8)}`;
   const meter = { usd: 0 };
   const stages: Record<string, number> = {};

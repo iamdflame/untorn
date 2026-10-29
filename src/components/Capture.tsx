@@ -68,8 +68,8 @@ export function Capture({ code }: { code: string }) {
 
   const camera = (
     <>
-      <label className={step.kind === "preview" ? "btn btn-big" : "btn btn-primary btn-big"}>
-        {step.kind === "preview" ? "Take it again" : "Take the photo"}
+      <label className={step.kind === "preview" ? "btn" : "cta tab"}>
+        <span>{step.kind === "preview" ? "Take it again" : "Take the photo"}</span>
         <input
           ref={inputRef}
           type="file"
@@ -87,9 +87,12 @@ export function Capture({ code }: { code: string }) {
 
   return (
     <main className="capture" data-step={step.kind}>
-      <header className="site-header">
-        <span className="wordmark">Untorn</span>
-        <span className="mono code" aria-label={`Code ${code}`}>
+      <header className="page-rail">
+        <span className="mark">
+          Un<span className="bar" aria-hidden="true" />
+          torn
+        </span>
+        <span className="code" aria-label={`Code ${code}`}>
           {code}
         </span>
       </header>
@@ -114,10 +117,10 @@ export function Capture({ code }: { code: string }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={step.url} alt="The photo you took" className="capture-preview" />
           </Guide>
-          <p>All pieces inside, sharp, and seen from straight above?</p>
+          <p className="muted">All pieces inside, sharp, and seen from straight above?</p>
           <div className="actions">
-            <button type="button" className="btn btn-primary btn-big" onClick={() => send(step.file)}>
-              Send to the laptop
+            <button type="button" className="cta tab" onClick={() => send(step.file)}>
+              <span>Send to the laptop</span>
             </button>
             {camera}
           </div>
@@ -138,13 +141,13 @@ export function Capture({ code }: { code: string }) {
         </section>
       )}
       {step.kind === "error" && (
-        <section role="alert" className="error-panel">
+        <section role="alert" className="error-block">
           <h1>{ERRORS[step.code]?.title ?? ERRORS.internal.title}</h1>
           <p>{step.message ?? ERRORS[step.code]?.message}</p>
           <div className="actions">
             {step.retry && (
-              <button type="button" className="btn btn-primary" onClick={() => send(step.retry!)}>
-                Try again
+              <button type="button" className="cta tab" onClick={() => send(step.retry!)}>
+                <span>Try again</span>
               </button>
             )}
             {step.code !== "expired" && step.code !== "not-found" ? (

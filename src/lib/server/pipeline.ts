@@ -9,6 +9,7 @@ import { finish, prepare, questionPlan, askAll, type Prepared } from "@/lib/rejo
 import type { TwinStrategy } from "@/lib/rejoin/plan";
 import { fragmentsFromSegments } from "@/lib/rejoin/adapters";
 import { renderPage } from "@/lib/rejoin/render";
+import { renderedInk } from "@/lib/rejoin/seam";
 import type { ContentRequest, ContentVerdict, Rgba, SolveResult } from "@/lib/rejoin/types";
 import { RunError } from "@/lib/run/errors";
 import { WARNINGS } from "@/lib/run/errors";
@@ -73,6 +74,8 @@ export type PipelineOptions = {
 };
 
 const SEAM_JPEG_QUALITY = 90;
+/** Fewest type pixels a question needs (the anchor's panel, and all candidates together) to be worth a read. */
+const MIN_INK = 300;
 /** The read strategy for live runs (S6b measured both on Bench-S and on the real stack sample). */
 export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "all";
 const PAGE_MARGIN = 8;
@@ -200,6 +203,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const onOuterAbort = () => readAbort.abort(signal?.reason);
   signal?.addEventListener("abort", onOuterAbort, { once: true });
   let deadlineHit = false;
+  let skipped = 0;
   const deadline = setTimeout(() => {
     deadlineHit = true;
     readAbort.abort(new Error("read deadline"));
@@ -207,7 +211,15 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const check = async (req: ContentRequest): Promise<ContentVerdict | null> => {
     if (readAbort.signal.aborted) return null;
     const started = now();
-    const jpeg = await encodeJpeg(req.render(), SEAM_JPEG_QUALITY);
+    const img = req.render();
+    // a question with almost no type is a guess, not a read: skip it (the seam then rests on shape, or on other reads)
+    const ink = renderedInk(img, req.kind === "choice" ? req.candidates.length + 1 : 1);
+    const blankQuestion = req.kind === "choice" ? ink[0] < MIN_INK || ink.slice(1).reduce((a, b) => a + b, 0) < MIN_INK : ink[0] < MIN_INK;
+    if (blankQuestion) {
+      skipped++;
+      return null;
+    }
+    const jpeg = await encodeJpeg(img, SEAM_JPEG_QUALITY);
     const image = { data: jpeg, mime: "image/jpeg" as const };
     const rotated = req.uprightKnown ? undefined : { data: await rotate180Jpeg(jpeg), mime: "image/jpeg" as const };
     const callOpts = { rotated, signal: readAbort.signal, onLog: quietLog, hedgeAfterMs: opts.readHedgeMs ?? 12_000 };
@@ -360,6 +372,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
       twinClasses: new Set([...prep.match.twinClass.values()]).size,
       pairReads: reads.filter((r) => r.kind === "pair").length,
       choiceReads: reads.filter((r) => r.kind === "choice").length,
+      skippedBlank: skipped,
     },
     timeline,
   };

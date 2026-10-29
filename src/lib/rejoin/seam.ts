@@ -240,3 +240,29 @@ export function renderChoiceSheet(
   });
   return out;
 }
+
+/**
+ * Type in a rendered question, per panel: grey pixels clearly darker than paper (the desk is brown, so it never counts).
+ * A choice sheet gives [anchor, candidate A, …]; a pair image gives one count. A question with almost no type is a
+ * guess, not a read: the caller can skip it (Muse answers blank sheets with confident picks).
+ */
+export function renderedInk(img: Rgba, panels: number, panelHeight = 150, pad = 20, gap = 34): number[] {
+  const counts: number[] = [];
+  for (let k = 0; k < panels; k++) {
+    const y0 = panels === 1 ? 0 : pad + (panelHeight + gap) * k;
+    const y1 = panels === 1 ? img.height : y0 + panelHeight;
+    let n = 0;
+    for (let y = y0; y < Math.min(y1, img.height); y++) {
+      for (let x = 0; x < img.width; x++) {
+        const i = 4 * (y * img.width + x);
+        const r = img.data[i];
+        const g = img.data[i + 1];
+        const b = img.data[i + 2];
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (lum < 165 && Math.abs(r - b) < 28 && Math.abs(r - g) < 28) n++;
+      }
+    }
+    counts.push(n);
+  }
+  return counts;
+}

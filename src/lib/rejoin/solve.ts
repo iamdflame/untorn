@@ -142,9 +142,10 @@ const logit = (p: number) => Math.log(Math.max(1e-3, p) / Math.max(1e-3, 1 - p))
 export function fuseVerdicts(reqs: ContentRequest[], verdicts: (ContentVerdict | null)[], prep?: Prepared): ContentEvidence {
   const ev: ContentEvidence = new Map();
   const add = (id: string, lo: number) => {
-    const e = ev.get(id) ?? { logOdds: 0, votes: 0 };
+    const e = ev.get(id) ?? { logOdds: 0, votes: 0, pos: 0 };
     e.logOdds += lo;
     e.votes++;
+    if (lo > 0) e.pos = (e.pos ?? 0) + 1;
     ev.set(id, e);
   };
   reqs.forEach((r, i) => {
@@ -163,7 +164,7 @@ export function fuseVerdicts(reqs: ContentRequest[], verdicts: (ContentVerdict |
   if (prep && prep.options.twinStrategy === "tree") {
     const extra = permutationVotes({ candidates: prep.match.candidates, twinClass: prep.match.twinClass }, reqs, verdicts);
     for (const [id, conf] of extra) {
-      if ((ev.get(id)?.votes ?? 0) < 2) add(id, logit(Math.min(0.99, Math.max(0.5, conf))));
+      if ((ev.get(id)?.pos ?? 0) < 2) add(id, logit(Math.min(0.99, Math.max(0.5, conf))));
     }
   }
   return ev;

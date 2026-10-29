@@ -54,8 +54,9 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   twinLoops: true,
 };
 
-/** Fused content evidence per candidate id: log-odds sum of the verdicts that touched it. */
-export type ContentEvidence = Map<string, { logOdds: number; votes: number }>;
+/** Fused content evidence per candidate id: log-odds sum of the verdicts that touched it, how many touched it, and how
+ *  many of those were for it (a "same" or a pick of it, confidence above 0.5). */
+export type ContentEvidence = Map<string, { logOdds: number; votes: number; pos?: number }>;
 
 export type AssembleResult = { pages: Page[]; joins: Join[]; unplaced: Unplaced[] };
 
@@ -83,7 +84,8 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
       if (!same || c.score < o.minContentScore) continue;
       // inside a twin group geometry is tied: content decides, and only when confirmed; elsewhere both clues agree
       const twin = c.twinGroup !== null;
-      if (twin && ev.votes < o.minTwinVotes) continue;
+      // concordant: that many reads picked this very join (one pick plus one read against it is not two votes)
+      if (twin && (ev.pos ?? ev.votes) < o.minTwinVotes) continue;
       const geomTerm = twin ? logit(1 - Math.exp(-c.score / 60)) : logit(g);
       out.push({ c, combined: sigmoid(geomTerm + ev.logOdds), decidedBy: twin ? "content" : "geometry+content", content });
       continue;

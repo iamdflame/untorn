@@ -24,7 +24,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { fragmentsFromSegments, type SegmentedFragment } from "../../src/lib/rejoin/adapters";
 import { analyzeFragment } from "../../src/lib/rejoin/fragment";
-import { fitRigid, poseApply, poseCompose, poseInvert, type Pose } from "../../src/lib/rejoin/geom";
+import { fitRigid, poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "../../src/lib/rejoin/geom";
 import { icp, MATCH_DEFAULTS, measureSeam, workspace } from "../../src/lib/rejoin/match";
 import { textOrientation } from "../../src/lib/rejoin/orientation";
 import { downscaleInput } from "../../src/lib/rejoin/scale";
@@ -596,39 +596,84 @@ export function candidateError(gt: RealGt, frags: Map<string, Fragment>, a: stri
   return { px: Math.hypot(x1 - x2, y1 - y2), deg: (dth * 180) / Math.PI };
 }
 
-/** Solver inputs for a case; with k < 1 they are pre-shrunk (experiments: the truth must then be scaled by k too). */
-export async function prepareCase(c: RealCase, options: Parameters<typeof prepare>[1] = {}, k = 1): Promise<{ prep: Prepared; inputs: FragmentInput[]; ms: number }> {
+/**
+ * Solver inputs for a case; with k < 1 they are pre-shrunk, and `factor` (experiments) rescales single pieces on top
+ * (piece i at k·factor_i). The truth must then be taken to the same working coordinates (gtWorking).
+ */
+export async function prepareCase(
+  c: RealCase,
+  options: Parameters<typeof prepare>[1] = {},
+  k = 1,
+  factor?: Map<string, number>,
+): Promise<{ prep: Prepared; inputs: FragmentInput[]; ms: number }> {
   const torn = await loadRgb(c.photo);
   let inputs = fragmentsFromSegments(rgbToRgba(torn), loadSegments(c));
-  if (k < 1) inputs = inputs.map((inp) => downscaleInput(inp, k));
+  if (k < 1 || factor) inputs = inputs.map((inp) => downscaleInput(inp, k * (factor?.get(inp.id) ?? 1)));
   const t0 = performance.now();
   const prep = prepare(inputs, options);
   return { prep, inputs, ms: performance.now() - t0 };
 }
 
-/** The truth in working px (photo px × k). */
-export function scaleGt(gt: RealGt, k: number): RealGt {
-  if (k === 1) return gt;
-  const sp = (p: Pose): Pose => ({ theta: p.theta, tx: p.tx * k, ty: p.ty * k });
+/**
+ * The truth in working coordinates, where piece i was scaled by k·factor_i about the photo origin. With the oracle
+ * factors (s_i / median s) every piece's true pose is exactly rigid there; otherwise it is rigid about its centroid.
+ */
+export function gtWorking(gt: RealGt, k: number, factor?: Map<string, number>): RealGt {
+  if (k === 1 && !factor) return gt;
+  const pieces = gt.pieces.map((p) => {
+    const f = factor?.get(p.id) ?? 1;
+    const S = p.sim;
+    const c = Math.cos(S.theta);
+    const s = Math.sin(S.theta);
+    // the centroid's true page position (torn px units), and the centroid in working coordinates
+    const P: [number, number] = [(S.s * (c * p.centroid[0] - s * p.centroid[1]) + S.tx) / gt.scale, (S.s * (s * p.centroid[0] + c * p.centroid[1]) + S.ty) / gt.scale];
+    const cw: [number, number] = [k * f * p.centroid[0], k * f * p.centroid[1]];
+    const pose: Pose = { theta: S.theta, tx: k * P[0] - (c * cw[0] - s * cw[1]), ty: k * P[1] - (s * cw[0] + c * cw[1]) };
+    return { ...p, pose, centroid: cw };
+  });
+  const byId = new Map(pieces.map((p) => [p.id, p] as const));
   return {
     ...gt,
     pageWidth: gt.pageWidth * k,
-    pieces: gt.pieces.map((p) => ({ ...p, pose: sp(p.pose), centroid: [p.centroid[0] * k, p.centroid[1] * k] })),
-    adjacency: gt.adjacency.map((a) => ({ ...a, length: a.length * k, rel: sp(a.rel) })),
+    pieces,
+    adjacency: gt.adjacency.map((a) => ({ ...a, length: a.length * k, rel: poseCompose(poseInvert(byId.get(a.a)!.pose), byId.get(a.b)!.pose) })),
   };
 }
 
+/** Per-piece scale factors for experiments: "oracle" (the registration's own scales) or "plane" (a planar fit of them). */
+export function experimentFactors(gt: RealGt, mode: string | undefined): Map<string, number> | undefined {
+  if (!mode) return undefined;
+  if (mode === "oracle") return new Map(gt.pieces.map((p) => [p.id, p.sim.s / gt.scale] as const));
+  if (mode === "plane") {
+    // least squares s = a + b·x + c·y over the pieces' torn-photo centroids
+    const A = new Float64Array(9);
+    const y = new Float64Array(3);
+    for (const p of gt.pieces) {
+      const v = [1, p.centroid[0] / 1000, p.centroid[1] / 1000];
+      for (let i = 0; i < 3; i++) {
+        y[i] += v[i] * p.sim.s;
+        for (let j = 0; j < 3; j++) A[3 * i + j] += v[i] * v[j];
+      }
+    }
+    const co = solveSPD(A, y, 3);
+    return new Map(gt.pieces.map((p) => [p.id, (co[0] + (co[1] * p.centroid[0]) / 1000 + (co[2] * p.centroid[1]) / 1000) / gt.scale] as const));
+  }
+  throw new Error(`unknown --piece-scale ${mode}`);
+}
+
 /** Solve a case (geometry only) and score it; pages are rendered for a look. */
-async function solveCase(c: RealCase, out: string, k: number) {
-  const gt = loadGt(c);
-  const { prep, inputs, ms } = await prepareCase(c, {}, k);
+async function solveCase(c: RealCase, out: string, k: number, pieceScale?: string) {
+  const gt0 = loadGt(c);
+  const factor = experimentFactors(gt0, pieceScale);
+  const gt = gtWorking(gt0, k, factor);
+  const { prep, inputs, ms } = await prepareCase(c, {}, k, factor);
   const t0 = performance.now();
   const res = finish(prep);
   const total = ms + performance.now() - t0;
-  const toPhoto = (p: Pose): Pose => ({ theta: p.theta, tx: p.tx / k, ty: p.ty / k });
-  const pages = res.pages.map((pg) => ({ pieces: pg.fragments.map((f) => ({ id: f.id, pose: toPhoto(f.pose) })) }));
-  const joins = res.joins.map((j) => ({ a: j.a, b: j.b, pose: toPhoto(j.pose) }));
-  const s = scoreReal(gt, shapesOf(prep.fragments, k), pages, joins, inputs.map((i) => i.id));
+  // scored in working coordinates (the truth was taken there)
+  const pages = res.pages.map((pg) => ({ pieces: pg.fragments.map((f) => ({ id: f.id, pose: f.pose })) }));
+  const joins = res.joins.map((j) => ({ a: j.a, b: j.b, pose: j.pose }));
+  const s = scoreReal(gt, shapesOf(prep.fragments), pages, joins, inputs.map((i) => i.id));
   console.log(
     `${c.name} (scale ${k}): ${s.correct.length}/${s.pieces} placed correctly, ${s.split.length} split off, ${s.misplaced.length} misplaced, ${s.unplaced.length} unplaced; ` +
       `pages ${res.pages.map((p) => p.fragments.length).join("+") || "none"}; joins ${s.joinsRight} right, ${s.joinsWrong} wrong (of ${s.trueSeams} true seams); ${(total / 1000).toFixed(1)} s`,
@@ -640,9 +685,11 @@ async function solveCase(c: RealCase, out: string, k: number) {
   return { score: s, res, prep };
 }
 
-async function diagnose(c: RealCase, out: string, k: number) {
-  const gt = scaleGt(loadGt(c), k);
-  const { prep, ms } = await prepareCase(c, {}, k);
+async function diagnose(c: RealCase, out: string, k: number, pieceScale?: string) {
+  const gt0 = loadGt(c);
+  const factor = experimentFactors(gt0, pieceScale);
+  const gt = gtWorking(gt0, k, factor);
+  const { prep, ms } = await prepareCase(c, {}, k, factor);
   console.log(`working scale ${k}`);
   const tolPx = 0.015 * gt.pageWidth;
   console.log(`${c.name}: prepare ${(ms / 1000).toFixed(1)} s (analyse ${(prep.timings.analyse / 1000).toFixed(1)} s, match ${(prep.timings.match / 1000).toFixed(1)} s), ${prep.match.candidates.length} candidates; tolerance ${tolPx.toFixed(0)} px / 2°`);
@@ -652,7 +699,7 @@ async function diagnose(c: RealCase, out: string, k: number) {
     const g = gt.pieces.find((p) => p.id === f.id)!;
     console.log(
       `  ${f.id}: area ${(f.area / 1e6).toFixed(2)} Mpx², outline ${f.outline.length / 2} pts, ${f.segments.filter((s) => s.kind === "straight").length} straight / ${f.segments.filter((s) => s.kind === "torn").length} torn segments, ` +
-        `corners ${f.pageCorners.length}; text ${t ? `${((t.angle * 180) / Math.PI).toFixed(1)}° conf ${t.confidence.toFixed(2)} pitch ${t.pitch} up ${t.up} (${t.upConfidence.toFixed(2)})` : "none"}; ` +
+        `corners ${f.pageCorners.length}; text ${t ? `${((t.angle * 180) / Math.PI).toFixed(1)}° conf ${t.confidence.toFixed(2)} pitch ${t.pitch} period ${t.grid ? t.grid.period.toFixed(2) : "–"} (reg ${t.grid ? t.grid.regularity.toFixed(2) : "–"}) up ${t.up} (${t.upConfidence.toFixed(2)})` : "none"}; ` +
         `truth θ ${((g.sim.theta * 180) / Math.PI).toFixed(1)}° s ${g.sim.s.toFixed(4)} ncc ${g.ncc.toFixed(2)}`,
     );
   }
@@ -699,7 +746,7 @@ async function diagnose(c: RealCase, out: string, k: number) {
   stat("fine", (x) => x.fineRms);
   stat("shape", (x) => x.shapeRms);
   mkdirSync(out, { recursive: true });
-  writeFileSync(path.join(out, `${c.name}-diagnosis-k${k}.json`), JSON.stringify({ seams: seamRows, candidates: rows.map((r) => ({ id: r.x.id, ok: r.ok, err: r.e, score: r.x.score, overlap: r.x.overlap, rms: r.x.rms, fine: r.x.fineRms, shape: r.x.shapeRms, margin: r.x.margin })) }, null, 1));
+  writeFileSync(path.join(out, `${c.name}-diagnosis-k${k}${pieceScale ? `-${pieceScale}` : ""}.json`), JSON.stringify({ seams: seamRows, candidates: rows.map((r) => ({ id: r.x.id, ok: r.ok, err: r.e, score: r.x.score, overlap: r.x.overlap, rms: r.x.rms, fine: r.x.fineRms, shape: r.x.shapeRms, margin: r.x.margin })) }, null, 1));
 }
 
 // ── CLI ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -718,11 +765,11 @@ async function main() {
     return;
   }
   if (cmd === "diagnose") {
-    for (const c of cases) await diagnose(c, out, Number(opt("--scale") ?? 1));
+    for (const c of cases) await diagnose(c, out, Number(opt("--scale") ?? 1), opt("--piece-scale"));
     return;
   }
   if (cmd === "solve") {
-    for (const c of cases) await solveCase(c, out, Number(opt("--scale") ?? 1));
+    for (const c of cases) await solveCase(c, out, Number(opt("--scale") ?? 1), opt("--piece-scale"));
     return;
   }
   if (cmd === "score") {
@@ -744,7 +791,10 @@ async function main() {
   throw new Error(`unknown command ${cmd}; see the header of scripts/eval/real.ts`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// run as a script, not when imported (experiments reuse the loaders and the scorer)
+if (typeof require !== "undefined" && require.main === module) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

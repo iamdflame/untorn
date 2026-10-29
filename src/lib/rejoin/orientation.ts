@@ -2,7 +2,7 @@
 // profile peaky when projected along them). The angle is ambiguous by 180°; an ascender/descender asymmetry vote
 // (Latin script has more ascenders than descenders) says which way is up when the evidence is clear.
 
-import { luminance, paperTone } from "./raster";
+import { localPaperLevel, luminance, paperTone } from "./raster";
 import type { Mask, Rgba } from "./types";
 
 export type TextOrientation = {
@@ -34,6 +34,11 @@ export type OrientationOptions = {
   minInk?: number;
   /** Most ink pixels sampled. */
   maxSamples?: number;
+  /**
+   * Measure ink against the local paper level within this radius (px) instead of one level per piece, so shadows,
+   * curl and vignetting are not read as ink (0: one level per piece).
+   */
+  localPaper?: number;
 };
 
 export function textOrientation(
@@ -42,10 +47,31 @@ export function textOrientation(
   depth: Float32Array,
   opts: OrientationOptions = {},
 ): TextOrientation | null {
-  const { margin = 6, minInk = 120, maxSamples = 40000 } = opts;
+  const { margin = 6, localPaper = 6 } = opts;
   const lum = luminance(img);
   const tone = paperTone(img, lum, depth, margin);
   if (!tone) return null;
+  const plain = orientationWith(lum, tone.level, null, mask, depth, opts);
+  // Shadows, curl and vignetting read as ink against one paper level per piece. When that reading is weak, measure ink
+  // against the local paper level instead; switch only when that is clearly stronger and its lines clearly regular
+  // (on small pieces the local level can also lock onto a confident wrong angle with irregular lines).
+  if (localPaper > 0 && (!plain || plain.confidence < 0.6)) {
+    const local = orientationWith(lum, tone.level, localPaperLevel(lum, mask.data, mask.width, mask.height, localPaper), mask, depth, opts);
+    if (local && local.confidence >= (plain?.confidence ?? 0) + 0.3 && (local.grid?.regularity ?? 0) >= 0.35) return local;
+  }
+  return plain;
+}
+
+function orientationWith(
+  lum: Float32Array,
+  paperLevel: number,
+  local: Float32Array | null,
+  mask: Mask,
+  depth: Float32Array,
+  opts: OrientationOptions,
+): TextOrientation | null {
+  const { margin = 6, minInk = 120, maxSamples = 40000 } = opts;
+  const tone = { level: paperLevel };
   const w = mask.width;
   const h = mask.height;
   // Ink: pixels clearly darker than the paper, weighted by how much darker.
@@ -56,7 +82,8 @@ export function textOrientation(
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
       if (depth[i] < margin) continue;
-      const dark = tone.level - lum[i] - 28;
+      const level = local && Number.isFinite(local[i]) ? Math.min(local[i], tone.level + 25) : tone.level;
+      const dark = level - lum[i] - 28;
       if (dark <= 0) continue;
       xs.push(x + 0.5);
       ys.push(y + 0.5);
@@ -106,24 +133,59 @@ export function textOrientation(
     coarse[d] = crit((d * Math.PI) / 180);
     if (coarse[d] > coarse[best]) best = d;
   }
-  let bestAngle = (best * Math.PI) / 180;
-  let bestVal = coarse[best];
-  for (let t = -1; t <= 1.0001; t += 0.1) {
-    const a = ((best + t) * Math.PI) / 180;
-    const v = crit(a);
-    if (v > bestVal) {
-      bestVal = v;
-      bestAngle = a;
+  const refineAt = (deg: number): [number, number] => {
+    let angle = (deg * Math.PI) / 180;
+    let val = coarse[deg];
+    for (let t = -1; t <= 1.0001; t += 0.1) {
+      const a = ((deg + t) * Math.PI) / 180;
+      const v = crit(a);
+      if (v > val) {
+        val = v;
+        angle = a;
+      }
+    }
+    return [angle, val];
+  };
+  const profileAt = (a: number) => {
+    hist.fill(0);
+    const s = Math.sin(a);
+    const c = Math.cos(a);
+    for (let k = 0; k < n; k++) hist[Math.round(-X[k] * s + Y[k] * c) + R] += W[k];
+  };
+  let [bestAngle, bestVal] = refineAt(best);
+  // A narrow piece projected along its length can be as peaky as along its short text lines; only text lines are
+  // periodic at the line pitch. Among the strong peaks, prefer the one whose profile has a regular line period.
+  const rivals: number[] = [];
+  for (let d = 0; d < 180; d++) {
+    const v = coarse[d];
+    if (d === best || v < 0.4 * coarse[best] || v < coarse[(d + 179) % 180] || v < coarse[(d + 1) % 180]) continue;
+    if (Math.min(Math.abs(d - best), 180 - Math.abs(d - best)) <= 3) continue;
+    rivals.push(d);
+  }
+  if (rivals.length) {
+    const regularityAt = (a: number) => {
+      profileAt(a);
+      const p = linePitch(hist);
+      return p ? (lineGrid(hist, R, p)?.regularity ?? 0) : 0;
+    };
+    let bestScore = bestVal * (0.1 + regularityAt(bestAngle));
+    for (const d of rivals.sort((x, y) => coarse[y] - coarse[x]).slice(0, 3)) {
+      const [a, v] = refineAt(d);
+      const score = v * (0.1 + regularityAt(a));
+      if (score > bestScore) {
+        bestScore = score;
+        bestAngle = a;
+        bestVal = v;
+      }
     }
   }
   const sorted = Array.from(coarse).sort((a, b) => a - b);
   const median = sorted[90];
   const strength = bestVal / median;
-  // Profile at the best angle, for the pitch and the up/down vote.
-  hist.fill(0);
+  // Profile at the chosen angle, for the pitch and the up/down vote.
+  profileAt(bestAngle);
   const s = Math.sin(bestAngle);
   const c = Math.cos(bestAngle);
-  for (let k = 0; k < n; k++) hist[Math.round(-X[k] * s + Y[k] * c) + R] += W[k];
   const pitch = linePitch(hist);
   const { up, conf } = upDown(hist, pitch);
   let angle = bestAngle % Math.PI;
@@ -175,8 +237,10 @@ export function lineGrid(profile: Float64Array, R: number, pitch0: number): { pe
       }
     }
   };
-  scan(Math.max(4, pitch0 - 2), pitch0 + 2, 0.05);
-  scan(best - 0.05, best + 0.05, 0.005);
+  // the autocorrelation pitch is biased low (fewer overlapping terms at longer lags): search −8% … +15%
+  const step = 0.002 * pitch0;
+  scan(Math.max(4, 0.92 * pitch0), 1.15 * pitch0, step);
+  scan(best - step, best + step, step / 10);
   const [re, im] = component(best);
   // F = Σ v·e^(−iωr): ink concentrated at r0 + j·p gives arg F = −ω·r0
   let offset = (-Math.atan2(im, re) * best) / (2 * Math.PI);

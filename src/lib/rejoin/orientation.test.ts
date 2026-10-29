@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { axialDiff, poseApply, poseInvert } from "./geom";
+import { axialDiff, poseApply, poseInvert, rng } from "./geom";
 import { lineGrid, textOrientation } from "./orientation";
 import { depthMap } from "./raster";
 import { gridTear, scatterPiece } from "./__tests__/synth";
@@ -46,6 +46,48 @@ describe("textOrientation", () => {
     for (const p of phases) {
       const d = Math.abs(((p - ref + 33) % 22) - 11);
       expect(d).toBeLessThan(0.8);
+    }
+  });
+
+  it("reads the short text lines of a narrow strip, not the strip's length", () => {
+    // a strip of a page's left margin (90 × 420 px): lines every 24 px start at the same x and run off the strip's
+    // right edge, so projecting along the strip is as peaky as projecting along the lines; only the lines are periodic
+    for (const theta of [0.2, 1.4, -1.0]) {
+      const W = 90;
+      const H = 420;
+      const size = 520;
+      const mask = new Uint8Array(size * size);
+      const data = new Uint8ClampedArray(4 * size * size);
+      const rand = rng(11);
+      const strokes = Array.from({ length: 400 }, () => rand());
+      const c = Math.cos(theta);
+      const s = Math.sin(theta);
+      for (let r = 0; r < size; r++) {
+        for (let q = 0; q < size; q++) {
+          // photo → strip coordinates (rotation about the centre)
+          const dx = q + 0.5 - size / 2;
+          const dy = r + 0.5 - size / 2;
+          const u = c * dx + s * dy + W / 2;
+          const v = -s * dx + c * dy + H / 2;
+          const k = 4 * (r * size + q);
+          data[k + 3] = 255;
+          if (u < 0 || v < 0 || u >= W || v >= H) {
+            data.set([110, 85, 60], k);
+            continue;
+          }
+          mask[r * size + q] = 1;
+          const line = Math.floor(v / 24);
+          const inLine = v - 24 * line;
+          const col = Math.floor(u / 2.3);
+          const ink = u > 12 && inLine >= 7 && inLine < 14 && strokes[(col * 7 + line * 13) % 400] > 0.45;
+          const asc = u > 12 && inLine >= 2 && inLine < 7 && strokes[(col * 11 + line * 5) % 400] > 0.85;
+          data.set(ink || asc ? [45, 45, 60] : [236, 232, 222], k);
+        }
+      }
+      const m = { width: size, height: size, data: mask };
+      const t = textOrientation({ width: size, height: size, data }, m, depthMap(m))!;
+      expect((axialDiff(t.angle, theta) * 180) / Math.PI).toBeLessThan(1.5);
+      expect(t.grid!.regularity).toBeGreaterThan(0.35);
     }
   });
 

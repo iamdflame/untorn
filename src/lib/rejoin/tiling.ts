@@ -8,7 +8,7 @@
 // margin) has no content clue; it is accepted only when a second side of the same piece agrees with the same placement
 // (two geometric clues). Pieces that join nothing stay unplaced.
 
-import { poseApply, poseCompose, poseInvert, wrapAngle, type Pose } from "./geom";
+import { axialDiff, poseApply, poseCompose, poseInvert, wrapAngle, type Pose } from "./geom";
 import { readingDirection, type PieceShape, type StraightCandidate } from "./straight";
 import type { Clue, Fragment, Join, Page, Unplaced } from "./types";
 
@@ -32,6 +32,8 @@ export type TilingOptions = {
   step: number;
   /** Ascender-vote confidence that counts towards a group's reading direction. */
   minUp: number;
+  /** Two blank seams that agree on a placement must cross at least this angle (degrees). */
+  minSeamAngle: number;
 };
 
 export const TILING_DEFAULTS: TilingOptions = {
@@ -46,6 +48,7 @@ export const TILING_DEFAULTS: TilingOptions = {
   deepPx: 8,
   step: 6,
   minUp: 0.8,
+  minSeamAngle: 20,
 };
 
 /** A content verdict on one candidate (Muse's verifySeam): same place or not, with its confidence. */
@@ -177,14 +180,20 @@ export function assembleTiles(shapes: PieceShape[], cands: StraightCandidate[], 
     progress = false;
     for (let i = 0; i < blank.length && !progress; i++) {
       const s = blank[i].c;
-      // the join placed on no content at all must be the strongest geometry: both corners and equal lengths (two
-      // single-corner fits can agree by chance, e.g. a piece set outside the page against two collinear page edges)
-      if (s.straight.ends < 2) continue;
       const ga = groupOf.get(s.a)!;
       const gb = groupOf.get(s.b)!;
       if (ga === gb) continue;
       const T = poseCompose(poseCompose(ga.pose.get(s.a)!, s.pose), poseInvert(gb.pose.get(s.b)!));
-      // a second candidate between the same two groups, through a different pair of pieces or sides, that agrees
+      /** Direction (rad, axial) of a candidate's seam in group A's frame. */
+      const seamAngle = (c: StraightCandidate, g: Group) => {
+        const d = byId.get(c.a)!.poly.sides[c.straight.sideA].dir;
+        const th = g.pose.get(c.a)!.theta + (g === ga ? 0 : T.theta);
+        return Math.atan2(d[1], d[0]) + th;
+      };
+      const sAngle = seamAngle(s, ga);
+      // a second candidate between the same two groups, through a different pair of pieces or sides, that agrees and
+      // pins the placement independently: its seam must not run parallel to the first (two fits along one line, say
+      // against two collinear page edges, leave the piece free to be wrong together)
       const second = blank.find((t, j) => {
         if (j === i) return false;
         const c = t.c;
@@ -195,6 +204,7 @@ export function assembleTiles(shapes: PieceShape[], cands: StraightCandidate[], 
         else if (g1 === gb && g2 === ga) T2 = poseInvert(poseCompose(poseCompose(gb.pose.get(c.a)!, c.pose), poseInvert(ga.pose.get(c.b)!)));
         else return false;
         if (c.a === s.a && c.b === s.b && c.straight.sideA === s.straight.sideA) return false;
+        if (axialDiff(seamAngle(c, g1), sAngle) < (o.minSeamAngle * Math.PI) / 180) return false;
         const [cx, cy] = byId.get(s.b)!.f.centroid;
         const pb = gb.pose.get(s.b)!;
         const [x0, y0] = poseApply(pb, cx, cy);

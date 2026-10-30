@@ -55,3 +55,38 @@ describe("the recorded sample's scene", () => {
     expect(chooseClimax(scene.seams, 0.99)).toBeNull();
   });
 });
+
+describe("pieces the solver set aside", () => {
+  // the recorded run with three pieces taken off its page, as a partial solve leaves them
+  const out = new Set(["p0", "p4", "p7"]);
+  const partial: RunResult = {
+    ...recorded,
+    pages: recorded.pages.map((pg) => ({ ...pg, pieces: pg.pieces.filter((f) => !out.has(f.id)) })),
+    joins: recorded.joins.filter((j) => !out.has(j.a) && !out.has(j.b)),
+  };
+  const scene = buildScene(partial);
+  const aside = scene.pieces.filter((p) => !p.placed);
+
+  it("go to a tray beside the pages, never onto them or each other", () => {
+    expect(aside.map((p) => p.id).sort()).toEqual([...out].sort());
+    const [x0, y0, x1, y1] = scene.pagesBox;
+    for (const p of aside) {
+      const clear = p.home[0] - p.r >= x1 || p.home[1] - p.r >= y1 || p.home[0] + p.r <= x0 || p.home[1] + p.r <= y0;
+      expect(clear).toBe(true);
+      expect(p.ang).toBe(0);
+    }
+    for (let i = 0; i < aside.length; i++)
+      for (let j = i + 1; j < aside.length; j++) expect(Math.hypot(aside[i].home[0] - aside[j].home[0], aside[i].home[1] - aside[j].home[1])).toBeGreaterThanOrEqual(aside[i].r + aside[j].r);
+  });
+
+  it("are framed with the pages", () => {
+    const [bx0, by0, bx1, by1] = scene.box;
+    for (const p of aside) {
+      expect(p.home[0] - p.r).toBeGreaterThanOrEqual(bx0 - 1e-6);
+      expect(p.home[1] - p.r).toBeGreaterThanOrEqual(by0 - 1e-6);
+      expect(p.home[0] + p.r).toBeLessThanOrEqual(bx1 + 1e-6);
+      expect(p.home[1] + p.r).toBeLessThanOrEqual(by1 + 1e-6);
+    }
+    expect(buildScene(recorded).box).toEqual(buildScene(recorded).pagesBox);
+  });
+});

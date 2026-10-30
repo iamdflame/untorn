@@ -5,6 +5,7 @@ import {
   costUsd,
   extractOutputText,
   normaliseGroups,
+  pageOrientation,
   readPage,
   sortFragments,
   translate,
@@ -271,6 +272,21 @@ describe("chooseContinuation", () => {
     const r = await chooseContinuation(img, 3, o);
     expect(r.ok && r.value.index).toBe(0);
     expect(f.calls).toHaveLength(2);
+  });
+});
+
+describe("pageOrientation", () => {
+  it("says whether a rebuilt page stands upright, at minimal effort", async () => {
+    const f = fakeFetch([answer({ upright: false, confidence: 0.92, reason: "'Merkle' reads only turned over" })]);
+    const r = await pageOrientation(img, opts({ fetchImpl: f.impl }).o);
+    expect(r.ok && r.value).toEqual({ upright: false, confidence: 0.92, reason: "'Merkle' reads only turned over" });
+    expect((f.calls[0].body.reasoning as { effort: string }).effort).toBe("minimal");
+  });
+
+  it("treats an answer without the flag as unparseable", async () => {
+    const f = fakeFetch([answer({ confidence: 0.9, reason: "?" }), answer({ confidence: 0.9, reason: "?" }), answer({ confidence: 0.9, reason: "?" })]);
+    const r = await pageOrientation(img, opts({ fetchImpl: f.impl, maxAttempts: 2 }).o);
+    expect(r.ok).toBe(false);
   });
 });
 

@@ -7,7 +7,7 @@
 // Every request streams and asks for per-record confidence and `one_bit` masks (the smallest payload).
 
 import { buildObjectPrompt } from "@meta-sam/parser";
-import type { Box } from "@/lib/contracts";
+import type { Box } from "./types";
 
 export const SAM_MODEL = "sam-3.1";
 /** SAM tracks or segments at most this many objects per request. */

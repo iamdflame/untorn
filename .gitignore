@@ -31,3 +31,6 @@ playwright-report/
 .data/
 
 .vercel
+
+# private real-photo cases (the user's own photos; never in the repo)
+scripts/eval/real.local.json

@@ -1,0 +1,160 @@
+import { describe, expect, it } from "vitest";
+import { ASSEMBLE_DEFAULTS, decide, linesAstray, type ContentEvidence } from "./assemble";
+import { analyzeFragment } from "./fragment";
+import { poseCompose, poseInvert } from "./geom";
+import type { MatchData } from "./match";
+import { gridTrusted, lineConsensus } from "./textlines";
+import type { Candidate, Pose, TextCheck } from "./types";
+import { gridTear, scatterPiece } from "./__tests__/synth";
+
+const cand = (over: Partial<Candidate> = {}): Candidate => ({
+  id: "a~b#0",
+  a: "a",
+  b: "b",
+  pose: { theta: 0, tx: 0, ty: 0 },
+  overlap: 220,
+  rms: 0.8,
+  areaOverlap: 0,
+  conditioning: 0.9,
+  shapeRms: 0.5,
+  fineRms: 0.6,
+  // below the bar for geometry alone (margin 1.4): only a read can confirm these
+  score: 120,
+  confidence: 0.4,
+  margin: 1.2,
+  marginOther: 1.2,
+  segmentsA: [0],
+  segmentsB: [0],
+  seamA: [0, 120],
+  seamB: [0, 120],
+  appearance: null,
+  twinGroup: null,
+  edge: "torn",
+  text: null,
+  ...over,
+});
+
+const lines = (over: Partial<TextCheck> = {}): TextCheck => ({
+  angle: 0.01,
+  phase: 0.03,
+  pitchRatio: 1,
+  weight: 0.9,
+  angleValid: true,
+  phaseValid: true,
+  flipped: false,
+  logLR: 4,
+  ...over,
+});
+
+const logit = (p: number) => Math.log(p / (1 - p));
+/** `n` reads of one candidate, all saying `same` at `confidence`. */
+const reads = (id: string, same: boolean, confidence: number, n = 1): ContentEvidence =>
+  new Map([[id, { logOdds: n * (same ? 1 : -1) * logit(confidence), votes: n, pos: same ? n : 0 }]]);
+
+describe("decide: a read confirms a join only where the geometry agrees", () => {
+  const o = ASSEMBLE_DEFAULTS;
+
+  it("accepts a clear 'same' on a fit no other partner beats", () => {
+    const c = cand();
+    const out = decide([c], reads(c.id, true, 0.9), o);
+    expect(out).toHaveLength(1);
+    expect(out[0].decidedBy).toBe("geometry+content");
+    // without the read, geometry alone is not enough
+    expect(decide([c], null, o)).toHaveLength(0);
+  });
+
+  it("counts another alignment of the same two pieces as no rival partner", () => {
+    const c = cand({ margin: 0.8, marginOther: 1.6 });
+    expect(decide([c], reads(c.id, true, 0.9), o)).toHaveLength(1);
+  });
+
+  it("does not let a 'same' override an outline fit that prefers another partner on that edge", () => {
+    const c = cand({ margin: 0.8, marginOther: 0.8 });
+    expect(decide([c], reads(c.id, true, 0.95), o)).toHaveLength(0);
+    // candidates from before marginOther existed fall back on the plain margin
+    const old = cand({ margin: 0.8, marginOther: undefined });
+    expect(decide([old], reads(old.id, true, 0.95), o)).toHaveLength(0);
+  });
+
+  it("does not let a 'same' join pieces whose text lines do not continue", () => {
+    for (const t of [lines({ angle: (25 * Math.PI) / 180 }), lines({ phase: 0.45 }), lines({ flipped: true })]) {
+      const c = cand({ text: t });
+      expect(decide([c], reads(c.id, true, 0.95), o)).toHaveLength(0);
+    }
+    // lines that continue, or lines too faint to judge, leave the read to decide
+    expect(decide([cand({ text: lines() })], reads("a~b#0", true, 0.9), o)).toHaveLength(1);
+    expect(decide([cand({ text: lines({ angle: 0.5, weight: 0.3 }) })], reads("a~b#0", true, 0.9), o)).toHaveLength(1);
+    // an unmeasurable phase is no evidence against the join
+    expect(decide([cand({ text: lines({ phase: 0.45, phaseValid: false }) })], reads("a~b#0", true, 0.9), o)).toHaveLength(1);
+  });
+
+  it("takes a hesitant 'same' for no clue", () => {
+    const c = cand();
+    expect(decide([c], reads(c.id, true, 0.55), o)).toHaveLength(0);
+    expect(decide([c], reads(c.id, true, 0.65), o)).toHaveLength(0);
+    expect(decide([c], reads(c.id, true, 0.75), o)).toHaveLength(1);
+    // two hesitant reads that agree add up
+    expect(decide([c], reads(c.id, true, 0.62, 2), o)).toHaveLength(1);
+  });
+
+  it("leaves twins and straight cuts to the reads, as before", () => {
+    // inside a twin group geometry is tied: the rival partner's fit is no evidence against the read
+    const twin = cand({ twinGroup: "twin-a-0", margin: 0.95, marginOther: 0.95 });
+    const two = reads(twin.id, true, 0.9, 2);
+    const out = decide([twin], two, o);
+    expect(out).toHaveLength(1);
+    expect(out[0].decidedBy).toBe("content");
+    const cut = cand({ edge: "cut", margin: 0.9, marginOther: 0.9 });
+    expect(decide([cut], reads(cut.id, true, 0.9), o)).toHaveLength(1);
+  });
+});
+
+describe("linesAstray: pieces whose text lines contradict their page", () => {
+  const o = ASSEMBLE_DEFAULTS;
+  // a page with typed lines every 22 px torn 3 × 2, every piece scattered at its own rotation
+  const page = gridTear(600, 420, 3, 2, 11);
+  const scatter: Pose[] = [0.3, -1.2, 2.2, 0.9, -2.6, 1.6].map((theta, k) => ({ theta, tx: 500 + 700 * (k % 3), ty: 500 + 700 * Math.floor(k / 3) }));
+  const frags = scatter.map((p, k) => analyzeFragment(scatterPiece(page, k, p, { noise: 0.4 }), k)!);
+  const consensus = lineConsensus(frags);
+  const byId = new Map(frags.map((f) => [f.id, { f } as unknown as MatchData] as const));
+  const ids = frags.map((f) => f.id);
+  // the true page: each piece's photo → page
+  const truth = new Map(frags.map((f, k) => [f.id, poseInvert(scatter[k])] as const));
+  /** The page with piece `id` turned by `deg` about its centroid. */
+  const turned = (id: string, deg: number) => {
+    const [cx, cy] = byId.get(id)!.f.centroid;
+    const turn = poseCompose({ theta: 0, tx: cx, ty: cy }, poseCompose({ theta: (deg * Math.PI) / 180, tx: 0, ty: 0 }, { theta: 0, tx: -cx, ty: -cy }));
+    return new Map([...truth].map(([k, p]) => [k, k === id ? poseCompose(p, turn) : p] as const));
+  };
+
+  it("leaves the true page alone", () => {
+    expect(frags.filter((f) => gridTrusted(f, consensus)).length).toBeGreaterThanOrEqual(4);
+    expect(linesAstray(ids, byId, truth, consensus, o)).toEqual([]);
+  });
+
+  it("finds a piece a chain of joins turned off its neighbours' lines", () => {
+    const victim = ids.find((id) => gridTrusted(byId.get(id)!.f, consensus))!;
+    for (const deg of [26, 154, -40]) expect(linesAstray(ids, byId, turned(victim, deg), consensus, o)).toEqual([victim]);
+    // within the join tolerance it is still on the page's lines
+    expect(linesAstray(ids, byId, turned(victim, 3), consensus, o)).toEqual([]);
+  });
+
+  it("needs trusted lines: a blank piece, or one page with no line pitch, says nothing", () => {
+    const victim = ids[0];
+    const blank = new Map(byId);
+    blank.set(victim, { f: { ...byId.get(victim)!.f, text: null } } as unknown as MatchData);
+    expect(linesAstray(ids, blank, turned(victim, 26), consensus, o)).toEqual([]);
+    expect(linesAstray(ids, byId, turned(victim, 26), null, o)).toEqual([]);
+    // two pieces with lines: the stronger one's direction stands, the other is off it
+    expect(linesAstray(ids.slice(0, 2), byId, turned(ids[0], 30), consensus, o).length).toBe(1);
+  });
+
+  it("keeps a piece whose own estimate is an alias but whose ink runs along the page's lines", () => {
+    const victim = ids.find((id) => gridTrusted(byId.get(id)!.f, consensus))!;
+    const f = byId.get(victim)!.f;
+    // its text angle a quarter turn off (columns read as lines), its pixels unchanged
+    const alias = new Map(byId);
+    alias.set(victim, { f: { ...f, text: { ...f.text!, angle: f.text!.angle + Math.PI / 2 } } } as unknown as MatchData);
+    expect(linesAstray(ids, alias, truth, consensus, o)).toEqual([]);
+  });
+});

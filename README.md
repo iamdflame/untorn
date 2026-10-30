@@ -67,7 +67,7 @@ pnpm dev
   - fonts: Gambetta (Fontshare), Schibsted Grotesk and IBM Plex Mono (OFL).
 
 ## What's live, and known limits
-- **Live:** the full pipeline on uploads and phone photos, recorded-run replay, the join map, per-run links, a health check that rebuilds a known sample every hour, a daily spend cap.
+- **Live:** the full pipeline on uploads and phone photos, recorded-run replay, the join map, per-run links, a health check that rebuilds a known sample every 3 hours, a daily spend cap.
 - **Limits:**
   - Very large stacks can end with some twins unplaced, because reading is capped per run.
   - Straight cuts (scissors, shredder strips) are weaker than hand tears.

@@ -88,7 +88,8 @@ export function fakeDeps(putAsset: PipelineDeps["putAsset"], o: FakeOptions = {}
   const fail = (fn: string) => ({ ok: false as const, error: { code: "http" as const, message: "upstream 500", status: 500, retryable: true }, meta: meta(fn) });
   const delay = (ms: number, signal?: AbortSignal) =>
     new Promise<void>((resolve) => {
-      if (!ms) return resolve();
+      // an already-aborted signal never fires "abort" again
+      if (!ms || signal?.aborted) return resolve();
       const t = setTimeout(resolve, ms);
       signal?.addEventListener("abort", () => {
         clearTimeout(t);

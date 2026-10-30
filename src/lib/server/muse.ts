@@ -1,4 +1,4 @@
-// Muse client for Rejoin: structured JSON calls to muse-spark-1.3 and muse-wonder-1.0 over the Responses API.
+// Muse client for Untorn: structured JSON calls to muse-spark-1.3 and muse-wonder-1.0 over the Responses API.
 // Server-only: it reads MODEL_API_KEY. (No `server-only` import, so bench scripts and tests can load it under tsx.)
 //
 // Every public function returns a MuseOutcome and never throws for an upstream problem: a failed reading is evidence
@@ -26,6 +26,7 @@ import {
   type ChoicePromptVersion,
   type ReadPromptVersion,
   type SeamPromptVersion,
+  ORIENTATION_SCHEMA,
 } from "./prompts";
 
 export const META_API_BASE = "https://api.meta.ai/v1";
@@ -474,7 +475,7 @@ const strArr = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x)
 const clamp01 = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : null);
 
 // ---------------------------------------------------------------------------------------------------------------
-// Rejoin's functions
+// Untorn's functions
 
 export type SeamVerdict = { same_place: boolean; confidence: number; words_across: string[]; reason: string };
 
@@ -549,6 +550,30 @@ export async function chooseContinuation(
 }
 
 export type PageReading = { text: string; language: string; uncertain: string[] };
+
+export type PageOrientation = { upright: boolean; confidence: number; reason: string };
+
+/** Is a rebuilt page upright? A quick look (minimal effort) for pages whose up/down the solver could not settle. */
+export async function pageOrientation(pageImage: ImageInput, opts: MuseOptions = {}): Promise<MuseOutcome<PageOrientation>> {
+  return museCall(
+    {
+      fn: "pageOrientation",
+      schemaName: "page_orientation",
+      schema: ORIENTATION_SCHEMA,
+      content: [textPart(PROMPTS.orient.v1), imagePart(pageImage)],
+      promptVersion: `${PROMPTS_VERSION}/orient.v1`,
+      defaults: { model: "muse-spark-1.3", effort: "minimal", maxOutputTokens: 600, timeoutMs: 20_000, deadlineMs: 30_000, hedgeAfterMs: 8_000 },
+      check: (j) => {
+        if (!isObj(j) || typeof j.upright !== "boolean") return null;
+        const confidence = clamp01(j.confidence);
+        const reason = str(j.reason);
+        if (confidence === null || reason === null) return null;
+        return { upright: j.upright, confidence, reason };
+      },
+    },
+    opts,
+  );
+}
 
 /** The model writes the gap marker as "[…]" or "[...]" (seen live); normalise every spelling to GAP. */
 export const normaliseGaps = (s: string) => s.replace(/\[\s*(?:\.\s*\.\s*\.|…)\s*\]/g, GAP);

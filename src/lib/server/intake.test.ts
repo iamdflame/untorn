@@ -42,5 +42,6 @@ describe("store", () => {
     const { isNotFound } = await import("./store");
     expect(isNotFound(new Error("Vercel Blob: The requested blob does not exist"))).toBe(true);
     expect(isNotFound(new Error("Vercel Blob: Access denied"))).toBe(false);
-  });
+    // the first import of the store pulls in the Blob client: seconds when the whole suite runs at once
+  }, 30_000);
 });

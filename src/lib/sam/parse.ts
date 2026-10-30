@@ -4,7 +4,7 @@
 //   <12f>0<|box;x1=343;y1=277;x2=368;y2=300;w=640;h=360;c=0.70|><|mask;x=0;y=0;c=0.70;data=24,26,~…|>,1<|box;…|><|mask;…|>
 // A frame is complete when the next "<Nf>" marker arrives or the stream ends.
 
-import type { Box, EncodedMask } from "@/lib/contracts";
+import type { Box, EncodedMask } from "./types";
 
 export type RawObject = {
   id: number;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzeFragment } from "./fragment";
 import { poseApply, poseCompose, poseInvert, type Pose } from "./geom";
-import { bestRun, matchFragments } from "./match";
+import { bestRun, matchData, matchFragments, MATCH_DEFAULTS, textSeeds } from "./match";
 import { gridTear, scatterPage } from "./__tests__/synth";
 import type { Fragment } from "./types";
 
@@ -64,5 +64,35 @@ describe("matchFragments on a torn grid", () => {
 
   it("finds no twins on a single page", () => {
     expect(m.twinGroups).toHaveLength(0);
+  });
+});
+
+describe("text-line seeds and pruning", () => {
+  // two neighbours of a page with text lines every 22 px, far apart and turned in the photo
+  const page = gridTear(420, 360, 2, 1, 4);
+  const { inputs, poses } = scatterPage(page, 9, { noise: 0.5 });
+  const frags = inputs.map((inp, i) => analyzeFragment(inp, i)!);
+
+  it("seeds the true join from the lines alone (rotation from the lines, translation by voting)", () => {
+    const data = frags.map((f) => matchData(f));
+    const seeds = textSeeds(data[0], data[1], MATCH_DEFAULTS);
+    expect(seeds.length).toBeGreaterThan(0);
+    const truth = trueRel(poses, 0, 1);
+    // the best peak lands within a few px and the rotation within the lines' accuracy
+    expect(seeds.some((s) => close(s.pose, truth, frags[1], 8, 2))).toBe(true);
+  });
+
+  it("keeps the true join and never lets a text-contradicted one through", () => {
+    const m = matchFragments(frags);
+    const truth = trueRel(poses, 0, 1);
+    const real = m.candidates.filter((c) => close(c.pose, truth, frags[1], 3, 1));
+    expect(real.length).toBeGreaterThan(0);
+    expect(real[0].text).toBeTruthy();
+    expect(real[0].text!.angle).toBeLessThan((2 * Math.PI) / 180);
+    for (const c of m.candidates) {
+      if (!c.text || !c.text.angleValid) continue;
+      expect(c.text.angle).toBeLessThanOrEqual(MATCH_DEFAULTS.textMaxAngle);
+      expect(c.text.flipped).toBe(false);
+    }
   });
 });

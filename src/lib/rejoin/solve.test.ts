@@ -4,7 +4,7 @@ import { poseApply, poseCompose, poseInvert, type Pose } from "./geom";
 import { renderChoiceSheet, renderSeam } from "./seam";
 import { renderPage } from "./render";
 import { askPlanned, contentRequests, finish, prepare, solve } from "./solve";
-import { gridTear, scatterPage } from "./__tests__/synth";
+import { gridTear, scatterPage, scatterPiece } from "./__tests__/synth";
 import type { ContentCheck, FragmentInput, SolveResult } from "./types";
 
 /** Every placed fragment agrees with the truth up to one rigid transform per page (3 px, 1°). */
@@ -178,4 +178,70 @@ describe("S2 adapters", () => {
     expect(Array.from(f.mask.data)).toEqual([1, 1, 0, 0, 1, 1]);
     expect(f.rgba!.data[0]).toBe(photo.data[4 * (1 * 6 + 2)]);
   });
+});
+
+describe("working scale", async () => {
+  // the same torn page photographed 3× closer: text lines 66 px apart
+  const page = gridTear(520, 420, 3, 2, 21);
+  const { inputs, poses } = scatterPage(page, 5, { noise: 0.6 });
+  const f = 3;
+  const big: FragmentInput[] = inputs.map((inp) => {
+    const W = inp.mask.width * f;
+    const H = inp.mask.height * f;
+    const data = new Uint8Array(W * H);
+    const px = new Uint8ClampedArray(4 * W * H);
+    for (let r = 0; r < H; r++) {
+      for (let c = 0; c < W; c++) {
+        const i = Math.floor(r / f) * inp.mask.width + Math.floor(c / f);
+        data[r * W + c] = inp.mask.data[i];
+        px.set(inp.rgba!.data.subarray(4 * i, 4 * i + 4), 4 * (r * W + c));
+      }
+    }
+    return { id: inp.id, mask: { width: W, height: H, data }, x0: inp.x0 * f, y0: inp.y0 * f, rgba: { width: W, height: H, data: px } };
+  });
+  // page → photo poses of the enlarged photo
+  const truth = new Map(big.map((b, k) => [b.id, poseCompose({ theta: 0, tx: 0, ty: 0 }, { theta: poses[k].theta, tx: f * poses[k].tx, ty: f * poses[k].ty })] as const));
+  const prep = prepare(big);
+  const res = await solve(big);
+
+  it("runs the geometry at the text-line target and answers in photo px", () => {
+    expect(prep.scale).toBeGreaterThan(0.4);
+    expect(prep.scale).toBeLessThan(0.55);
+    expect(res.pages).toHaveLength(1);
+    expect(res.pages[0].fragments).toHaveLength(6);
+    // poses in photo px: a 3 px tolerance at photo scale is 3× tighter than at the working scale, so allow 9 px
+    const G = poseCompose(poseInvert(truth.get(res.pages[0].fragments[0].id)!), poseInvert(res.pages[0].fragments[0].pose));
+    for (const pf of res.pages[0].fragments) {
+      const inp = big.find((x) => x.id === pf.id)!;
+      const c: [number, number] = [inp.x0 + inp.mask.width / 2, inp.y0 + inp.mask.height / 2];
+      const [x1, y1] = poseApply(poseCompose(G, pf.pose), ...c);
+      const [x2, y2] = poseApply(poseInvert(truth.get(pf.id)!), ...c);
+      expect(Math.hypot(x1 - x2, y1 - y2)).toBeLessThan(9);
+    }
+    // the page is about 3 × 520 px wide in photo px
+    expect(Math.max(res.pages[0].width, res.pages[0].height)).toBeGreaterThan(1300);
+  });
+});
+
+describe("pages stand upright", async () => {
+  // the same torn page, photographed turned by a quarter, a half and three quarters
+  const page = gridTear(520, 420, 3, 2, 21);
+  for (const quarter of [0, 1, 2, 3]) {
+    it(`whichever way the photo was turned (${quarter * 90}°)`, async () => {
+      const turn: Pose = { theta: (quarter * Math.PI) / 2, tx: 3000, ty: 3000 };
+      const { inputs, poses } = scatterPage(page, 5 + quarter, { noise: 0.6 });
+      // turn every piece's page → photo pose by the same quarter turns about a far point
+      const turned = inputs.map((inp, k) => scatterPiece(page, k, poseCompose(turn, poses[k]), { noise: 0.6, seed: 5 * 31 + k, id: inp.id }));
+      const res = await solve(turned);
+      expect(res.pages.length).toBeGreaterThan(0);
+      const pg = res.pages[0];
+      // photo → page rotation of each piece, against the truth (photo → true page = inverse of page → photo)
+      for (const f of pg.fragments) {
+        const k = Number(f.id.slice(1));
+        const truth = -poseCompose(turn, poses[k]).theta;
+        const e = Math.atan2(Math.sin(f.pose.theta - truth), Math.cos(f.pose.theta - truth));
+        expect(Math.abs(e)).toBeLessThan((10 * Math.PI) / 180);
+      }
+    });
+  }
 });

@@ -1,4 +1,4 @@
-// Every Muse prompt and output schema Rejoin sends, in one versioned file.
+// Every Muse prompt and output schema Untorn sends, in one versioned file.
 //
 // Bump PROMPTS_VERSION whenever a prompt's wording or a schema changes: the version rides on every call log, so a
 // measured accuracy can always be traced to the exact wording that produced it (docs/MODELS.md has the numbers).
@@ -8,7 +8,9 @@
 // .1: the measured bench runs (seam v1/v2/flush, choice v1). .2: verifySeam defaults to seam v2 after the bench.
 // .3: readPage gains the "markdown" and "parts" wordings (ShredBench's conversion rules); its default is unchanged.
 // .4: the parts wording allows a loose piece to be upside down.
-export const PROMPTS_VERSION = "2026-10-29.4";
+// 2026-10-30.1: orient v1 (pageOrientation: is a rebuilt page upright? asked only where the solver is unsure).
+// 2026-10-30.2: both lines together (rejoin-shred merged with rejoin): read markdown/parts and orient v1.
+export const PROMPTS_VERSION = "2026-10-30.2";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -179,6 +181,26 @@ const READ_PARTS =
   "Return the Markdown as text, the language as a BCP 47 code, and in uncertain each word you are not sure of.";
 
 // ---------------------------------------------------------------------------------------------------------------
+// pageOrientation: is a rebuilt page upright? (asked only where the solver's own evidence is weak)
+
+export const ORIENTATION_SCHEMA: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["upright", "confidence", "reason"],
+  properties: {
+    upright: { type: "boolean" },
+    confidence: { type: "number" },
+    reason: { type: "string" },
+  },
+};
+
+const ORIENT_V1 =
+  "This image shows a page of printed or typed text that was torn into pieces and put back together; parts may be " +
+  "missing. Look at the letters: is the page upright (the text reads normally, left to right, top to bottom) or " +
+  "upside down (turned by 180 degrees, so the letters are inverted)? Return upright true or false, your confidence " +
+  "from 0 to 1, and a short reason naming a word you can read the right way up.";
+
+// ---------------------------------------------------------------------------------------------------------------
 // translate
 
 export const TRANSLATE_SCHEMA: JsonSchema = {
@@ -234,6 +256,7 @@ export const PROMPTS = {
   seam: { v1: SEAM_V1, v2: SEAM_V2, flush: SEAM_FLUSH },
   choice: { v1: CHOICE_V1, v2: CHOICE_V2, joined: CHOICE_JOINED },
   read: { v1: READ_V1, markdown: READ_MARKDOWN, parts: READ_PARTS },
+  orient: { v1: ORIENT_V1 },
   translate: { v1: TRANSLATE_V1 },
   sort: { v1: SORT_V1, fragmentLabel },
   /** Added when the seam image is also sent rotated by 180°. */

@@ -1,4 +1,4 @@
-// Liveness: the hourly cron runs the fixed sample through the real pipeline and asserts the join accuracy against
+// Liveness: a cron (every 3 hours) runs the fixed sample through the real pipeline and asserts the join accuracy against
 // its answer key; GET /api/health reports the last run. Records: health/<iso time>.json, kept 14 days.
 
 import { readFile } from "node:fs/promises";

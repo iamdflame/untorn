@@ -57,7 +57,7 @@ export const Peak: React.FC<{ cues?: PeakCues }> = ({ cues = PEAK_CUES }) => {
               cost of $42 a week.{" "}
               <span style={{ color: t > cues.quote0 ? C.violetLt : C.chalk3 }}>I am starting a Patients' Aid Fund to help these poor children</span> and hope to be able to assist about 15 out of the 50 patients.
             </div>
-            <div style={{ marginTop: 22, fontFamily: F.serif, fontWeight: 500, fontSize: 22, color: C.chalk3 }}>Franklin D. Roosevelt to Julian Goldman, 1927. Simulated tear, recorded run.</div>
+            <div style={{ marginTop: 22, fontFamily: F.serif, fontWeight: 500, fontSize: 22, color: C.chalk3 }}>Franklin D. Roosevelt to Julian Goldman, 1927. Simulated tear, recorded run: 10 of 10 pieces placed, 13 of 13 joins right.</div>
           </div>
         </AbsoluteFill>
       )}
@@ -75,9 +75,9 @@ export const Peak: React.FC<{ cues?: PeakCues }> = ({ cues = PEAK_CUES }) => {
       {cardA > 0.01 && (
         <AbsoluteFill style={{ opacity: cardA }}>
           <AbsoluteFill style={{ background: "radial-gradient(ellipse 50% 55% at 50% 46%, rgba(255,238,208,0.16), rgba(51,44,39,0) 70%)" }} />
-          <TornWord text="Untorn" t={t} t0={cues.card} seat={cues.seat} x={W / 2} y={318} size={190} align="center" />
-          <div style={{ position: "absolute", left: 0, right: 0, top: 548, textAlign: "center", fontFamily: F.serif, fontWeight: 500, fontSize: 48, color: C.chalk2, opacity: easeOut(clamp((t - cues.seat - 0.1) / 0.6)) }}>Reads across the tears.</div>
-          <div style={{ position: "absolute", left: 0, right: 0, top: 650, textAlign: "center", fontFamily: F.sans, fontWeight: 600, fontSize: 34, color: C.chalk, letterSpacing: "0.01em", opacity: easeOut(clamp((t - cues.seat - 0.4) / 0.6)) }}>untorn.vercel.app</div>
+          <TornWord text="Untorn" t={t} t0={cues.card} seat={cues.seat} x={W / 2} y={250} size={250} align="center" gap={3.2} />
+          <div style={{ position: "absolute", left: 0, right: 0, top: 560, textAlign: "center", fontFamily: F.serif, fontWeight: 500, fontSize: 54, color: C.chalk2, opacity: easeOut(clamp((t - cues.seat - 0.15) / 0.6)), transform: `translateY(${(1 - easeOut(clamp((t - cues.seat - 0.15) / 0.6))) * 10}px)` }}>Reads across the tears.</div>
+          <div style={{ position: "absolute", left: 0, right: 0, top: 668, textAlign: "center", fontFamily: F.sans, fontWeight: 600, fontSize: 36, color: C.chalk, letterSpacing: "0.01em", opacity: easeOut(clamp((t - cues.seat - 0.5) / 0.6)) }}>untorn.vercel.app</div>
           <div style={{ position: "absolute", left: 200, right: 200, top: 900, textAlign: "center", fontFamily: F.sans, fontSize: 17, lineHeight: 1.6, color: C.chalk3, opacity: easeOut(clamp((t - cues.seat - 0.8) / 0.6)) }}>
             Built with Meta SAM 3.1 and Muse Spark. Archive photos: Maximilian Schönherr, Wikimedia Commons, CC BY-SA 4.0, reprojected and cropped.
             <br />

@@ -46,21 +46,29 @@ export function sfxCues(tl: Timeline): { cues: Cue[]; sections: Section[]; silen
   // 4 · proof: the bars, the tiles
   const p = at("proof");
   cues.push({ t: p + tl.proof.scores, kind: "tick", gain: 0.7 });
-  cues.push({ t: p + tl.proof.tiles, kind: "settle", gain: 0.6 });
 
   // 5 · golden path: the phone comes in, the tap, the run, a read, the assembly, the climax
   const g = at("golden");
   cues.push({ t: g + tl.golden.phone, kind: "swell", gain: 0.5, dur: 0.8 });
   cues.push({ t: g + tl.golden.phone + 2.4, kind: "tick", gain: 0.8, pan: 0.4 });
+  // on the capture's own events (Golden.tsx frame notes): the photo lands, the pieces lift, a read, pieces 7-9 come
+  // home, the last tear closes
+  cues.push({ t: g + tl.golden.live + 0.8, kind: "settle", gain: 0.45, pan: 0.2 });
+  cues.push({ t: g + tl.golden.reads + 1.25, kind: "lift", gain: 0.55 });
   cues.push({ t: g + tl.golden.close + 0.5, kind: "tick", gain: 0.8 });
-  for (let i = 0; i < 4; i++) cues.push({ t: g + tl.golden.assemble + 0.4 + i * 0.55, kind: "settle", gain: 0.55, pan: (i % 2 ? 0.3 : -0.3) });
-  cues.push({ t: g + tl.golden.climax + 0.4, kind: "tick", gain: 0.8 });
+  [0.27, 0.8, 1.33].forEach((d, i) => cues.push({ t: g + tl.golden.assemble + d, kind: "settle", gain: 0.55, pan: i % 2 ? 0.3 : -0.3 }));
+  cues.push({ t: g + tl.golden.climax + 1.15, kind: "tick", gain: 0.8 });
+  cues.push({ t: g + tl.golden.climax + 1.17, kind: "settle", gain: 0.7 });
 
   // 6 · under the hood: a quiet turn of the page at each stage, a tick when Muse's answer lands
   const h = at("hood");
   for (const st of [tl.hood.s2, tl.hood.s3, tl.hood.s4, tl.hood.s5]) cues.push({ t: h + st - 0.2, kind: "swell", gain: 0.4, dur: 0.7 });
   cues.push({ t: h + tl.hood.s3 + 0.9, kind: "tick", gain: 0.8 });
-  cues.push({ t: h + tl.hood.s4 + 1.9, kind: "settle", gain: 0.6 });
+  // the rule played on the three scraps (Hood.tsx): two pencil strikes, then the read that agrees
+  cues.push({ t: h + tl.hood.s4 + 1.1, kind: "strike", gain: 0.6, pan: -0.4 });
+  cues.push({ t: h + tl.hood.s4 + 1.65, kind: "strike", gain: 0.6, pan: 0 });
+  cues.push({ t: h + tl.hood.s4 + 2.2, kind: "tick", gain: 0.75, pan: 0.4 });
+  cues.push({ t: h + tl.hood.s5 + 0.3, kind: "settle", gain: 0.85 });
 
   // 7 · read whole again: the line lights, the sack, the end card's wordmark joins
   const k = at("peak");

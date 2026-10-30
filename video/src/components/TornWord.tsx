@@ -21,7 +21,7 @@ function measure(text: string, upTo: number, size: number) {
   return c.measureText(text.slice(0, upTo)).width / c.measureText(text).width;
 }
 
-export const TornWord: React.FC<{ text: string; cut?: number; t: number; t0: number; seat: number; x: number; y: number; size: number; color?: string; hairline?: boolean; align?: "left" | "center" }> = ({
+export const TornWord: React.FC<{ text: string; cut?: number; t: number; t0: number; seat: number; x: number; y: number; size: number; color?: string; hairline?: boolean; align?: "left" | "center"; gap?: number }> = ({
   text,
   cut = 2,
   t,
@@ -33,12 +33,13 @@ export const TornWord: React.FC<{ text: string; cut?: number; t: number; t0: num
   color = C.chalk,
   hairline = true,
   align = "left",
+  gap = 1,
 }) => {
   const frac = useMemo(() => measure(text, cut, size), [text, cut, size]);
   if (t < t0 - 0.01) return null;
   const appear = easeOut(clamp((t - t0) / 0.5));
   const join = spring(t - seat + 0.12);
-  const u = 1 - clamp(join, 0, 1.05);
+  const u = (1 - clamp(join, 0, 1.05)) * gap;
   const cx = frac * 100;
   const dev = 2.6;
   const pts = TEAR.map((v, i) => [cx + v * dev, -6 + (112 * i) / (TEAR.length - 1)]);

@@ -1,31 +1,31 @@
-// 1:21 Under the hood, built from the recorded run's own data, one stage after another along a single camera move:
-// 1. real photo pixels at x12 with the outline the solver traced from SAM 3.1's mask (it runs between pixel centres);
-// 2. the two edge traces of one seam sliding into a fit, worded as the app's join map words it;
-// 3. the exact image Muse Spark read across that seam, and its answer;
-// 4. twins: identical edges, so two reads must agree, or the piece is set aside, not forced;
-// 5. the page with both clues on every seam.
+// 1:25 Under the hood: fewer words, bigger pictures, all from the recorded runs' own data.
+// 1. The outline the solver traced from SAM 3.1's mask, drawing on over the letter's real pixels at x20.
+// 2. The two edge traces of one seam, thick and large, sliding together until they mirror (the join map's own
+//    numbers: "fits along 1063 px, 0.82 px misfit").
+// 3. The exact image Muse Spark read across that seam, at x4, with the words it read set large in violet.
+// 4. Three scraps with one edge; two reads must agree; and a scrap the stack run really set aside (p4,
+//    "twin-unresolved") going down onto the tray: never forced.
 
 import React, { useCallback } from "react";
 import { AbsoluteFill, Img, staticFile, useCurrentFrame } from "remotion";
-import cutMeta from "../data/cutouts-fdr.json";
 import scene from "../data/scene-fdr-1927.json";
 import { FrameCanvas, grain, type DrawFn } from "../lib/canvas";
 import { useImages } from "../lib/images";
-import { clamp, easeIO, easeOut, lerp, noise1, smooth, smoother, soft } from "../lib/motion";
+import { clamp, easeIO, easeOut, lerp, noise1, smooth, smoother, soft, spring, settle } from "../lib/motion";
 import { C, F, FPS, H, W } from "../theme";
 
 export type HoodCues = { s1: number; s2: number; s3: number; s4: number; s5: number; end: number };
-export const HOOD_CUES: HoodCues = { s1: 0.2, s2: 4.6, s3: 8.4, s4: 12.4, s5: 16.2, end: 20.0 };
+export const HOOD_CUES: HoodCues = { s1: 0.2, s2: 4.6, s3: 8.4, s4: 11.2, s5: 16.2, end: 18.4 };
 
 type SP = (typeof scene.pieces)[number];
 const pieces = scene.pieces as SP[];
 const SEAM = scene.seams.find((s) => s.read?.words?.includes("Patients'"))!; // p7~p9: "here, week and Patients'"
 const PA = pieces[SEAM.a];
-// a stretch of p7's torn edge, in the photo, for the pixel close-up
-const ZOOM = 16;
-const WIN = { w: 80, h: 44 };
+
+// stage 1: a stretch of p7's torn edge in the photo, at x20, filling the frame
+const ZOOM = 20;
+const WIN = { w: 96, h: 40 };
 const edgePt = (() => {
-  // the outline point of p7 closest to the seam's midpoint, carried back into the photo
   const [mx, my] = SEAM.mid;
   const dx = mx - PA.home[0];
   const dy = my - PA.home[1];
@@ -50,13 +50,12 @@ const paths = ["kit/fdr/photo.jpg", "fx/grain.png"];
 export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
   const imgs = useImages(paths);
   const t = useCurrentFrame() / FPS;
-  // the camera dolly: each stage slides in from the right as the last leaves
-  // a stage's slide and opacity at time tt (passed in: the canvas draws at its own frame time)
+  // a stage's slide and opacity at time tt (the canvas passes its own frame time)
   const stageAt = (k: number, tt: number) => {
-    const starts = [cues.s1, cues.s2, cues.s3, cues.s4, cues.s5, cues.end + 1];
-    const a = smoother(starts[k] - 0.5, starts[k] + 0.35, tt);
-    const b = smoother(starts[k + 1] - 0.5, starts[k + 1] + 0.35, tt);
-    return { x: (1 - a) * 260 - b * 260, o: a * (1 - b) };
+    const starts = [cues.s1, cues.s2, cues.s3, cues.s4, cues.end + 5];
+    const a = smoother(starts[k] - 0.45, starts[k] + 0.3, tt);
+    const b = smoother(starts[k + 1] - 0.45, starts[k + 1] + 0.3, tt);
+    return { x: (1 - a) * 220 - b * 220, o: a * (1 - b) };
   };
   const stage = (k: number) => stageAt(k, t);
 
@@ -67,18 +66,16 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
       g.fillRect(0, 0, W, H);
       const st = stageAt(0, tt);
       if (st.o > 0.005) {
-        // real pixels at x12, nearest neighbour, and the traced outline over them
-        const ox = Math.round(W / 2 - (WIN.w * ZOOM) / 2 + st.x);
-        const oy = 214;
+        const ox = Math.round((W - WIN.w * ZOOM) / 2 + st.x);
+        const oy = 96;
+        const sx = edgePt[0] - WIN.w / 2;
+        const sy = edgePt[1] - WIN.h / 2;
         g.save();
         g.globalAlpha = st.o;
         g.imageSmoothingEnabled = false;
-        const sx = edgePt[0] - WIN.w / 2;
-        const sy = edgePt[1] - WIN.h / 2;
         g.drawImage(imgs["kit/fdr/photo.jpg"], sx, sy, WIN.w, WIN.h, ox, oy, WIN.w * ZOOM, WIN.h * ZOOM);
         g.imageSmoothingEnabled = true;
-        // pixel grid, faint
-        g.strokeStyle = "rgba(42,46,52,0.12)";
+        g.strokeStyle = "rgba(42,46,52,0.10)";
         g.lineWidth = 1;
         for (let i = 0; i <= WIN.w; i++) {
           g.beginPath();
@@ -92,8 +89,8 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
           g.lineTo(ox + WIN.w * ZOOM, oy + j * ZOOM + 0.5);
           g.stroke();
         }
-        // the outline (photo px -> screen), drawn on progressively
-        const draw1 = clamp((tt - cues.s1 - 0.4) / 1.6);
+        // the outline (photo px -> screen), drawing on with its head as a graphite dot
+        const draw1 = clamp((tt - cues.s1 - 0.3) / 2.4);
         g.beginPath();
         g.rect(ox, oy, WIN.w * ZOOM, WIN.h * ZOOM);
         g.clip();
@@ -107,8 +104,8 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
         g.lineJoin = "round";
         g.lineCap = "round";
         for (const [col, wdt] of [
-          ["rgba(250,246,238,0.9)", 7],
-          [C.ink, 3],
+          ["rgba(250,246,238,0.92)", 12],
+          [C.ink, 5],
         ] as const) {
           g.strokeStyle = col;
           g.lineWidth = wdt;
@@ -119,7 +116,7 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
         g.fillStyle = C.ink;
         pts.slice(0, n).forEach(([x, y]) => {
           g.beginPath();
-          g.arc(x, y, 3.2, 0, Math.PI * 2);
+          g.arc(x, y, 4.5, 0, Math.PI * 2);
           g.fill();
         });
         g.restore();
@@ -130,158 +127,116 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
     [imgs, cues],
   );
 
-  // stage 2: the edge traces (96 samples each), sliding together until they lie as one
+  // stage 2: the two traces
   const s2 = stage(1);
-  const fitK = easeIO(clamp((t - cues.s2 - 0.6) / 1.6));
-  const prof = (p: number[], dy: number, sign: number) => p.map((v, i) => `${i ? "L" : "M"}${(i / (p.length - 1)) * 1100} ${dy + sign * v * 2.6}`).join("");
+  const fitK = easeIO(clamp((t - cues.s2 - 0.5) / 1.8));
   const A = SEAM.profA as number[];
   const B = SEAM.profB as number[];
   const sum = A.map((v, i) => v + B[i]);
-  // stage 3: the image Muse read, and its answer
+  const TW = 1640;
+  // the profiles swing about 100 px of the photo one way (A down-to-up, B mirrored): 2.5x keeps each trace in a
+  // 260 px band, clear of the title above and the caption band below
+  const amp = 2.5;
+  const yA = lerp(400, 560, fitK);
+  const yB = lerp(780, 560, fitK);
+  const ySum = 820;
+  const prof = (p: number[], dy: number, sign: number) => p.map((v, i) => `${i ? "L" : "M"}${((i / (p.length - 1)) * TW).toFixed(1)} ${(dy + sign * v * amp).toFixed(1)}`).join("");
+  // stage 3: the image Muse read
   const s3 = stage(2);
-  const ans = clamp((t - cues.s3 - 0.9) / 1.4);
-  // stage 4: twins and the tray
+  const words = (SEAM.read!.words as string[]) ?? [];
+  const wordsK = clamp((t - cues.s3 - 0.7) / 0.9);
+  // stage 4: twins, then the tray
   const s4 = stage(3);
-  const s5 = stage(4);
-  const label = (txt: React.ReactNode, o: number, x: number) => (
-    <div style={{ position: "absolute", left: 0, right: 0, top: 96, textAlign: "center", transform: `translateX(${x * 0.6}px)`, opacity: o, fontFamily: F.serif, fontWeight: 500, fontSize: 46, color: C.chalk }}>{txt}</div>
+  const trayK = spring(t - cues.s5 + 0.2);
+  // the scraps sit in the middle of the frame, then rise to make room for the tray
+  const rise4 = (1 - easeIO(clamp((t - (cues.s5 - 1.15)) / 0.6))) * 150;
+  const title = (txt: React.ReactNode, o: number, x: number) => (
+    <div style={{ position: "absolute", left: 96, top: 36, transform: `translateX(${x * 0.5}px)`, opacity: Math.pow(clamp((o - 0.35) / 0.65), 1.5), fontFamily: F.serif, fontWeight: 500, fontSize: 38, color: C.chalk }}>{txt}</div>
   );
   return (
     <AbsoluteFill style={{ backgroundColor: C.room }}>
       <FrameCanvas draw={draw} ready={!!imgs} />
-      {label(
-        <>
-          SAM 3.1's mask, traced <span style={{ color: C.chalk2 }}>to a fraction of a pixel</span>
-        </>,
-        stage(0).o,
-        stage(0).x,
-      )}
-      {stage(0).o > 0.01 && (
-        <div style={{ position: "absolute", left: 0, right: 0, top: 176, textAlign: "center", opacity: stage(0).o, fontFamily: F.sans, fontSize: 21, color: C.chalk3 }}>
-          Real pixels of the 1927 letter at ×16. The line is the outline the solver traced from the mask: it runs between pixel centres.
-        </div>
-      )}
+      {title(<>SAM 3.1's mask, traced between the pixels</>, stage(0).o, stage(0).x)}
+
       {s2.o > 0.01 && (
-        <div style={{ position: "absolute", left: 360 + s2.x, top: 250, width: 1200, height: 560, opacity: s2.o }}>
-          <svg width={1200} height={560} viewBox="0 0 1100 520" style={{ overflow: "visible" }}>
-            <path d={prof(A, lerp(90, 210, fitK), 1)} fill="none" stroke={C.chalk} strokeWidth={3} />
-            <path d={prof(B, lerp(330, 210, fitK), -1)} fill="none" stroke={C.chalk2} strokeWidth={3} />
-            <line x1={0} y1={430} x2={1100} y2={430} stroke={C.chalkHair2} strokeWidth={1} opacity={smooth(0.85, 1, fitK)} />
-            <path d={prof(sum, 430, 1)} fill="none" stroke={C.chalk3} strokeWidth={2.2} opacity={smooth(0.85, 1, fitK)} />
+        <div style={{ position: "absolute", left: (W - TW) / 2 + s2.x, top: 0, width: TW, height: H, opacity: s2.o }}>
+          <svg width={TW} height={H} style={{ overflow: "visible" }}>
+            <path d={prof(A, yA, 1)} fill="none" stroke={C.chalk} strokeWidth={7} strokeLinejoin="round" />
+            <path d={prof(B, yB, -1)} fill="none" stroke={C.chalk2} strokeWidth={7} strokeLinejoin="round" opacity={1 - 0.4 * fitK} />
+            <path d={prof(sum, ySum, 1)} fill="none" stroke={C.chalk3} strokeWidth={4} opacity={smooth(0.85, 1, fitK)} />
           </svg>
-          <div style={{ position: "absolute", left: -150, top: lerp(70, 205, fitK), fontFamily: F.sans, fontWeight: 600, fontSize: 21, color: C.chalk }}>edge A</div>
-          <div style={{ position: "absolute", left: -150, top: lerp(335, 230, fitK), fontFamily: F.sans, fontWeight: 600, fontSize: 21, color: C.chalk2, opacity: 1 - smooth(0.8, 1, fitK) }}>edge B</div>
-          <div style={{ position: "absolute", left: -150, top: 455, fontFamily: F.sans, fontWeight: 600, fontSize: 21, color: C.chalk3, opacity: smooth(0.85, 1, fitK) }}>A + B</div>
-          <div style={{ position: "absolute", left: 0, top: 500, fontFamily: F.sans, fontSize: 20, color: C.chalk3, opacity: smooth(0.85, 1, fitK) }}>
-            Each torn edge, traced from its own piece's mask. Where two pieces belong together, the traces mirror and cancel.
-          </div>
+          <div style={{ position: "absolute", left: 0, top: yA + A[0] * amp - 44, fontFamily: F.sans, fontWeight: 600, fontSize: 24, color: C.chalk }}>edge A</div>
+          <div style={{ position: "absolute", left: 0, top: yB - B[0] * amp + 16, fontFamily: F.sans, fontWeight: 600, fontSize: 24, color: C.chalk2, opacity: 1 - smooth(0.7, 1, fitK) }}>edge B</div>
+          <div style={{ position: "absolute", left: 0, top: ySum - 46, fontFamily: F.sans, fontWeight: 600, fontSize: 24, color: C.chalk3, opacity: smooth(0.85, 1, fitK) }}>A + B: flat</div>
         </div>
       )}
-      {label(
+      {title(
         <>
-          Shape proposes the join: <span style={{ color: C.chalk2 }}>fits along {Math.round(SEAM.shape.score)} px, {SEAM.shape.rms.toFixed(2)} px misfit</span>
+          The edges mirror: <span style={{ color: C.chalk2 }}>fits along {Math.round(SEAM.shape.score)} px, {SEAM.shape.rms.toFixed(2)} px misfit</span>
         </>,
         s2.o,
         s2.x,
       )}
+
       {s3.o > 0.01 && (
-        <div style={{ position: "absolute", left: 0, right: 0, top: 250, display: "flex", flexDirection: "column", alignItems: "center", opacity: s3.o, transform: `translateX(${s3.x}px)` }}>
-          <Img src={staticFile("kit/fdr/seam-pair_p7_p9_0.jpg")} style={{ width: 840, height: 300, imageRendering: "pixelated", boxShadow: "0 14px 30px rgba(18,12,8,0.5)" }} />
-          <div style={{ marginTop: 26, width: 900, fontFamily: F.mono, fontSize: 24, lineHeight: 1.55, color: C.chalk2, opacity: ans > 0 ? 1 : 0 }}>
-            <div>
-              same place: <span style={{ color: C.violetLt }}>yes</span> · confidence 0.95
-            </div>
-            <div>
-              words across: <span style={{ color: C.violetLt }}>{(SEAM.read!.words as string[]).slice(0, Math.ceil(3 * clamp(ans * 2))).join(" · ")}</span>
-            </div>
-            <div style={{ color: C.chalk3, opacity: smooth(0.5, 1, ans) }}>“{SEAM.read!.reason}”</div>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 120, display: "flex", flexDirection: "column", alignItems: "center", opacity: s3.o, transform: `translateX(${s3.x}px)` }}>
+          <Img src={staticFile("kit/fdr/seam-pair_p7_p9_0.jpg")} style={{ width: 1680, height: 600, imageRendering: "pixelated", boxShadow: "0 18px 40px rgba(18,12,8,0.55)" }} />
+          <div style={{ marginTop: 24, fontFamily: F.serif, fontWeight: 500, fontSize: 92, lineHeight: 1, color: C.violetLt, letterSpacing: "-0.01em" }}>
+            {words.slice(0, Math.max(0, Math.ceil(words.length * wordsK))).join(" · ")}
           </div>
         </div>
       )}
-      {label(
-        <>
-          Muse Spark reads across the seam
-        </>,
-        s3.o,
-        s3.x,
+      {title(<>Muse Spark reads across the seam</>, s3.o, s3.x)}
+
+      {s4.o > 0.01 && (
+        <div style={{ position: "absolute", inset: 0, opacity: s4.o, transform: `translateX(${s4.x}px)` }}>
+          <div style={{ position: "absolute", left: 96, top: 120 + rise4, display: "flex", gap: 36, transform: `translate(${noise1(t * 0.3, 21) * 4}px, ${noise1(t * 0.27, 22) * 3}px)` }}>
+            {["A", "B", "C"].map((k, i) => {
+              // the rule played once: the reading rejects A and B (red, as in the twins beat) and picks C (violet)
+              const at = cues.s4 + 1.0 + i * 0.55;
+              const on = clamp((t - at) / 0.3);
+              const tagA = smooth(cues.s4 + 0.4, cues.s4 + 0.8, t);
+              const picked = i === 2;
+              return (
+                <div key={k} style={{ position: "relative", width: 552, height: 312 }}>
+                  <Img src={staticFile(`kit/twins-sheet/twin-${k}.webp`)} style={{ width: 552, height: 312, objectFit: "contain", opacity: picked ? 1 : 1 - 0.35 * on, filter: picked && on > 0 ? `drop-shadow(0 0 ${18 * on}px rgba(176,164,248,${0.45 * on})) drop-shadow(0 12px 20px rgba(18,12,8,0.5))` : "drop-shadow(0 12px 20px rgba(18,12,8,0.5))" }} />
+                  {!picked && (
+                    <svg width={552} height={312} style={{ position: "absolute", inset: 0 }}>
+                      <line x1={60} y1={262} x2={60 + 432 * on} y2={262 - 212 * on} stroke={C.red} strokeWidth={6} strokeLinecap="round" opacity={on > 0 ? 0.95 : 0} />
+                    </svg>
+                  )}
+                  <div style={{ position: "absolute", left: 276 - 22, top: 312 - 30, width: 44, height: 44, borderRadius: 22, display: "grid", placeItems: "center", opacity: tagA, fontFamily: F.sans, fontWeight: 700, fontSize: 24, color: C.chalk, background: on > 0.5 ? (picked ? C.violet : C.red) : "rgba(42,46,52,0.92)", boxShadow: "0 4px 14px rgba(20,14,10,0.35)" }}>
+                    {k}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ position: "absolute", left: 96, top: 470 + rise4, fontFamily: F.serif, fontWeight: 500, fontSize: 44, color: C.chalk2, opacity: smooth(cues.s4 + 0.3, cues.s4 + 0.8, t) }}>One edge, three scraps: placed only when two reads agree.</div>
+          {/* the tray, and a scrap the stack run really set aside */}
+          <div style={{ position: "absolute", left: 1010, top: 580, width: 814, height: 330, borderRadius: 8, background: "rgba(20,15,12,0.35)", boxShadow: `inset 0 0 0 1.5px ${C.chalkHair2}`, opacity: smooth(cues.s5 - 1.0, cues.s5 - 0.5, t) }}>
+            <Img
+              src={staticFile("kit/aside/p4-lit.png")}
+              style={{
+                position: "absolute",
+                left: 210,
+                top: 40 - (1 - clamp(trayK)) * 360,
+                height: 230,
+                transform: `rotate(${(1 - clamp(trayK)) * 9 - 3 + 2 * settle(t - cues.s5 - 0.35)}deg)`,
+                opacity: smooth(cues.s5 - 0.7, cues.s5 - 0.4, t),
+                filter: `drop-shadow(0 ${6 + 20 * (1 - clamp(trayK))}px ${12 + 18 * (1 - clamp(trayK))}px rgba(18,12,8,0.55))`,
+              }}
+            />
+          </div>
+          <div style={{ position: "absolute", left: 96, top: 600, width: 860, fontFamily: F.serif, fontWeight: 500, fontSize: 64, lineHeight: 1.1, color: C.chalk, opacity: smooth(cues.s5 - 0.3, cues.s5 + 0.3, t) }}>
+            Never forced.
+            <div style={{ marginTop: 16, fontFamily: F.sans, fontSize: 24, color: C.chalk3 }}>This scrap was set aside: its twins could not be told apart. 6 of 24 in the stack run.</div>
+          </div>
+        </div>
       )}
-      {s4.o > 0.01 && <TwinsTray t={t - cues.s4} o={s4.o} x={s4.x} />}
-      {label(
-        <>
-          Shape can't decide? <span style={{ color: C.chalk2 }}>Two reads must agree, or it's set aside.</span>
-        </>,
-        s4.o,
-        s4.x,
-      )}
-      {s5.o > 0.01 && <BothClues t={t - cues.s5} o={s5.o} x={s5.x} />}
-      {label(<>Never a forced fit</>, s5.o, s5.x)}
+      {title(<>Shape can't decide? The reading must agree.</>, s4.o, s4.x)}
     </AbsoluteFill>
   );
 };
-
-/** Three identical scraps: the shape can't choose. Placed only when two reads agree; otherwise set aside, not forced. */
-const TwinsTray: React.FC<{ t: number; o: number; x: number }> = ({ t, o, x }) => {
-  const tray = easeIO(clamp((t - 1.9) / 1.0));
-  return (
-    <div style={{ position: "absolute", left: 0, right: 0, top: 250, height: 560, opacity: o, transform: `translateX(${x}px)` }}>
-      <div style={{ position: "absolute", left: 250, top: 30, display: "flex", gap: 40 }}>
-        {["A", "B", "C"].map((k, i) => (
-          <div key={k} style={{ position: "relative", width: 340, height: 192, transform: i === 1 ? `translate(${tray * 380}px, ${tray * 300}px) rotate(${tray * -4}deg) scale(${1 - 0.18 * tray})` : undefined }}>
-            <Img src={staticFile(`kit/twins-sheet/twin-${k}.webp`)} style={{ width: 340, height: 192, objectFit: "contain", filter: "drop-shadow(0 8px 14px rgba(18,12,8,0.45))" }} />
-          </div>
-        ))}
-      </div>
-      <div style={{ position: "absolute", left: 250, top: 262, width: 640, fontFamily: F.serif, fontWeight: 500, fontSize: 30, lineHeight: 1.35, color: C.chalk2, opacity: smooth(0.5, 1.0, t) }}>
-        Placed only when two reads agree on the same scrap.
-      </div>
-      <div style={{ position: "absolute", left: 980, top: 300, width: 600, height: 230, border: `1.5px dashed ${C.chalkHair2}`, borderRadius: 6, opacity: smooth(1.5, 1.9, t) }}>
-        <div style={{ position: "absolute", left: 20, top: 188, fontFamily: F.sans, fontSize: 20, color: C.chalk3 }}>Set aside, not forced. In the stack run: 6 of 24.</div>
-      </div>
-    </div>
-  );
-};
-
-/** The rebuilt page with the run's own seams: violet where Muse confirmed one by reading, graphite where the edge alone decided. */
-const PAGE = scene.pages[0];
-const BothClues: React.FC<{ t: number; o: number; x: number }> = ({ t, o, x }) => {
-  const k = soft(t, 4);
-  const hgt = 760;
-  const sc = hgt / (PAGE.height + 16);
-  const wdt = (PAGE.width + 16) * sc;
-  const toImg = (wx: number, wy: number) => [(wx - PAGE.origin[0] + 8) * sc, (wy - PAGE.origin[1] + 8) * sc];
-  const draw = clamp(t / 1.6);
-  return (
-    <div style={{ position: "absolute", left: 0, right: 0, top: 210, display: "flex", justifyContent: "center", opacity: o, transform: `translateX(${x}px) translateY(${(1 - k) * 20}px)` }}>
-      <div style={{ display: "flex", gap: 56, alignItems: "center" }}>
-        <div style={{ position: "relative", width: wdt, height: hgt }}>
-          <Img src={staticFile("kit/proof/fdr-page.png")} style={{ width: wdt, height: hgt, filter: "drop-shadow(0 16px 32px rgba(18,12,8,0.55))" }} />
-          <svg width={wdt} height={hgt} style={{ position: "absolute", left: 0, top: 0 }}>
-            {scene.seams.map((sm, i) => {
-              if (!sm.line.length) return null;
-              const pts: string[] = [];
-              for (let j = 0; j < sm.line.length; j += 2) {
-                const [px, py] = toImg(sm.line[j], sm.line[j + 1]);
-                pts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
-              }
-              return <polyline key={i} points={pts.join(" ")} fill="none" stroke={sm.read ? C.violet : C.ink} strokeWidth={sm.read ? 2.4 : 1.6} strokeOpacity={sm.read ? 0.95 : 0.55} pathLength={100} strokeDasharray="100" strokeDashoffset={100 * (1 - draw)} />;
-            })}
-          </svg>
-        </div>
-        <div style={{ width: 560, fontFamily: F.serif, fontWeight: 500, fontSize: 34, lineHeight: 1.35, color: C.chalk }}>
-          <div>
-            <span style={{ display: "inline-block", width: 46, height: 3, background: C.violetLt, verticalAlign: "middle", marginRight: 16 }} />
-            {scene.reads} seams confirmed by reading
-          </div>
-          <div style={{ marginTop: 18 }}>
-            <span style={{ display: "inline-block", width: 46, height: 2, background: C.chalk3, verticalAlign: "middle", marginRight: 16 }} />
-            {scene.seams.length - scene.reads} placed by the edge alone
-          </div>
-          <div style={{ marginTop: 34, fontFamily: F.sans, fontSize: 22, lineHeight: 1.4, color: C.chalk3 }}>The app's join map shows both clues for every seam, with the exact image Muse read.</div>
-        </div>
-      </div>
-    </div>
-  );
-};
-void noise1;
 void easeOut;
-void cutMeta;
+void soft;

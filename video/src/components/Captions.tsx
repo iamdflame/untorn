@@ -20,6 +20,9 @@ export const Captions: React.FC<{ clips: Clip[] }> = ({ clips }) => {
   if (!cur) return null;
   const a = clamp((t - cur.start) / 0.1) * clamp((cur.end - t) / 0.1);
   return (
+    <>
+    {/* a calm band under the words, so a caption never sits on busy paper or UI */}
+    <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 180, opacity: a, background: "linear-gradient(0deg, rgba(36,30,26,0.82) 0%, rgba(36,30,26,0.6) 45%, rgba(36,30,26,0) 100%)" }} />
     <div
       style={{
         position: "absolute",
@@ -40,6 +43,7 @@ export const Captions: React.FC<{ clips: Clip[] }> = ({ clips }) => {
     >
       {cur.shown}
     </div>
+    </>
   );
 };
 

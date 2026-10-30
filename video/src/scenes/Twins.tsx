@@ -244,7 +244,9 @@ export const Twins: React.FC<{ cues?: TwinsCues; debug?: boolean }> = ({ cues = 
   );
 
   const t = useCurrentFrame() / FPS;
-  const verdictA = easeOut(clamp((t - cues.verdict) / 0.4));
+  // the verdict reads for about 2.5 s, then gives way as the camera pulls back to all three scraps (the page rises
+  // into the top of the frame, where this text sits)
+  const verdictA = easeOut(clamp((t - cues.verdict) / 0.4)) * (1 - smooth(cues.verdict + 2.45, cues.verdict + 2.85, t));
   const tieA = smooth(cues.tie + 0.9, cues.tie + 1.3, t) * (1 - smooth(cues.tryA - 0.5, cues.tryA - 0.1, t));
   const cam = camAt(t);
   const scoreLabel = cands.map((cd) => Math.round(cd.score)).join(" · ");
@@ -265,8 +267,10 @@ export const Twins: React.FC<{ cues?: TwinsCues; debug?: boolean }> = ({ cues = 
         );
       })}
       {tieA > 0.01 && (
-        <div style={{ position: "absolute", left: 0, right: 0, top: 480, textAlign: "center", opacity: tieA, fontFamily: F.serif, fontWeight: 500, fontSize: 40, color: C.chalk, textShadow: "0 2px 12px rgba(20,14,10,0.6)" }}>
-          Shape: three alike. <span style={{ color: C.chalk2 }}>Edge fit {scoreLabel}, a tie.</span>
+        // in the empty room left of the anchor, clear of the slot's outline and the row of scraps
+        <div style={{ position: "absolute", left: 96, top: 250, width: 600, opacity: tieA, fontFamily: F.serif, fontWeight: 500, fontSize: 46, lineHeight: 1.15, color: C.chalk, textShadow: "0 2px 12px rgba(20,14,10,0.6)" }}>
+          Shape: three alike.
+          <div style={{ marginTop: 10, fontSize: 32, color: C.chalk2 }}>Edge fit {scoreLabel}, a tie.</div>
         </div>
       )}
       {verdictA > 0.01 && (

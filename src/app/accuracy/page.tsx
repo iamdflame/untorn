@@ -1,6 +1,6 @@
 // /accuracy: the evidence. Every number is measured and every test set is labelled for what it is. Sources:
 // docs/SOLVER.md (Bench-S), docs/MODELS.md (the models), and this sample's recorded run scored against its answer key
-// (computed here, the same scoring the hourly health run uses).
+// (computed here, the same scoring the health run uses).
 
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -175,7 +175,7 @@ export default function AccuracyPage() {
           />
         </Section>
 
-        <Section id="live" title="This sample, recorded" label="Recorded run of the live pipeline" intro="The letter on the first screen: a simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. An hourly health check reruns it.">
+        <Section id="live" title="This sample, recorded" label="Recorded run of the live pipeline" intro="The letter on the first screen: a simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. A health check reruns it every 3 hours.">
           <Table
             caption="The recording the first screen plays"
             head={["Pieces placed correctly", "Joins right", "Joins confirmed by reading", "Photo to page", "Model cost"]}

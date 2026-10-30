@@ -1,5 +1,5 @@
 // The fixed samples, from public/samples/manifest.json: the first screen replays a recorded run of one; "Run it live"
-// sends the same photo through the real pipeline; the hourly health run checks one against its answer key. A new
+// sends the same photo through the real pipeline; the health run (every 3 hours) checks one against its answer key. A new
 // sample drops in by adding its files and a manifest entry (see the manifest's note).
 
 import manifest from "../../../public/samples/manifest.json";
@@ -61,7 +61,7 @@ const M = manifest as unknown as Manifest;
 export const SAMPLES: Record<string, Sample> = M.samples;
 export const STACKS: Record<string, StackTrial> = M.stacks;
 export const DEFAULT_SAMPLE: string = M.default;
-/** The sample the hourly health run scores (it needs data/samples/<name>/key.json). */
+/** The sample the health run scores (it needs data/samples/<name>/key.json). */
 export const HEALTH_SAMPLE: string = M.health;
 
 export const sampleOrDefault = (name: string | null | undefined): Sample => (name && SAMPLES[name]) || SAMPLES[DEFAULT_SAMPLE];

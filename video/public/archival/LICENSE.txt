@@ -1,0 +1,24 @@
+Archival photographs used in the Untorn demo film
+
+1. stasi-depot-1-360.jpg
+   Maximilian Schönherr, "Archivalien im Depot der Stasiunterlagenbehörde 1 – 360° Foto" (18 October 2018).
+   Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Archivalien_im_Depot_der_Stasiunterlagenbeh%C3%B6rde_1_%E2%80%93_360%C2%B0_Foto.jpg
+   Original file: https://upload.wikimedia.org/wikipedia/commons/1/12/Archivalien_im_Depot_der_Stasiunterlagenbeh%C3%B6rde_1_%E2%80%93_360%C2%B0_Foto.jpg
+   5376 x 2688, SHA-1 686d516858c2464d7bb110bbea2a5655e00ac80d (as downloaded through the Commons API, 2026-10-29).
+   Licence: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0), https://creativecommons.org/licenses/by-sa/4.0/
+   Changes: reprojected from the equirectangular 360° panorama into rectilinear camera views and cropped (in the film).
+
+2. stasi-depot-3-360.jpg
+   Maximilian Schönherr, "Archivalien im Depot der Stasiunterlagenbehörde 3 – 360° Foto" (18 October 2018): a panorama
+   taken inside a plastic sack of slips torn by Stasi (MfS) staff in 1989.
+   Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Archivalien_im_Depot_der_Stasiunterlagenbeh%C3%B6rde_3_%E2%80%93_360%C2%B0_Foto.jpg
+   Original file: https://upload.wikimedia.org/wikipedia/commons/a/af/Archivalien_im_Depot_der_Stasiunterlagenbeh%C3%B6rde_3_%E2%80%93_360%C2%B0_Foto.jpg
+   5376 x 2688, SHA-1 197b11badbb28adb0465d4c5bcdfed34360cbc59 (as downloaded through the Commons API, 2026-10-29).
+   Licence: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0), https://creativecommons.org/licenses/by-sa/4.0/
+   Changes: reprojected from the equirectangular 360° panorama into rectilinear camera views and cropped (in the film).
+
+Attribution as shown in the film's end card and in video/CREDITS.md:
+   Archive photos: Maximilian Schönherr, Wikimedia Commons, CC BY-SA 4.0 (cropped and reprojected).
+
+The files are the unmodified originals; the film's views are made from them at render time. Under CC BY-SA 4.0,
+adapted versions of these images are shared under the same licence.

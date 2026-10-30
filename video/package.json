@@ -1,0 +1,29 @@
+{
+  "name": "untorn-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Untorn's demo video (Remotion), built from captures of the real product",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/media-utils": "4.0.539",
+    "@remotion/renderer": "4.0.539",
+    "@remotion/bundler": "4.0.539",
+    "remotion": "4.0.539",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "@types/node": "22.10.2",
+    "typescript": "5.9.3",
+    "playwright": "1.64.1",
+    "sharp": "0.35.5",
+    "esbuild": "0.28.1",
+    "tsx": "4.23.15"
+  }
+}

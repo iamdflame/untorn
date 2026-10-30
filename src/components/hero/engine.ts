@@ -417,8 +417,13 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     H = hr.height;
     DPR = Math.min(2, devicePixelRatio || 1);
     phone = W <= 760;
-    cv.width = Math.round(W * DPR);
-    cv.height = Math.round(H * DPR);
+    // setting a canvas's size clears it, even to the same size, and a live run lays out on every event: only on change
+    const cw = Math.round(W * DPR);
+    const ch = Math.round(H * DPR);
+    if (cv.width !== cw || cv.height !== ch) {
+      cv.width = cw;
+      cv.height = ch;
+    }
     R.area = rectOf(elArea);
     R.center = rectOf(elCenter);
     R.proof = rectOf(elProof);

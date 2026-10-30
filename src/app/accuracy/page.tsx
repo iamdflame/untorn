@@ -1,6 +1,6 @@
 // /accuracy: the evidence. Every number is measured and every test set is labelled for what it is. Sources:
 // docs/SOLVER.md (Bench-S), docs/MODELS.md (the models), and this sample's recorded run scored against its answer key
-// (computed here, the same scoring the hourly health run uses).
+// (computed here, the same scoring the health run uses).
 
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -83,13 +83,13 @@ export default function AccuracyPage() {
         <div className="acc-top">
           <div>
             <h1>How accurate is it?</h1>
-            <p className="lede">Every number here was measured, and every test set says what it is. Simulated tears have known answers. No real hand-torn page has been scored yet, and this page says so.</p>
+            <p className="lede">Every number here was measured, and every test set says what it is. Simulated tears have known answers. One real hand-torn page has been scored so far, against a photo of it taken before it was torn.</p>
           </div>
           <dl className="acc-keys">
             <div>
               <dt>Pieces placed correctly, shape only</dt>
               <dd>
-                97.2%
+                99.5%
                 <small>218 pieces, single pages of 8 to 12 pieces (Bench-S, simulated)</small>
               </dd>
             </div>
@@ -101,10 +101,10 @@ export default function AccuracyPage() {
               </dd>
             </div>
             <div>
-              <dt>Seams Muse judged right</dt>
+              <dt>Text errors on shredded documents</dt>
               <dd>
-                23 of 24
-                <small>12 true and 12 adversarial seams (cw1)</small>
+                0.050
+                <small>NED on 64 documents (ShredBench protocol, our replica); Muse Spark alone on the same photos: 0.404</small>
               </dd>
             </div>
             <div>
@@ -124,22 +124,22 @@ export default function AccuracyPage() {
             caption="Shape only (no reading)"
             head={["Family", "Cases", "Pieces", "Placed correctly", "Misplaced", "Join precision", "Perfect pages"]}
             rows={[
-              ["Single page, 8–12 pieces", 24, 218, "97.2%", 0, "100%", "22 of 24"],
-              ["Single page, 6–7 pieces", 6, 40, "95.0%", 0, "100%", "5 of 6"],
-              ["Single page, 26–38 pieces", 8, 271, "100%", 0, "100%", "8 of 8"],
-              ["Mixed bag, 2–3 pages", 8, 160, "99.4%", 0, "100%", "19 of 20"],
+              ["Single page, 8–12 pieces", 24, 218, "99.5%", 0, "100%", "23 of 24"],
+              ["Single page, 6–7 pieces", 6, 40, "100%", 0, "100%", "6 of 6"],
+              ["Single page, 26–38 pieces", 8, 271, "99.3%", 0, "100%", "6 of 8"],
+              ["Mixed bag, 2–3 pages", 8, 160, "98.1%", 0, "100%", "17 of 20"],
               ["35% straight cuts", 6, 57, "87.7%", 0, "100%", "4 of 6"],
               ["Stack, 3 pages × 6–10", 8, 192, "0%: every twin left for reading", 0, "–", "0 of 24"],
             ]}
-            note="Placed correctly: within 3 px and 1° of the truth, up to one rigid move per page. Source: docs/SOLVER.md."
+            note="Placed correctly: within 3 px and 1° of the truth, up to one rigid move per page. Measured on the deployed solver (scripts/eval/solver.ts), 30 Oct 2026."
           />
           <Table
             caption="Shape alone, and shape with reading"
             head={["Method", "Placed correctly", "Misplaced"]}
             rows={[
-              ["Shape only, single pages", "97.2%", 0],
-              ["Shape + a reader right 90% of the time, single pages", "96.3%", 0],
-              ["Shape + a reader right 90% of the time, mixed bags", "97.5%", 0],
+              ["Shape only, single pages", "99.5%", 0],
+              ["Shape + a reader right 90% of the time, single pages", "99.5%", 0],
+              ["Shape + a reader right 90% of the time, mixed bags", "98.1%", 0],
               ["Reading only", "not measured", "–"],
             ]}
             note="On ordinary tears the shape already decides; reading is what decides stacks (below). The simulated reader errs at a set rate on every request."
@@ -149,14 +149,33 @@ export default function AccuracyPage() {
         <Section id="stack" title="Stack tears: identical outlines" label="Simulated" intro="Pages torn together share every outline, so shape is a tie. Only reading across the tear can tell the twins apart.">
           <Table
             caption="3 pages × 6–10 pieces, 8 cases, 192 pieces"
-            head={["Reader", "Placed correctly", "Misplaced", "Choice sheets per case"]}
+            head={["Reader", "Placed correctly", "Misplaced", "Perfect pages"]}
             rows={[
-              ["None (shape only)", "0%: every twin left for reading", 0, "–"],
-              ["Simulated reader, right 100% of the time", "99.0%", 0, "median 95"],
-              ["Simulated reader, right 90% of the time", "92.2%", 0, "median 95"],
-              ["Simulated reader, right 82% of the time", "85.9%", "2 (1.0%)", "median 95"],
+              ["None (shape only)", "0%: every twin left for reading", 0, "0 of 24"],
+              ["Simulated reader, right 100% of the time", "99.5%", 0, "23 of 24"],
+              ["Simulated reader, right 90% of the time", "96.4%", 0, "19 of 24"],
+              ["Simulated reader, right 82% of the time", "89.1%", "2 (1.0%)", "15 of 24"],
             ]}
-            note="Pixel appearance alone ranks the true twin first in 48% of twin groups (chance is about 33%). Source: docs/SOLVER.md."
+            note="Shape alone flags 85.4% of the twin seams as ties for reading. The live recording of three real letters torn as one stack: 22 of 22 readings picked the right piece. Pixel appearance alone ranks the true twin first in 48% of twin groups (chance is about 33%)."
+          />
+        </Section>
+
+        <Section
+          id="shredbench"
+          title="Shredded documents: Untorn against one model alone"
+          label="ShredBench protocol"
+          intro="ShredBench (ACL Findings 2026) scores a model that reads a photo of scattered fragments and writes out the document, by normalised edit distance (NED, lower is better). We gave Muse Spark the same photos with the benchmark's own prompt, and ran Untorn (the same Muse Spark with SAM 3.1 and the solver) on them."
+        >
+          <Table
+            caption="Text errors (NED) of the rebuilt document"
+            head={["Set", "Documents", "Untorn", "Shape only, no reads", "Muse Spark alone"]}
+            rows={[
+              ["ShredBench's own images with published answers (English news, 8 pieces)", 3, "0.002", "0.063", "0.528"],
+              ["Replica, 8 pieces (news, Chinese news, code, tables)", 64, "0.050", "0.074", "0.404"],
+              ["Replica, 12 pieces", 32, "0.050", "–", "0.436"],
+              ["Replica, 16 pieces", 32, "0.077", "–", "0.469"],
+            ]}
+            note="Only 3 of ShredBench's published renders come with ground truth, so the broad test is our own re-implementation of its protocol (fragments composited in 2D, no 3D render), labelled as a replica. SAM 3.1 found all 2,592 replica pieces. The paper's frontier results (Gemini 3 Pro 0.33–0.41) are on its full set, not these images. Repeated reads of the 3 official images vary between 0.002 and 0.006 on average. Method, caveats and failure cases: docs/SHREDBENCH.md."
           />
         </Section>
 
@@ -175,7 +194,7 @@ export default function AccuracyPage() {
           />
         </Section>
 
-        <Section id="live" title="This sample, recorded" label="Recorded run of the live pipeline" intro="The letter on the first screen: a simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. An hourly health check reruns it.">
+        <Section id="live" title="This sample, recorded" label="Recorded run of the live pipeline" intro="The letter on the first screen: a simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. A health check reruns it every 3 hours.">
           <Table
             caption="The recording the first screen plays"
             head={["Pieces placed correctly", "Joins right", "Joins confirmed by reading", "Photo to page", "Model cost"]}
@@ -184,8 +203,18 @@ export default function AccuracyPage() {
           />
         </Section>
 
-        <Section id="real" title="Real tears" label="Not yet measured" intro="Hand-torn paper photographed on a table, scored against a photo of each page taken before tearing. None has been scored yet; this table fills in when one is.">
-          <Table caption="Real tears (Bench-R)" head={["Page", "Pieces", "Placed correctly", "Joins right", "Transcript errors"]} rows={[["–", "–", "–", "–", "–"]]} />
+        <Section id="real" title="Real tears" label="Measured: 1 page" intro="Hand-torn paper photographed on a table with a phone, scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place.">
+          <Table
+            caption="A printed report page, torn by hand into 10 pieces: the same photo, four live runs"
+            head={["Run", "Placed correctly", "Misplaced", "Page upright", "Transcript errors", "Photo to page"]}
+            rows={[
+              [1, "8 of 10", 0, "yes", "12.0%", "74.7 s"],
+              [2, "6 of 10", "1 (a true neighbour, 2.3° off)", "yes", "24.8%", "55.0 s"],
+              [3, "8 of 10", 0, "yes", "11.7%", "89.9 s"],
+              ["4, on the live site from the phone's original photo", "7 of 10", 0, "yes", "25.5%", "80.3 s"],
+            ]}
+            note="Run on 30 Oct 2026 with the deployed version. Pieces that aren't placed are set aside, never forced; the transcript errors count the text of set-aside pieces as missing. Results vary between runs because Muse's reads vary. The version before (a read could override the shape and the lines) placed 6, 7 and 6 of 10, with three wrong joins in one run; before the real-paper work, this photo had 0 of 10 placed correctly. The page's text is not shown here."
+          />
         </Section>
 
         <Section id="method" title="Method" label="How a page comes back">
@@ -203,7 +232,8 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper (fibres, curl, glare) is not yet measured.</li>
+            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl and a tilted camera, 6 to 8 of 10 pieces land in the right place on the one real page measured so far; the rest are set aside.</li>
+            <li>A piece can join its true neighbour a few pixels off its place (run 2 above).</li>
           </ul>
         </Section>
       </div>

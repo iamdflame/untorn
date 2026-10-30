@@ -2,6 +2,8 @@
 
 **Untorn is a project that puts torn documents back together from one photo, for archivists facing millions of hand-torn pages.** Meta's Segment Anything Model (SAM 3.1) cuts out every fragment to the pixel. Muse reads the half-letters across each tear, like a crossword, to decide which pieces belong together. When pages were torn as a stack, the pieces have identical outlines, so shape can't decide; reading does.
 
+![Untorn rebuilding a torn 1927 letter: the pieces lift and come together, and Muse reads the words hope and go across a tear (a simulated tear, recorded run)](docs/media/untorn-hero.gif)
+
 **Live:** https://untorn.vercel.app · **Demo video:** _(link added at submission)_ · **Verify it yourself:** [below](#verify-it-yourself)
 
 Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026).
@@ -27,24 +29,21 @@ flowchart LR
 - **The two-clue rule:** a join is accepted only when the edges fit AND the words continue. Untorn never forces a join; unplaced pieces stay unplaced.
 - **Muse** transcribes the rebuilt page, marks gaps as `[…]` and never fills them in.
 
-More: [`docs/SOLVER.md`](docs/SOLVER.md) · [`docs/MODELS.md`](docs/MODELS.md) · [`docs/API.md`](docs/API.md) · [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
+More: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/SOLVER.md`](docs/SOLVER.md) · [`docs/MODELS.md`](docs/MODELS.md) · [`docs/SHREDBENCH.md`](docs/SHREDBENCH.md) · [`docs/API.md`](docs/API.md) · [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
 
 ## Measured
-All numbers below are on **simulated tears of real public-domain pages**, scored against known answers. Real hand-torn paper is being tested next and will be reported separately.
+Every number was measured, and each row says what kind of test it is: a real tear, a published benchmark, or a simulated tear of a real public-domain page with a known answer. Full tables: [untorn.vercel.app/accuracy](https://untorn.vercel.app/accuracy) and [`docs/SHREDBENCH.md`](docs/SHREDBENCH.md).
 
-| What | Result |
-|---|---|
-| SAM 3.1 segmentation, 10-piece photo (2400×1800 and 4800×3600) | 10/10 pieces; mean IoU 0.987–0.995; median edge error 0.42–0.65 px; one SAM call, 2–6 s |
-| SAM 3.1 segmentation, 30-piece stack (4000×3000) | 30/30 pieces; median edge error 0.52 px |
-| Solver, single pages, 8–12 pieces, geometry only (24 held-out cases) | 97.2% of pieces placed correctly (212/218); 0 misplaced; join precision 100% |
-| Solver, 26–38 pieces (8 cases) | 100% placed (271/271) |
-| Solver, mixed bags of 2–3 pages | 99.4% placed |
-| Stack tears (identical outlines), geometry only | Every twin flagged; 0 misplaced (it waits for reading) |
-| Stack tears, with a reading clue that is right 90% of the time | 92.2% placed; 0 misplaced |
-| Muse Spark reading across seams (binary: same place or not) | 23 of 24 correct |
-| Muse Spark choosing the true twin among identical outlines | 12 of 12 |
-| Pixel appearance alone choosing the twin (no reading) | 48% (chance is 33%) |
-| Full live run on the sample letter (production) | 10/10 pieces, 17/17 joins, about 36–44 s, about $0.15 |
+| What | Result | Kind |
+|---|---|---|
+| A printed page torn by hand into 10 pieces, 4 live runs (one on the live site from the phone's original photo) | 6–8 of 10 placed correctly, the rest set aside; one piece 2.3° off in one run; the page upright every time; 12–26% transcript errors (set-aside pieces count as missing) | real tear |
+| Shredded documents, 64 documents × 8 pieces (news, Chinese news, code, tables) | text errors (NED) **0.050**; Muse Spark alone on the same photos **0.404** | ShredBench protocol, our replica |
+| ShredBench's own images with published answers | NED 0.002; Muse Spark alone 0.528 | ShredBench, 3 official images |
+| A 1927 letter, 10 pieces, the full live pipeline | 10/10 placed, 13/13 joins, 0 misplaced, transcript CER 0.0%, 41 s, $0.15 | simulated tear |
+| Three letters torn as one stack, 24 pieces | 18/24 placed, 0 misplaced; 22 of 22 readings chose the right piece among identical outlines | simulated stack tear |
+| Shape only, single pages of 8–12 pieces (24 held-out cases) | 99.5% placed correctly; join precision 100%; 0 misplaced of 938 pieces across six families | simulated (Bench-S) |
+| SAM 3.1 segmentation | every piece found: 2,592 of 2,592 in the ShredBench replica, 10 of 10 on the real photo; median edge error 0.42 px on a 4800×3600 photo | replica, real, simulated |
+| Full live run on the sample letter (the health check) | 10/10 pieces, 17/17 joins, 34–59 s, about $0.11–0.15 | simulated tear |
 
 ## Verify it yourself
 1. Open https://untorn.vercel.app. The first screen replays a recorded run of the real pipeline; press **Run it live** to send the same photo through it again.
@@ -67,10 +66,11 @@ pnpm dev
   - fonts: Gambetta (Fontshare), Schibsted Grotesk and IBM Plex Mono (OFL).
 
 ## What's live, and known limits
-- **Live:** the full pipeline on uploads and phone photos, recorded-run replay, the join map, per-run links, a health check that rebuilds a known sample every hour, a daily spend cap.
+- **Live:** the full pipeline on uploads and phone photos, recorded-run replay, the join map, per-run links, a health check that rebuilds a known sample every 3 hours, a daily spend cap.
 - **Limits:**
+  - Real hand-torn paper is harder than simulations: on the one real page measured, 6–8 of 10 pieces land and the rest are set aside, and a live run takes 55–90 s.
   - Very large stacks can end with some twins unplaced, because reading is capped per run.
-  - Straight cuts (scissors, shredder strips) are weaker than hand tears.
+  - Straight cuts (scissors, shredder strips) are weaker than hand tears in the live app; the straight-edge tiling runs in the benchmark runner only.
   - Tilted photos, glare and overlapping pieces aren't detected yet.
   - Double-sided pieces use only the visible side.
 
@@ -79,5 +79,6 @@ pnpm dev
 - Untorn's idea, research and code date from Oct 27–28. The repository's other branches hold an earlier project from this event (Push, a CPR trainer), from which only the SAM 3.1 client and parser were carried over.
 
 ## Credits and licences
+- Every third-party model, package, font, document, photo and voice, with its licence: [`THIRD_PARTY.md`](THIRD_PARTY.md).
 - Sample letters: public domain. Pierre Chouteau to Mary Louise Dalton, 1903, Missouri Historical Society, via DPLA and Wikimedia Commons. Other pages are listed in [`scripts/bench/PAGES.md`](scripts/bench/PAGES.md).
 - The tears in the samples are simulated, and every sample is labelled as such in the app.

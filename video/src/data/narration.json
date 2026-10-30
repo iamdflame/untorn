@@ -1,0 +1,152 @@
+{
+  "note": "The narration, scene by scene. Each chunk is [spoken, shown]: the narrator reads `spoken` (numbers as words); the captions show `shown` (figures), timed by the voice's own character timestamps for that chunk. scripts/voice/narrate.mjs generates one file per scene; a changed scene re-generates alone. Heteronyms: \"tear\" (a rip) is spoken as \"tare\" so the voice never reads it as a teardrop; the captions keep \"tear\".",
+  "scenes": [
+    {
+      "id": "cold",
+      "chunks": [
+        [
+          "Untorn puts torn documents back together from a single photo.",
+          "Untorn puts torn documents back together from a single photo."
+        ],
+        [
+          "Meta's SAM three point one cuts out every piece,",
+          "Meta's SAM 3.1 cuts out every piece,"
+        ],
+        [
+          "and Muse reads the half-words across each tare, like a crossword.",
+          "and Muse reads the half-words across each tear, like a crossword."
+        ]
+      ]
+    },
+    {
+      "id": "sacks",
+      "chunks": [
+        [
+          "In nineteen eighty-nine, the Stasi began tearing up its files by hand:",
+          "In 1989, the Stasi began tearing up its files by hand:"
+        ],
+        [
+          "about sixteen thousand sacks.",
+          "about 16,000 sacks."
+        ],
+        [
+          "About fifteen thousand four hundred are still in pieces.",
+          "About 15,400 are still in pieces."
+        ],
+        [
+          "At this pace, Germany's auditors say it would take",
+          "At this pace, Germany's auditors say it would take"
+        ],
+        [
+          "about eight hundred and forty-seven years.",
+          "about 847 years."
+        ]
+      ]
+    },
+    {
+      "id": "twins",
+      "chunks": [
+        [
+          "Pages torn together, as a stack, share the very same edge.",
+          "Pages torn together, as a stack, share the very same edge."
+        ],
+        [
+          "Shape alone can't tell them apart.",
+          "Shape alone can't tell them apart."
+        ],
+        [
+          "So Untorn reads.",
+          "So Untorn reads."
+        ],
+        [
+          "Only the true neighbour completes the words.",
+          "Only the true neighbour completes the words."
+        ]
+      ]
+    },
+    {
+      "id": "proof",
+      "chunks": [
+        [
+          "On the same shredded photos, Muse Spark alone gets about forty percent of the text wrong.",
+          "On the same shredded photos, Muse Spark alone gets about 40% of the text wrong."
+        ],
+        [
+          "With SAM three point one and Untorn's solver, the same model gets about five percent wrong.",
+          "With SAM 3.1 and Untorn's solver, the same model gets about 5% wrong."
+        ]
+      ]
+    },
+    {
+      "id": "golden",
+      "chunks": [
+        [
+          "Tear a page, take one photo with your phone,",
+          "Tear a page, take one photo with your phone,"
+        ],
+        [
+          "and the laptop runs the real pipeline, live.",
+          "and the laptop runs the real pipeline, live."
+        ],
+        [
+          "SAM three point one finds the pieces, Muse reads across the tares,",
+          "SAM 3.1 finds the pieces, Muse reads across the tears,"
+        ],
+        [
+          "the page comes back together,",
+          "the page comes back together,"
+        ],
+        [
+          "and Muse reads it back.",
+          "and Muse reads it back."
+        ]
+      ]
+    },
+    {
+      "id": "hood",
+      "chunks": [
+        [
+          "Under the hood, the solver traces SAM's masks to a fraction of a pixel",
+          "Under the hood, the solver traces SAM's masks to a fraction of a pixel"
+        ],
+        [
+          "and proposes joins from the shape of each tare.",
+          "and proposes joins from the shape of each tear."
+        ],
+        [
+          "Muse Spark reads across them.",
+          "Muse Spark reads across them."
+        ],
+        [
+          "If the shape can't decide, the reading must agree, or the piece is set aside.",
+          "If the shape can't decide, the reading must agree, or the piece is set aside."
+        ],
+        [
+          "Never forced.",
+          "Never forced."
+        ]
+      ]
+    },
+    {
+      "id": "peak",
+      "chunks": [
+        [
+          "Ten pieces, whole again, and read:",
+          "Ten pieces, whole again, and read:"
+        ],
+        [
+          "“I am starting a Patients' Aid Fund to help these poor children.”",
+          "“I am starting a Patients' Aid Fund to help these poor children.”"
+        ],
+        [
+          "About fifteen thousand four hundred sacks are still waiting.",
+          "About 15,400 sacks are still waiting."
+        ],
+        [
+          "Untorn reads across the tares.",
+          "Untorn reads across the tears."
+        ]
+      ]
+    }
+  ]
+}

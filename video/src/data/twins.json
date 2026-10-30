@@ -1,0 +1,85 @@
+{
+ "sample": "stack-3-letters",
+ "runId": "rec-stack-3-letters-5cc28e",
+ "read": "choice:twin-p3-65",
+ "anchor": {
+  "id": "p3",
+  "page": 2,
+  "pagePose": {
+   "theta": 2.651102,
+   "tx": 5143.1,
+   "ty": -1404
+  }
+ },
+ "candidates": [
+  {
+   "key": "A",
+   "id": "p1",
+   "pose": {
+    "theta": 1.8492800631724857,
+    "tx": 6175.6938040131245,
+    "ty": -1568.6193279156275
+   },
+   "score": 837.6597887289503,
+   "rms": 1.0522878389025778,
+   "fineRms": 0.6314506085110951,
+   "overlap": 854,
+   "twinGroup": "twin-p1-4",
+   "page": 1,
+   "pagePose": {
+    "theta": -1.753455,
+    "tx": 365.5,
+    "ty": 2876.3
+   }
+  },
+  {
+   "key": "B",
+   "id": "p21",
+   "pose": {
+    "theta": -1.2775562587270837,
+    "tx": 360.0695263582337,
+    "ty": 1873.7384323344286
+   },
+   "score": 776.2935392803533,
+   "rms": 1.1661642729544335,
+   "fineRms": 0.660153477970985,
+   "overlap": 834,
+   "twinGroup": "twin-p21-14",
+   "page": 0,
+   "pagePose": {
+    "theta": 1.394928,
+    "tx": 4004.5,
+    "ty": -2826.2
+   }
+  },
+  {
+   "key": "C",
+   "id": "p5",
+   "pose": {
+    "theta": -0.6987389173578362,
+    "tx": 2754.605995321716,
+    "ty": 604.688465565898
+   },
+   "score": 788.8896337367704,
+   "rms": 1.1730493114831473,
+   "fineRms": 0.6406462707054441,
+   "overlap": 816,
+   "twinGroup": "twin-p5-18",
+   "page": 2,
+   "pagePose": {
+    "theta": 1.952726,
+    "tx": 2427.5,
+    "ty": -639.3
+   }
+  }
+ ],
+ "choice": "C",
+ "confidence": 0.97,
+ "words": [
+  "I am directed by the",
+  "contract which should be dated",
+  "witness, whose signature",
+  "than \"The Surgeon General,"
+ ],
+ "reason": "Left endings I a-, tract, witne-, th join C beginnings m, which, ss,, an to form am, contract, witness, than with aligned baselines."
+}

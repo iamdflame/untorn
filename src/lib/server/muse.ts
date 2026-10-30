@@ -24,6 +24,7 @@ import {
   SORT_SCHEMA,
   TRANSLATE_SCHEMA,
   type ChoicePromptVersion,
+  type ReadPromptVersion,
   type SeamPromptVersion,
   ORIENTATION_SCHEMA,
 } from "./prompts";
@@ -577,15 +578,20 @@ export async function pageOrientation(pageImage: ImageInput, opts: MuseOptions =
 /** The model writes the gap marker as "[…]" or "[...]" (seen live); normalise every spelling to GAP. */
 export const normaliseGaps = (s: string) => s.replace(/\[\s*(?:\.\s*\.\s*\.|…)\s*\]/g, GAP);
 
-/** Transcribe a reassembled page; missing or illegible text comes back as the gap marker, never invented. */
-export async function readPage(pageImage: ImageInput, opts: MuseOptions = {}): Promise<MuseOutcome<PageReading>> {
+/**
+ * Transcribe a reassembled page; missing or illegible text comes back as the gap marker, never invented.
+ * `prompt`: "v1" (default) keeps line breaks as on the page; "markdown" converts to Markdown by ShredBench's rules;
+ * "parts" reads a sheet of partly reassembled parts and loose pieces in their original order.
+ */
+export async function readPage(pageImage: ImageInput, opts: MuseOptions & { prompt?: ReadPromptVersion } = {}): Promise<MuseOutcome<PageReading>> {
+  const version = opts.prompt ?? "v1";
   return museCall(
     {
       fn: "readPage",
       schemaName: "page_reading",
       schema: READ_SCHEMA,
-      content: [textPart(PROMPTS.read.v1), imagePart(pageImage)],
-      promptVersion: `${PROMPTS_VERSION}/read.v1`,
+      content: [textPart(PROMPTS.read[version]), imagePart(pageImage)],
+      promptVersion: `${PROMPTS_VERSION}/read.${version}`,
       defaults: { model: "muse-spark-1.3", effort: "low", maxOutputTokens: 8000, timeoutMs: 90_000, deadlineMs: 150_000, hedgeAfterMs: 45_000 },
       check: (j) => {
         if (!isObj(j)) return null;

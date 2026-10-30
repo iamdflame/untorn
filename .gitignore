@@ -34,3 +34,6 @@ playwright-report/
 
 # private real-photo cases (the user's own photos; never in the repo)
 scripts/eval/real.local.json
+
+# the demo video: captures and renders stay local (video/out is covered by out/ above)
+video/capture/

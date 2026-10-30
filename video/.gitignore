@@ -1,0 +1,10 @@
+# renders, captures and other large binaries stay local
+node_modules/
+/out/
+/capture/
+/public/capture
+/public/kit/
+/public/audio/scratch/
+/public/audio/narration/*.wav
+/public/audio/mix.wav
+/public/audio/backup.wav

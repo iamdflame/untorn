@@ -1,0 +1,6 @@
+# The video is its own pnpm project, outside the app's install (the app's root workspace lists only itself).
+packages:
+  - "."
+allowBuilds:
+  esbuild: false
+  sharp: false

@@ -59,6 +59,31 @@ export function gridTear(width: number, height: number, cols: number, rows: numb
   };
 }
 
+/** A page cut into Voronoi cells (ShredBench's scissor model): n random seeds, each pixel to its nearest seed. */
+export function voronoiPage(width: number, height: number, n: number, seed: number): SynthPage & { seeds: [number, number][] } {
+  const rand = rng(seed);
+  const seeds: [number, number][] = Array.from({ length: n }, () => [rand() * width, rand() * height]);
+  return {
+    width,
+    height,
+    pieces: n,
+    seeds,
+    label: (x, y) => {
+      if (x < 0 || y < 0 || x >= width || y >= height) return -1;
+      let best = 0;
+      let bd = Infinity;
+      for (let k = 0; k < n; k++) {
+        const d = (x - seeds[k][0]) ** 2 + (y - seeds[k][1]) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = k;
+        }
+      }
+      return best;
+    },
+  };
+}
+
 /** Paper with dark typed-looking lines every `pitch` px (words broken by gaps), as RGBA at page point (x, y). */
 export function paperColour(x: number, y: number, pitch = 22, seed = 1): [number, number, number] {
   const line = Math.floor(y / pitch);
@@ -74,12 +99,62 @@ export function paperColour(x: number, y: number, pitch = 22, seed = 1): [number
   return ink || asc ? [40, 40, 60] : [236, 232, 222];
 }
 
+/**
+ * Text lines without any lattice (paperColour's 3 px strokes and 31 px words line up into columns that can beat the
+ * lines in a text-angle search on a small turned piece): each line has its own random word lengths and gaps.
+ */
+const layouts = new Map<string, { words: Float64Array; stems: Float64Array }>();
+const inIntervals = (v: Float64Array, x: number) => {
+  let lo = 0;
+  let hi = v.length / 2 - 1;
+  if (hi < 0) return false;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (v[2 * mid] <= x) lo = mid;
+    else hi = mid - 1;
+  }
+  return x >= v[2 * lo] && x < v[2 * lo + 1];
+};
+export function blockColour(x: number, y: number, pitch = 22, seed = 1): [number, number, number] {
+  const line = Math.floor(y / pitch);
+  const inLine = y - line * pitch;
+  const paper: [number, number, number] = [236, 232, 222];
+  if (inLine < 2 || inLine >= 13) return paper;
+  const key = `${seed}:${line}`;
+  let l = layouts.get(key);
+  if (!l) {
+    // word starts and ends along the line out to ±4000 px, and ascender stems (like d, h, l) above some words
+    const rand = rng(seed * 7919 + line * 104729 + 17);
+    const words: number[] = [];
+    const stems: number[] = [];
+    let u = -4000 + rand() * 40;
+    while (u < 4000) {
+      const len = 12 + rand() * 50;
+      words.push(u, u + len);
+      for (let k = 0; k < 2; k++) {
+        if (rand() < 0.6) {
+          const at = u + 2 + rand() * (len - 6);
+          stems.push(at, at + 2.5);
+        }
+      }
+      u += len + 6 + rand() * 6;
+    }
+    const st: [number, number][] = [];
+    for (let k = 0; k < stems.length; k += 2) st.push([stems[k], stems[k + 1]]);
+    st.sort((a, b) => a[0] - b[0]);
+    l = { words: Float64Array.from(words), stems: Float64Array.from(st.flat()) };
+    layouts.set(key, l);
+  }
+  const ink = inLine >= 6 ? inIntervals(l.words, x) : inIntervals(l.stems, x);
+  return ink ? [40, 40, 60] : paper;
+}
+
 /** Rasterize piece k of the page at a pose (page → photo). Returns the fragment input and its true pose. */
 export function scatterPiece(
   page: SynthPage,
   k: number,
   pose: Pose,
-  opts: { noise?: number; seed?: number; colour?: boolean; textSeed?: number; id?: string } = {},
+  opts: { noise?: number; seed?: number; colour?: boolean; textSeed?: number; id?: string; text?: "typed" | "blocks" } = {},
 ): FragmentInput {
   const inv = poseInvert(pose);
   // bounds of the piece in the photo: transform the page bbox of the piece
@@ -127,7 +202,7 @@ export function scatterPiece(
       const inside = page.label(px + jx, py + jy) === k;
       data[r * w + c] = inside ? 1 : 0;
       if (opts.colour !== false) {
-        const [R, G, B] = inside ? paperColour(px, py, 22, opts.textSeed ?? 1) : [120, 90, 60];
+        const [R, G, B] = inside ? (opts.text === "blocks" ? blockColour : paperColour)(px, py, 22, opts.textSeed ?? 1) : [120, 90, 60];
         rgba[4 * (r * w + c)] = R;
         rgba[4 * (r * w + c) + 1] = G;
         rgba[4 * (r * w + c) + 2] = B;
@@ -141,7 +216,11 @@ export function scatterPiece(
 }
 
 /** Scatter all pieces with random poses on a wide desk; returns inputs and true poses (page → photo). */
-export function scatterPage(page: SynthPage, seed: number, opts: { noise?: number; spacing?: number; textSeed?: number; prefix?: string; row?: number } = {}) {
+export function scatterPage(
+  page: SynthPage,
+  seed: number,
+  opts: { noise?: number; spacing?: number; textSeed?: number; prefix?: string; row?: number; text?: "typed" | "blocks" } = {},
+) {
   const rand = rng(seed);
   const spacing = opts.spacing ?? 1.6 * Math.max(page.width, page.height);
   const inputs: FragmentInput[] = [];
@@ -156,7 +235,7 @@ export function scatterPage(page: SynthPage, seed: number, opts: { noise?: numbe
     const cy = page.height / 2;
     pose.tx -= c * cx - s * cy;
     pose.ty -= s * cx + c * cy;
-    inputs.push(scatterPiece(page, k, pose, { noise: opts.noise, seed: seed * 31 + k, textSeed: opts.textSeed, id: `${opts.prefix ?? "p"}${k}` }));
+    inputs.push(scatterPiece(page, k, pose, { noise: opts.noise, seed: seed * 31 + k, textSeed: opts.textSeed, id: `${opts.prefix ?? "p"}${k}`, text: opts.text }));
     poses.push(pose);
   }
   return { inputs, poses };

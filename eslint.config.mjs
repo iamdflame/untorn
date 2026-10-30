@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     ".apex/**",
     ".claude/**",
+    // the demo video is its own project (video/package.json)
+    "video/**",
   ]),
 ]);
 

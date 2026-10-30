@@ -1,4 +1,4 @@
-// Score a run against a sample's answer key (true piece poses, photo → page): the hourly health run asserts the
+// Score a run against a sample's answer key (true piece poses, photo → page): the health run asserts the
 // join accuracy on the fixed sample stays where it was.
 
 import { fitRigid, poseApply, poseCompose, poseInvert, type Pose } from "@/lib/rejoin/geom";

@@ -101,10 +101,10 @@ export default function AccuracyPage() {
               </dd>
             </div>
             <div>
-              <dt>Seams Muse judged right</dt>
+              <dt>Text errors on shredded documents</dt>
               <dd>
-                23 of 24
-                <small>12 true and 12 adversarial seams (cw1)</small>
+                0.050
+                <small>NED on 64 documents (ShredBench protocol, our replica); Muse Spark alone on the same photos: 0.404</small>
               </dd>
             </div>
             <div>
@@ -157,6 +157,25 @@ export default function AccuracyPage() {
               ["Simulated reader, right 82% of the time", "89.1%", "2 (1.0%)", "15 of 24"],
             ]}
             note="Shape alone flags 85.4% of the twin seams as ties for reading. The live recording of three real letters torn as one stack: 22 of 22 readings picked the right piece. Pixel appearance alone ranks the true twin first in 48% of twin groups (chance is about 33%)."
+          />
+        </Section>
+
+        <Section
+          id="shredbench"
+          title="Shredded documents: Untorn against one model alone"
+          label="ShredBench protocol"
+          intro="ShredBench (ACL Findings 2026) scores a model that reads a photo of scattered fragments and writes out the document, by normalised edit distance (NED, lower is better). We gave Muse Spark the same photos with the benchmark's own prompt, and ran Untorn (the same Muse Spark with SAM 3.1 and the solver) on them."
+        >
+          <Table
+            caption="Text errors (NED) of the rebuilt document"
+            head={["Set", "Documents", "Untorn", "Shape only, no reads", "Muse Spark alone"]}
+            rows={[
+              ["ShredBench's own images with published answers (English news, 8 pieces)", 3, "0.002", "0.063", "0.528"],
+              ["Replica, 8 pieces (news, Chinese news, code, tables)", 64, "0.050", "0.074", "0.404"],
+              ["Replica, 12 pieces", 32, "0.050", "–", "0.436"],
+              ["Replica, 16 pieces", 32, "0.077", "–", "0.469"],
+            ]}
+            note="Only 3 of ShredBench's published renders come with ground truth, so the broad test is our own re-implementation of its protocol (fragments composited in 2D, no 3D render), labelled as a replica. SAM 3.1 found all 2,592 replica pieces. The paper's frontier results (Gemini 3 Pro 0.33–0.41) are on its full set, not these images. Repeated reads of the 3 official images vary between 0.002 and 0.006 on average. Method, caveats and failure cases: docs/SHREDBENCH.md."
           />
         </Section>
 

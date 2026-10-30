@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { APP, CAPTURE, ensureDir, heroReady, launch, laptop, writeJson } from "./lib.mjs";
 
-const OUT = ensureDir(path.join(CAPTURE, "golden"));
+const OUT = ensureDir(path.join(CAPTURE, process.env.GOLDEN_DIR ?? "golden"));
 const rec = JSON.parse(fs.readFileSync(path.join(OUT, "run-events.json"), "utf8"));
 const STEP = 32; // ms of page time per frame: two of the page's 16 ms animation frames (played at 30 fps: 4 % slower)
 const want = process.argv[2] ?? "all";

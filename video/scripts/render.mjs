@@ -4,6 +4,7 @@
 //   node scripts/render.mjs still <Composition> <frame|frames,...> [out dir] [--scale 1]
 //   node scripts/render.mjs video <Composition> <out.mp4> [--frames a-b] [--scale 1] [--crf 14]
 //   node scripts/render.mjs sheet <Composition> <every N frames> <out.png>      (contact sheet)
+//   any mode: --props '{"tear":"real"}' sets the composition's input props (here, the real-tear swap flag)
 import fs from "node:fs";
 import path from "node:path";
 import { bundle } from "@remotion/bundler";
@@ -29,17 +30,18 @@ async function getBundle() {
 
 const chromiumOptions = { gl: "angle", enableMultiProcessOnLinux: true };
 const scale = Number(opt("scale", 1));
+const inputProps = JSON.parse(opt("props", "{}"));
 
 async function main() {
   const serveUrl = await getBundle();
-  const composition = await selectComposition({ serveUrl, id: compId, chromiumOptions });
+  const composition = await selectComposition({ serveUrl, id: compId, chromiumOptions, inputProps });
   if (mode === "still") {
     const frames = String(args[2]).split(",").map(Number);
     const outDir = args[3] && !args[3].startsWith("--") ? args[3] : path.join(ROOT, "out", "stills");
     fs.mkdirSync(outDir, { recursive: true });
     for (const f of frames) {
       const output = path.join(outDir, `${compId}-${String(f).padStart(5, "0")}.png`);
-      await renderStill({ serveUrl, composition, frame: f, output, scale, chromiumOptions, imageFormat: "png", timeoutInMilliseconds: 180000 });
+      await renderStill({ serveUrl, composition, inputProps, frame: f, output, scale, chromiumOptions, imageFormat: "png", timeoutInMilliseconds: 180000 });
       console.log(output);
     }
   } else if (mode === "video") {
@@ -50,10 +52,12 @@ async function main() {
     await renderMedia({
       serveUrl,
       composition,
+      inputProps,
       codec: "h264",
       outputLocation: out,
       crf: Number(opt("crf", 14)),
       pixelFormat: "yuv420p",
+      colorSpace: "bt709",
       audioCodec: "aac",
       audioBitrate: "320k",
       x264Preset: opt("preset", "slow"),
@@ -76,7 +80,7 @@ async function main() {
     for (let f = 0; f < composition.durationInFrames; f += every) list.push(f);
     for (const f of list) {
       const output = path.join(outDir, `f${String(f).padStart(5, "0")}.jpg`);
-      await renderStill({ serveUrl, composition, frame: f, output, scale, chromiumOptions, imageFormat: "jpeg", jpegQuality: 90, timeoutInMilliseconds: 180000 });
+      await renderStill({ serveUrl, composition, inputProps, frame: f, output, scale, chromiumOptions, imageFormat: "jpeg", jpegQuality: 90, timeoutInMilliseconds: 180000 });
     }
     console.log(`${list.length} frames in ${outDir}`);
   } else {

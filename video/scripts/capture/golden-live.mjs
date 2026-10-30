@@ -8,7 +8,7 @@ import { devices } from "playwright";
 import { APP, CAPTURE, ensureDir, heroReady, launch, laptop, shot, writeJson } from "./lib.mjs";
 
 const photo = path.resolve(process.argv[2] ?? path.join(import.meta.dirname, "../../../data/samples/chouteau-1903/photo.jpg"));
-const OUT = ensureDir(path.join(CAPTURE, "golden"));
+const OUT = ensureDir(path.join(CAPTURE, process.env.GOLDEN_DIR ?? "golden"));
 const REF = ensureDir(path.join(OUT, "live-ref"));
 const PHONE = ensureDir(path.join(OUT, "phone"));
 

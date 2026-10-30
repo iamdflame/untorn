@@ -1,25 +1,30 @@
 {
- "note": "The live run filmed for the golden path (local production build of this repo, phone to laptop). Summary of its done event; the full event log stays in capture/golden/run-events.json (gitignored).",
- "runId": "q2c2hsq3civnjvh4",
+ "note": "The live run filmed for the golden path (untorn.vercel.app, phone page to laptop). Summary of its done event; the full event log stays in capture/golden-prod/run-events.json (gitignored).",
+ "runId": "j6prpwztr69rwnk7",
+ "session": "URNGWV",
+ "url": "https://untorn.vercel.app/c/URNGWV",
  "source": "phone",
- "createdAt": "2026-10-30T06:37:59.002Z",
- "photo": "data/samples/chouteau-1903/photo.jpg (simulated tear of a real 1903 letter), sent from an emulated iPhone 15 Pro",
+ "createdAt": "2026-10-30T13:22:05.347Z",
+ "photo": "data/samples/chouteau-1903/photo.jpg (simulated tear of a real 1903 letter), sent from the phone page in an emulated iPhone 15 Pro",
+ "arrived": {
+  "doneMs": 39820
+ },
  "timings": {
-  "total": 51137,
-  "segment": 3101,
-  "match": 611,
-  "read": 38208,
-  "assemble": 262,
-  "transcribe": 8909
+  "total": 39229,
+  "segment": 3619,
+  "match": 5062,
+  "read": 19557,
+  "assemble": 1149,
+  "transcribe": 9774
  },
  "cost": {
-  "usd": 0.1298,
+  "usd": 0.1168,
   "samCalls": 1,
-  "museCalls": 17
+  "museCalls": 16
  },
  "pieces": 10,
  "joins": 17,
  "unplaced": 0,
- "reads": 16,
+ "reads": 15,
  "pages": 1
 }

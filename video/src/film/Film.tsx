@@ -6,7 +6,7 @@ import { AbsoluteFill, Audio, Sequence, staticFile } from "remotion";
 import { Captions } from "../components/Captions";
 import { TearWipe } from "../components/TearWipe";
 import { ColdOpen } from "../scenes/ColdOpen";
-import { Golden } from "../scenes/Golden";
+import { DEFAULT_TEAR, Golden, type Tear } from "../scenes/Golden";
 import { Hood } from "../scenes/Hood";
 import { Peak } from "../scenes/Peak";
 import { Proof } from "../scenes/Proof";
@@ -20,7 +20,7 @@ export const fr = (s: number) => Math.round(s * FPS);
 export const TIMELINE = buildTimeline();
 export const FILM_FRAMES = fr(TIMELINE.total);
 
-export const Film: React.FC<{ audio?: "scratch" | "final" | "mix" | "none" }> = ({ audio = "scratch" }) => {
+export const Film: React.FC<{ audio?: "scratch" | "final" | "mix" | "none"; tear?: Tear }> = ({ audio = "scratch", tear = DEFAULT_TEAR }) => {
   const tl = useMemo(() => TIMELINE, []);
   const at = (id: string) => tl.scenes.find((s) => s.id === id)!;
   const seq = (id: string, node: React.ReactNode) => {
@@ -43,10 +43,12 @@ export const Film: React.FC<{ audio?: "scratch" | "final" | "mix" | "none" }> = 
         </TearWipe>,
       )}
       {seq("proof", <Proof cues={tl.proof} />)}
-      {seq("golden", <Golden cues={tl.golden} />)}
+      {seq("golden", <Golden cues={tl.golden} tear={tear} />)}
       {seq("hood", <Hood cues={tl.hood} />)}
       {seq("peak", <Peak cues={tl.peak} />)}
-      <Captions clips={tl.clips} />
+      {/* the end card sets the last line itself ("Untorn" / "Reads across the tears."), so its caption is not burned in
+          twice (the SRT keeps every line) */}
+      <Captions clips={tl.clips.filter((c) => c.at < at("peak").start + tl.peak.card)} />
       {audio === "scratch" || audio === "final"
         ? tl.clips.map((c, i) => (
             <Sequence key={i} from={fr(c.at)} durationInFrames={Math.max(1, fr(c.to - c.from))} layout="none">

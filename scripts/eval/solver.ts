@@ -1,4 +1,4 @@
-// Eval harness for the Rejoin solver on Bench-S cases.
+// Eval harness for the Untorn solver on Bench-S cases.
 //
 //   pnpm tsx scripts/eval/solver.ts                                   # every case in scripts/bench/out, geometry only
 //   pnpm tsx scripts/eval/solver.ts --family single --content oracle:0.1

@@ -1,4 +1,4 @@
-// Rejoin solver: put torn documents back together from one photo. Pure TypeScript (browser and Node).
+// Untorn solver: put torn documents back together from one photo. Pure TypeScript (browser and Node).
 //
 // Geometry (this module) proposes joins where torn edges fit; the content clue (an injected async check, Muse Spark
 // in stream S2) reads across a seam and decides where geometry ties. See docs/SOLVER.md.

@@ -1,8 +1,8 @@
-# Rejoin's model layer
+# Untorn's model layer
 
-Rejoin puts torn documents back together from one photo. Three Meta models do the work. The server modules live in `src/lib/server/`, and route handlers call them.
+Untorn puts torn documents back together from one photo. Three Meta models do the work. The server modules live in `src/lib/server/`, and route handlers call them.
 
-| Model | Job in Rejoin | Module |
+| Model | Job in Untorn | Module |
 |---|---|---|
 | **SAM 3.1** (`sam-3.1`) | Finds every fragment in the photo and cuts it out to the pixel | `segment.ts` → `segmentFragments` |
 | **Muse Spark** (`muse-spark-1.3`) | Reads half-letters across a candidate seam, like a crossword, to decide which pieces belong together. When pages were torn as a stack, outlines repeat and the reading decides. It also transcribes and translates the finished page. | `muse.ts` → `verifySeam`, `chooseContinuation`, `readPage`, `translate` |

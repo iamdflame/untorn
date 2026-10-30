@@ -1,4 +1,4 @@
-// Muse client for Rejoin: structured JSON calls to muse-spark-1.3 and muse-wonder-1.0 over the Responses API.
+// Muse client for Untorn: structured JSON calls to muse-spark-1.3 and muse-wonder-1.0 over the Responses API.
 // Server-only: it reads MODEL_API_KEY. (No `server-only` import, so bench scripts and tests can load it under tsx.)
 //
 // Every public function returns a MuseOutcome and never throws for an upstream problem: a failed reading is evidence
@@ -473,7 +473,7 @@ const strArr = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x)
 const clamp01 = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : null);
 
 // ---------------------------------------------------------------------------------------------------------------
-// Rejoin's functions
+// Untorn's functions
 
 export type SeamVerdict = { same_place: boolean; confidence: number; words_across: string[]; reason: string };
 

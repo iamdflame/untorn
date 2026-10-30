@@ -4,7 +4,7 @@
 // top-left corner (x1, y1). `~` marks the lossless encoding, `!` one_bit. Decoding uses Meta's @meta-sam/parser.
 
 import { decodeMaskToRaster, decodeMaskToSVGPath, type SegmentationMask } from "@meta-sam/parser";
-import type { Box, EncodedMask } from "@/lib/contracts";
+import type { Box, EncodedMask } from "./types";
 
 /** Row-major 0/1 raster of `width × height`. */
 export type MaskRaster = { width: number; height: number; data: Uint8Array };

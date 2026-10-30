@@ -39,13 +39,13 @@ describe("parseSamText on real output", () => {
   it("reads the concept cache: frames, ids, boxes, confidence, height-first masks", () => {
     const frames = parseSamText(concept);
     expect(frames.map((f) => f.frame)).toEqual([0, 1, 2]);
-    const [manikin, rescuer] = frames[0].objects;
-    expect(manikin).toMatchObject({ id: 0, box: [343, 277, 368, 300], frameW: 640, frameH: 360 });
-    expect(manikin.confidence).toBeCloseTo(0.7037, 4);
-    expect(manikin.mask).toMatchObject({ x: 0, y: 0, h: 24, w: 26 });
-    expect(manikin.mask?.data.startsWith("~")).toBe(true);
-    expect(rescuer).toMatchObject({ id: 1, box: [325, 17, 398, 112] });
-    expect(rescuer.mask).toMatchObject({ h: 96, w: 74 });
+    const [first, second] = frames[0].objects;
+    expect(first).toMatchObject({ id: 0, box: [343, 277, 368, 300], frameW: 640, frameH: 360 });
+    expect(first.confidence).toBeCloseTo(0.7037, 4);
+    expect(first.mask).toMatchObject({ x: 0, y: 0, h: 24, w: 26 });
+    expect(first.mask?.data.startsWith("~")).toBe(true);
+    expect(second).toMatchObject({ id: 1, box: [325, 17, 398, 112] });
+    expect(second.mask).toMatchObject({ h: 96, w: 74 });
   });
 
   it("reads the live point-prompt output", () => {

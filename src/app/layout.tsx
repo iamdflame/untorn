@@ -33,11 +33,17 @@ const plex = localFont({
   preload: false,
 });
 
+const DESCRIPTION =
+  "Untorn puts torn documents back together from one photo. Meta's SAM 3.1 cuts out every piece, and Muse reads the half-letters across each tear to decide which pieces belong together.";
+
+// The preview image is app/opengraph-image.jpg (and twitter-image.jpg); metadataBase makes its URL absolute.
 export const metadata: Metadata = {
+  metadataBase: new URL("https://untorn.vercel.app"),
   title: "Untorn · Every torn page, whole again",
-  description:
-    "Untorn puts torn documents back together from one photo. Meta's SAM 3.1 cuts out every piece, and Muse reads the half-letters across each tear to decide which pieces belong together.",
+  description: DESCRIPTION,
   applicationName: "Untorn",
+  openGraph: { type: "website", siteName: "Untorn", title: "Untorn · Every torn page, whole again", description: DESCRIPTION, url: "/" },
+  twitter: { card: "summary_large_image", title: "Untorn · Every torn page, whole again", description: DESCRIPTION },
 };
 
 export const viewport: Viewport = {

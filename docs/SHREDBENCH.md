@@ -45,6 +45,23 @@ Other numbers (8 pieces, replica):
 On the official images, news_041 is rebuilt completely. news_008 and news_031 are 7/8, with one loose piece that Muse
 reads as a part. No piece is misplaced.
 
+### 12 and 16 pieces (replica only; ShredBench has not published these sets)
+
+At 12 pieces we ran every 2nd test document of each domain (32 documents).
+
+| pieces | n | Untorn | Muse Spark alone | pieces placed correctly | complete pages | seam reads/sample | $/sample |
+|---|---|---|---|---|---|---|---|
+| 12 | 32 | **0.050** | 0.436 | 87.8% | 18/32 | 6.3 | 0.082 |
+
+By domain at 12 pieces:
+
+| domain | Untorn | Muse alone |
+|---|---|---|
+| English news | 0.003 | 0.483 |
+| Chinese news | 0.012 | 0.766 |
+| code | 0.082 | 0.207 |
+| tables | 0.104 | 0.289 |
+
 ## What is public, and what we measured instead
 
 ShredBench has published 11 renders, all English news and all with 8 pieces, and 10 ground-truth files. Only 3

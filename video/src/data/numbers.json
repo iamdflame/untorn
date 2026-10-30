@@ -1,0 +1,109 @@
+{
+  "note": "Every number the film shows or says. Each entry names its source (a path relative to the repo root, or to the main checkout for .apex reports). The proof scene renders the entries in `proof` whose `enabled` is true, in order; set `enabled` and fill `stats` for the real-tear (S7) and ShredBench (S5) entries when their reports are final, update the scene's `narration`, re-generate that scene's voice (scripts/voice/narrate.mjs proof) and re-render.",
+  "facts": {
+    "sacks": {
+      "display": "16,000",
+      "prefix": "about",
+      "label": "sacks of files the Stasi tore up by hand",
+      "spoken": "about sixteen thousand sacks",
+      "cite": "Federal Government evaluation report, Bundestag Drucksache 21/6550, 2026",
+      "quote": "rund 16.000 Behältnisse (meist Säcke) mit zerrissenen Unterlagen",
+      "source": "docs/FACTS.md"
+    },
+    "stillTorn": {
+      "display": "15,400",
+      "prefix": "about",
+      "label": "still in pieces",
+      "spoken": "about fifteen thousand four hundred",
+      "cite": "Federal Government evaluation report, Bundestag Drucksache 21/6550, 2026",
+      "quote": "circa 15.400 Behältnissen (Säcken) noch nicht rekonstruierter Unterlagen",
+      "source": "docs/FACTS.md"
+    },
+    "years": {
+      "display": "847",
+      "prefix": "about",
+      "label": "years, at this pace",
+      "spoken": "about eight hundred and forty-seven years",
+      "cite": "Bundesrechnungshof (Federal Court of Audit), Bundestag Drucksache 20/6530, 2023",
+      "quote": "Bei diesem Arbeitstempo wären die Unterlagen erst in rund 847 Jahren wiederhergestellt.",
+      "source": "docs/FACTS.md"
+    },
+    "began": {
+      "display": "1989",
+      "label": "the Stasi began destroying files on a large scale in the autumn of 1989, tearing them by hand",
+      "cite": "Bundesrechnungshof, Bundestag Drucksache 20/6530, 2023",
+      "source": "docs/FACTS.md"
+    }
+  },
+  "proof": [
+    {
+      "id": "stack",
+      "enabled": true,
+      "kind": "simulated stack tear · recorded run",
+      "title": "Three letters torn as one stack",
+      "subtitle": "24 pieces, outlines repeated three times",
+      "headline": { "value": "22 / 22", "label": "reads picked the true neighbour" },
+      "stats": [
+        { "value": "0", "label": "misplaced" },
+        { "value": "18 / 24", "label": "placed" },
+        { "value": "6", "label": "set aside, never forced" }
+      ],
+      "image": "kit/proof/stack-pages.png",
+      "source": ".apex/build/S6B-SAMPLES.md (recorded run rec-stack-3-letters-5cc28e: 22 k-way reads, all 22 right; 18/24 placed correctly, 0 misplaced, 6 unplaced; 112 s, $0.32)"
+    },
+    {
+      "id": "fdr",
+      "enabled": true,
+      "kind": "simulated tear · recorded run",
+      "title": "One letter, torn into ten",
+      "subtitle": "F. D. Roosevelt to Julian Goldman, 1927",
+      "headline": { "value": "10 / 10", "label": "pieces placed" },
+      "stats": [
+        { "value": "13 / 13", "label": "joins right" },
+        { "value": "0", "label": "misplaced" },
+        { "value": "0.0 %", "label": "transcript errors (CER)" },
+        { "value": "40.7 s", "label": "photo to page" }
+      ],
+      "image": "kit/proof/fdr-page.png",
+      "source": ".apex/build/S6B-SAMPLES.md (recorded run rec-fdr-1927-9e9139: 10/10 placed correctly, 13/13 joins right, 0 misplaced, CER 0.0 %, 40.7 s, $0.15)"
+    },
+    {
+      "id": "real",
+      "enabled": false,
+      "kind": "real tear",
+      "title": "A page torn by hand",
+      "subtitle": "photographed on a phone",
+      "headline": { "value": "", "label": "" },
+      "stats": [],
+      "image": null,
+      "source": ".apex/build/S7-REAL.md (pending: fill from the final report)"
+    },
+    {
+      "id": "shredbench",
+      "enabled": false,
+      "kind": "benchmark",
+      "title": "ShredBench, against frontier models",
+      "subtitle": "",
+      "headline": { "value": "", "label": "" },
+      "stats": [],
+      "image": null,
+      "source": ".apex/build/S5-SHREDBENCH.md (pending: fill from the final report)"
+    }
+  ],
+  "narration": {
+    "proof": "On a simulated stack of three letters, Muse picked the right neighbour twenty-two times out of twenty-two, and no piece was misplaced. On a single letter, all ten pieces came home."
+  },
+  "twins": {
+    "kind": "simulated stack tear of three real letters · recorded run",
+    "choice": "C",
+    "confidence": 0.97,
+    "words": ["a|m", "witne|ss"],
+    "reason": "Left endings I a-, tract, witne-, th join C beginnings m, which, ss,, an to form am, contract, witness, than with aligned baselines.",
+    "model": "Muse Spark 1.3, low effort",
+    "source": "public/samples/manifest.json stacks.stack-3-letters (read choice:twin-p3-65 of run rec-stack-3-letters-5cc28e)"
+  },
+  "fdr": {
+    "quote": "I am starting a Patients' Aid Fund to help these poor children",
+    "source": "public/samples/fdr-1927/result-lite.json transcripts[0] (CER 0.0 % against data/samples/fdr-1927/ref-page0.txt, per .apex/build/S6B-SAMPLES.md)"
+  }
+}

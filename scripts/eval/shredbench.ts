@@ -173,7 +173,23 @@ async function readStage(samples: Sample[], ledger: Ledger) {
     const dir = runDir(s);
     const out = path.join(dir, "pred.md");
     if (existsSync(out) || !existsSync(path.join(dir, "solve.json")) || overBudget(ledger)) return;
-    const solved = readJson<{ complete: boolean }>(path.join(dir, "solve.json"));
+    const solved = readJson<{ complete: boolean; joins: { candidate: string }[]; unplaced: { id: string }[] }>(path.join(dir, "solve.json"));
+    // --reuse RUN: when that run rebuilt exactly the same page (same joins, same loose pieces), its reading of the
+    // identical image stands (no second call for the same picture)
+    const reuse = argValue("--reuse");
+    if (reuse) {
+      const other = runDir(s, reuse);
+      if (existsSync(path.join(other, "solve.json")) && existsSync(path.join(other, "pred.md"))) {
+        const o = readJson<typeof solved>(path.join(other, "solve.json"));
+        const key = (x: typeof solved) => JSON.stringify([x.joins.map((j) => j.candidate).sort(), x.unplaced.map((u) => u.id).sort()]);
+        if (key(o) === key(solved)) {
+          writeFileSync(out, readFileSync(path.join(other, "pred.md")));
+          if (existsSync(path.join(other, "read.json"))) writeFileSync(path.join(dir, "read.json"), readFileSync(path.join(other, "read.json")));
+          console.log(`${s.key}: same page as ${reuse}, its reading reused`);
+          return;
+        }
+      }
+    }
     const image = { data: new Uint8Array(readFileSync(path.join(dir, "read.png"))), mime: "image/png" as const, detail: "high" as const };
     const r = await readPage(image, { ...quiet, prompt: solved.complete ? "markdown" : "parts", maxOutputTokens: 12000 });
     ledger.add({ stage: "read", run, sample: s.key, fn: "readPage", cost: r.meta.costUsd, ms: r.meta.ms, ok: r.ok });

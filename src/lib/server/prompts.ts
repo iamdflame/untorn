@@ -1,4 +1,4 @@
-// Every Muse prompt and output schema Rejoin sends, in one versioned file.
+// Every Muse prompt and output schema Untorn sends, in one versioned file.
 //
 // Bump PROMPTS_VERSION whenever a prompt's wording or a schema changes: the version rides on every call log, so a
 // measured accuracy can always be traced to the exact wording that produced it (docs/MODELS.md has the numbers).

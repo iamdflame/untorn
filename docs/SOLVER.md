@@ -160,6 +160,13 @@ where b's lines land in a's frame under a candidate pose.
 
     On the real photo Muse said "same" at 0.55–0.85 to chance fits whose edge other partners fitted better; one turned
     a piece 154° against its neighbours.
+  - A "not the same" vetoes a join, except against two clues of their own:
+    - an overwhelming fit (margin ≥ 5, score ≥ 300);
+    - a fit geometry alone would take whose text lines continue clearly: direction and phase both measured,
+      logLR ≥ 3, against one read at most 0.9 sure.
+
+    Replaying the 13 stored runs with their own reads, this placed 7 more pieces and misplaced none more. Muse said
+    "not the same" at 0.75–0.9 to true joins of the real photo in about one run in three.
   - A twin needs two concordant reads (`minTwinVotes`), so one unconfirmed pick never places a piece.
   - Without content, geometry alone must be unambiguous (no twin, not a straight cut, margin ≥ 1.4) and ≥ 60, with
     the text lines continuing as above.
@@ -179,6 +186,31 @@ where b's lines land in a's frame under a candidate pose.
   clear up vote reverses the page's reading direction is taken off too. Offending pieces go weakest first, and the rest
   of the page splits along its remaining joins. On Bench-S's true pages it flags none of 938 pieces; it catches 49 of 52
   trusted pieces turned 26° off their page, 50 of 52 at 154°.
+- **A second chance against the finished page** (`completePages`): pairwise matching sees one partner at a time, and
+  on a real hand-torn page many true seams never become candidates (fibre rims blur the fine shape the seeds need) or
+  lose to chance fits on margin. Once a page stands, a piece left out has a gap to fill.
+  - **Where to try it:** every pose its candidates with page pieces give, and poses from its text lines. The rotation
+    comes from the page's lines, and from its reading direction when the piece's up vote says so. Weak votes count:
+    they were right on 58 of 59 Bench-S votes from 0.5 to 0.75. The translation is voted by outline points with
+    facing normals.
+  - **How each pose is judged:** it is refined against every page piece it meets, with the lines' rotation held.
+    Then the whole page judges it:
+    - every seam it makes counts (each on a torn edge on one side at least);
+    - the seams it uses must be free;
+    - it may not lie on placed pieces, nor beyond a clean page edge;
+    - the lines must continue at each seam;
+    - it must read the page's way;
+    - no read may have said "not the same" at that pose.
+  - **Nearby poses merge:** poses of one piece within the page's own error (20 px, 3°) are one place, and the seams
+    they make with different pieces add up.
+  - **What it takes to join:** two seams of at least 60, 100 in all, and every other place for that piece, or other
+    piece for that gap, 1.5 times weaker.
+  - **Pieces left out:** stack twins and mostly straight-cut pieces get no second chance; their places are content
+    questions.
+  - **Rotation afterwards:** a piece placed this way keeps its lines' rotation in the page refinement. On such a page,
+    when many pieces still turn their lines more than 1° off the page's, the page is refined again with stiff lines.
+    The fibre-rim seams of a real page bend it 2–3° that way. On every page, this cost Bench-S large a piece: its
+    seams are exact, and its small pieces' text angles are a degree or two off.
 - **Implied seams:** once pieces are placed, every pair whose outlines meet is measured. Those seams join the
   refinement and are reported as joins (loop closures).
 - **Joint refinement:** Gauss–Newton on point-to-line residuals of every seam of the page, all poses at once (largest
@@ -232,6 +264,7 @@ const png = encodePng(renderPage(result.pages[0], prepare(inputs).fragments));
 | assemble | minContentMargin, minReadConfidence | 1, 0.7 | what a read may confirm |
 | assemble | linesMaxAngle, linesMaxPhase | 6°, 0.3 line | text lines continuing across a join |
 | assemble | pageLines, astrayAlong | on, 0.15 | final page check of the text lines |
+| assemble | complete, completeMinScore, completeSeamScore, completeMargin | on, 100, 60, 1.5 | the second chance against a finished page |
 | assemble | loopPx, loopDeg, overlapPx, seamReuse | 6 px, 2°, 300 px², 0.35 | consistency |
 
 `fineFloor` is the one parameter tied to the segmentation. It sits at the fine residual of true seams under the mask

@@ -33,6 +33,7 @@ import { fitRigid, poseApply, poseCompose, poseInvert, rng, type Pose } from "..
 import { encodePng } from "../../src/lib/rejoin/render";
 import { askPlanned, finish, photoCandidate, prepare } from "../../src/lib/rejoin/solve";
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, SolveResult } from "../../src/lib/rejoin/types";
+import type { Placement } from "../../src/lib/rejoin/assemble";
 import { listCases, loadCase, trueRelative, type BenchCase, type GroundTruth } from "./cases";
 
 type Args = {
@@ -384,18 +385,40 @@ async function main() {
     for (const name of names) {
       const c = loadCase(path.join(args.root, name), args.masks);
       const t0 = performance.now();
+      // TRACE_COMPLETE=1: print each placement the second chance weighs (seams marked against the truth)
+      let shapesForTrace: Map<string, Fragment> | null = null;
+      let kForTrace = 1;
+      const traceComplete = process.env.TRACE_COMPLETE
+        ? (p: Placement, margin: number, accepted: boolean) => {
+            const marks = p.seams.map((sm) => {
+              const rel = { theta: sm.rel.theta, tx: sm.rel.tx / kForTrace, ty: sm.rel.ty / kForTrace };
+              const t = trueRelative(c.gt, sm.with, p.unit);
+              let err = "not adjacent";
+              if (t && shapesForTrace) {
+                const [cx, cy] = shapesForTrace.get(p.unit)!.centroid;
+                const [x1, y1] = poseApply(t, cx, cy);
+                const [x2, y2] = poseApply(rel, cx, cy);
+                err = `${Math.hypot(x1 - x2, y1 - y2).toFixed(0)}px/${((Math.abs(Math.atan2(Math.sin(t.theta - rel.theta), Math.cos(t.theta - rel.theta))) * 180) / Math.PI).toFixed(1)}°`;
+              }
+              return `${sm.with}:${sm.score.toFixed(0)} c${sm.conditioning.toFixed(2)} f${sm.fineRms.toFixed(2)}(${err})`;
+            });
+            console.log(`  ${name} ${accepted ? "ACCEPT" : "reject"} ${p.unit} support ${p.support.toFixed(0)} margin ${margin.toFixed(2)} ${marks.join(" ")}`);
+          }
+        : undefined;
       const prep = prepare(c.inputs, {
         twinSides: args.twinSides,
         twinStrategy: args.strategy,
         match: { cuts: args.cuts, ...args.match },
-        assemble: { twinLoops: args.twinLoops, ...args.assemble },
+        assemble: { twinLoops: args.twinLoops, ...args.assemble, ...(traceComplete ? { traceComplete } : {}) },
         scale: args.scale,
       });
       // the solver works at prep.scale; the truth and the result are in photo px
       const k = prep.scale;
+      kForTrace = k;
       const shapes = new Map(
         prep.fragments.map((f) => [f.id, k === 1 ? f : ({ ...f, centroid: [f.centroid[0] / k, f.centroid[1] / k], outline: f.outline.map((v) => v / k) } as Fragment)] as const),
       );
+      shapesForTrace = shapes;
       let reqs: ContentRequest[] = [];
       let verdicts: (ContentVerdict | null)[] = [];
       if (args.content !== "none") {

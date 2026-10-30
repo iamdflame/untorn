@@ -18,8 +18,9 @@ const S = (s: number) => Math.round(s * FPS);
 export const RemotionRoot: React.FC = () => {
   return (
     <>
-      <Composition id="UntornDemo" component={Film} durationInFrames={FILM_FRAMES} fps={FPS} width={W} height={H} defaultProps={{ audio: "scratch" as const }} />
+      <Composition id="UntornDemo" component={Film} durationInFrames={FILM_FRAMES} fps={FPS} width={W} height={H} defaultProps={{ audio: "mix" as const }} />
       <Composition id="ColdOpen" component={ColdOpen} durationInFrames={S(13.5)} fps={FPS} width={W} height={H} />
+      <Composition id="ColdOpenDebug" component={ColdOpen} durationInFrames={S(13.5)} fps={FPS} width={W} height={H} defaultProps={{ debug: true }} />
       <Composition id="Sacks" component={Sacks} durationInFrames={S(17.5)} fps={FPS} width={W} height={H} />
       <Composition id="Twins" component={Twins} durationInFrames={S(15.5)} fps={FPS} width={W} height={H} />
       <Composition id="TwinsDebug" component={Twins} durationInFrames={S(15.5)} fps={FPS} width={W} height={H} defaultProps={{ debug: true }} />

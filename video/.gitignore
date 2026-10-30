@@ -6,3 +6,4 @@ node_modules/
 /public/kit/
 /public/audio/scratch/
 /public/audio/narration/*.wav
+/public/audio/mix.wav

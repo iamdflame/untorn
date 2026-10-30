@@ -38,7 +38,7 @@ export const Peak: React.FC<{ cues?: PeakCues }> = ({ cues = PEAK_CUES }) => {
   // the sack of torn slips
   const sackA = smooth(cues.sacks - 0.3, cues.sacks + 0.4, t) * (1 - smooth(cues.card - 0.5, cues.card + 0.2, t));
   const u = smoother(cues.sacks - 0.5, cues.card + 0.5, t);
-  const view = { yaw: lerp(96, 118, u), pitch: lerp(24, 34, u), fov: lerp(78, 62, u), roll: noise1(t * 0.2, 5) * 0.3, exposure: 0.92, sat: 0.7, warm: 0.6, vignette: 0.5 };
+  const view = { yaw: lerp(-46, -30, u), pitch: lerp(32, 40, u), fov: lerp(80, 64, u), roll: noise1(t * 0.2, 5) * 0.3, exposure: 0.88, sat: 0.6, warm: 0.7, vignette: 0.55 };
   const cardA = smooth(cues.card - 0.2, cues.card + 0.4, t);
   return (
     <AbsoluteFill style={{ backgroundColor: C.room }}>

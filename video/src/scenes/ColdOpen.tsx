@@ -22,8 +22,8 @@ type SS = (typeof scene.seams)[number];
 
 /** The beat sheet (seconds). */
 export const CO = {
-  pull0: 1.0,
-  pull1: 4.3,
+  pull0: 0.35,
+  pull1: 4.1,
   trace0: 3.75,
   traceDur: 0.62,
   traceStag: 0.11,
@@ -56,6 +56,10 @@ const landT = (pi: number) => stepT(orderIdx[pi]) + CO.fly * 0.62;
 
 // the read the cold open lands on: "hope", across the tear between p0 and p1
 const HOPE = seams.find((s) => s.read?.word === "hope")!;
+/** The loupe's centre on the assembled page (world px, measured on a grid render): between "I do hope" (the tear runs
+ * just before "hope") and "I g|o back" (the tear cuts "go"), the two words Muse returned for this seam. */
+const HOPE_AT: [number, number] = [2066, 1190];
+const LOUPE = { r: 128, z: 2, dx: -440, dy: 40 };
 CO.word = Math.max(landT(HOPE.a), landT(HOPE.b)) + 0.1;
 
 const [PX0, PY0, PX1, PY1] = scene.pagesBox;
@@ -145,9 +149,10 @@ const hopeOnP0 = (() => {
   return [p.c[0] + c * dx - s * dy, p.c[1] + s * dx + c * dy] as [number, number];
 })();
 
+const ROLL0 = pieces[HOPE.a].ang; // p0's text runs level on screen at this roll
 const CAM = {
-  macroA: { s: 2.25, wx: hopeOnP0[0] - 40, wy: hopeOnP0[1] + 10, sx: W * 0.5, sy: H * 0.47 } as Cam,
-  macroB: { s: 2.05, wx: hopeOnP0[0] + 30, wy: hopeOnP0[1] - 12, sx: W * 0.5, sy: H * 0.47 } as Cam,
+  macroA: { s: 2.25, wx: hopeOnP0[0] - 40, wy: hopeOnP0[1] + 10, sx: W * 0.5, sy: H * 0.47, roll: ROLL0 } as Cam,
+  macroB: { s: 2.05, wx: hopeOnP0[0] + 30, wy: hopeOnP0[1] - 12, sx: W * 0.5, sy: H * 0.47, roll: ROLL0 * 0.97 } as Cam,
   photo: fit(allBox, FRAME, 36),
   expl: fit(explBox, { x: W * 0.3, y: 0, w: W * 0.7, h: H }, 40),
   final: fit({ x0: PX0 - 120, y0: PY0 - 90, x1: PX1 + 120, y1: PY1 + 90 }, { x: W * 0.36, y: 0, w: W * 0.6, h: H }, 0),
@@ -158,10 +163,13 @@ const CAM_END = { ...CAM.final, s: CAM.final.s * 1.045, sy: CAM.final.sy - 6 };
 function camAt(t: number): Cam {
   // drift: a breath of handheld-free motion so the frame is never dead still
   const drift = (c: Cam, amp: number): Cam => ({ ...c, sx: c.sx + noise1(t * 0.35, 1) * amp, sy: c.sy + noise1(t * 0.31, 2) * amp * 0.6 });
-  if (t < CO.pull0) return drift(camZoomPath(CAM.macroA, CAM.macroB, smoother(0, CO.pull0 + 0.6, t)), 2);
+  if (t < CO.pull0) return drift(camZoomPath(CAM.macroA, CAM.macroB, smooth(0, CO.pull0 + 0.6, t)), 2);
   if (t < CO.pull1) {
-    const from = camZoomPath(CAM.macroA, CAM.macroB, smoother(0, CO.pull0 + 0.6, t));
-    return drift(camZoomPath(from, CAM.photo, smoother(CO.pull0, CO.pull1, t)), 2);
+    const from = camZoomPath(CAM.macroA, CAM.macroB, smooth(0, CO.pull0 + 0.6, t));
+    const k = smooth(CO.pull0, CO.pull1, t);
+    const c = camZoomPath(from, CAM.photo, k);
+    // the roll unwinds a little behind the zoom, so the turn is felt while the whole photo comes into view
+    return drift({ ...c, roll: ROLL0 * (1 - smoother(CO.pull0, CO.pull1 + 0.2, t)) }, 2);
   }
   if (t < CO.exp0) return drift(CAM.photo, 3);
   if (t < CO.fly0 + 0.5) return drift(camZoomPath(CAM.photo, CAM.expl, smoother(CO.exp0 - 0.1, CO.fly0 + 0.5, t)), 3);
@@ -184,6 +192,30 @@ const outlineLen = pieces.map((p) => polyLength(p.poly));
 const seamPaths = typeof Path2D === "undefined" ? [] : seams.map((s) => linePath(s.line));
 const seamLen = seams.map((s) => polyLength(s.line, false));
 
+/** The cold open's own event times (its clock), for the sound: lift, every landing, the read, the title, the exit. */
+export function coldEvents() {
+  return {
+    trace: CO.trace0,
+    lift: CO.lift0,
+    explode: CO.exp0,
+    lands: order.map((pi, i) => ({ t: stepT(i) + CO.fly * 0.62, x: pieces[pi].home[0] })),
+    word: CO.word,
+    seat: stepT(order.length - 1) + CO.fly * 0.62,
+    title: CO.title0,
+    exit: CO.exit0,
+    pageCx: PCX,
+  };
+}
+
+/** Own time to film time: the inverse of warpTime. */
+export function unwarpTime(own: number, warp?: [number, number][]) {
+  if (!warp || warp.length < 2) return own;
+  if (own <= warp[0][1]) return warp[0][0] + (own - warp[0][1]);
+  for (let i = 1; i < warp.length; i++) if (own <= warp[i][1]) return lerp(warp[i - 1][0], warp[i][0], (own - warp[i - 1][1]) / (warp[i][1] - warp[i - 1][1]));
+  const [a, b] = warp[warp.length - 1];
+  return a + (own - b);
+}
+
 /** Film time to the cold open's own time: piecewise linear through [film, own] pairs (beats moved onto the voice). */
 export function warpTime(t: number, warp?: [number, number][]) {
   if (!warp || warp.length < 2) return t;
@@ -193,7 +225,7 @@ export function warpTime(t: number, warp?: [number, number][]) {
   return b + (t - a);
 }
 
-export const ColdOpen: React.FC<{ warp?: [number, number][] }> = ({ warp }) => {
+export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> = ({ warp, debug = false }) => {
   const imgs = useImages(paths);
   const cuts = useMemo(() => {
     if (!imgs) return null;
@@ -348,22 +380,112 @@ export const ColdOpen: React.FC<{ warp?: [number, number][] }> = ({ warp }) => {
         g.globalAlpha = 1;
       });
 
+      // the read: a real-pixel loupe on the crossing, x2 nearest-neighbour, with a violet leader to the seam
+      const la = smooth(CO.word, CO.word + 0.3, t) * (1 - smooth(CO.word + 1.55, CO.word + 1.9, t)) * (1 - ex);
+      if (la > 0.01) {
+        const p0 = pieces[HOPE.a];
+        const ps0 = poses[HOPE.a];
+        const da = ps0.a - p0.ang;
+        const ox = HOPE_AT[0] - p0.home[0];
+        const oy = HOPE_AT[1] - p0.home[1];
+        const rx = ps0.x + Math.cos(da) * ox - Math.sin(da) * oy;
+        const ry = ps0.y + Math.sin(da) * ox + Math.cos(da) * oy;
+        const [px, py] = w2s(c, rx, ry);
+        const lx = Math.round(px + LOUPE.dx);
+        const ly = Math.round(py + LOUPE.dy);
+        const open = 0.86 + 0.14 * clamp((t - CO.word) / 0.3);
+        const R2 = LOUPE.r * open;
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.globalAlpha = la;
+        g.strokeStyle = C.violet;
+        g.lineWidth = 1.6;
+        const ang = Math.atan2(py - ly, px - lx);
+        g.beginPath();
+        g.moveTo(lx + Math.cos(ang) * R2, ly + Math.sin(ang) * R2);
+        g.lineTo(px - Math.cos(ang) * 9, py - Math.sin(ang) * 9);
+        g.stroke();
+        g.beginPath();
+        g.arc(px, py, 9, 0, Math.PI * 2);
+        g.stroke();
+        g.shadowColor = "rgba(20,14,10,0.55)";
+        g.shadowBlur = 30;
+        g.shadowOffsetY = 12;
+        g.fillStyle = C.room;
+        g.beginPath();
+        g.arc(lx, ly, R2, 0, Math.PI * 2);
+        g.fill();
+        g.shadowColor = "transparent";
+        g.beginPath();
+        g.arc(lx, ly, R2, 0, Math.PI * 2);
+        g.clip();
+        g.imageSmoothingEnabled = false;
+        g.setTransform(LOUPE.z, 0, 0, LOUPE.z, Math.round(lx - rx * LOUPE.z), Math.round(ly - ry * LOUPE.z));
+        for (const i of [HOPE.a, HOPE.b]) drawPiece(g, cuts[pieces[i].id], poses[i], lit);
+        g.imageSmoothingEnabled = true;
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.restore();
+        g.save();
+        g.globalAlpha = la;
+        g.lineWidth = 2;
+        g.strokeStyle = C.chalk;
+        g.beginPath();
+        g.arc(lx, ly, R2, 0, Math.PI * 2);
+        g.stroke();
+        g.restore();
+      }
+      if (debug) {
+        setCam(g, c);
+        g.lineWidth = 1 / c.s;
+        for (let x = 1500; x <= 3300; x += 50) {
+          g.strokeStyle = x % 200 === 0 ? "rgba(255,0,0,0.9)" : "rgba(255,0,0,0.3)";
+          g.beginPath();
+          g.moveTo(x, 500);
+          g.lineTo(x, 3100);
+          g.stroke();
+          if (x % 200 === 0) {
+            g.fillStyle = "red";
+            g.font = `${12 / c.s}px monospace`;
+            g.fillText(String(x), x + 2 / c.s, 560);
+          }
+        }
+        for (let y = 500; y <= 3100; y += 50) {
+          g.strokeStyle = y % 200 === 0 ? "rgba(0,0,255,0.9)" : "rgba(0,0,255,0.3)";
+          g.beginPath();
+          g.moveTo(1500, y);
+          g.lineTo(3300, y);
+          g.stroke();
+          if (y % 200 === 0) {
+            g.fillStyle = "blue";
+            g.font = `${12 / c.s}px monospace`;
+            g.fillText(String(y), 1505, y - 2 / c.s);
+          }
+        }
+        g.setTransform(1, 0, 0, 1, 0, 0);
+      }
       // the lens: shallow focus in macro, opening up as the camera pulls back (never over the word being read)
-      const dof = clamp((c.s - 0.55) / 1.6) * 7;
+      const dof = clamp((c.s - 0.55) / 1.6) * 4.5;
       out.setTransform(1, 0, 0, 1, 0, 0);
-      depthOfField(out, scratch, scratch.a, W * 0.5, H * 0.47, W * 0.42, H * 0.46, dof);
+      depthOfField(out, scratch, scratch.a, W * 0.4, H * 0.44, W * 0.5, H * 0.56, dof);
       grain(out, imgs["fx/grain.png"], frame, 0.09 * bgA);
     },
-    [imgs, cuts, warp],
+    [imgs, cuts, warp, debug],
   );
 
   const frame = useCurrentFrame();
   const t = warpTime(frame / FPS, warp);
   const exitA = 1 - smooth(CO.exit0 - 0.1, CO.exit0 + 0.5, t);
   const c = camAt(t);
-  // the read word sits just off the seam, in the paper's own space
-  const [wx, wy] = w2s(c, HOPE.mid[0], HOPE.mid[1]);
-  const wordA = smooth(CO.word, CO.word + 0.35, t) * (1 - smooth(CO.word + 1.7, CO.word + 2.15, t)) * exitA;
+  // the read word, under the loupe (which sits off the crossing by LOUPE.dx, LOUPE.dy)
+  const p0 = pieces[HOPE.a];
+  const ps0 = poseAt(p0, t);
+  const da = ps0.a - p0.ang;
+  const hx = HOPE_AT[0] - p0.home[0];
+  const hy = HOPE_AT[1] - p0.home[1];
+  const [hpx, hpy] = w2s(c, ps0.x + Math.cos(da) * hx - Math.sin(da) * hy, ps0.y + Math.sin(da) * hx + Math.cos(da) * hy);
+  const wx = hpx + LOUPE.dx;
+  const wy = hpy + LOUPE.dy + LOUPE.r + 70;
+  const wordA = smooth(CO.word + 0.15, CO.word + 0.45, t) * (1 - smooth(CO.word + 1.55, CO.word + 1.9, t)) * exitA;
   const lastSeat = stepT(order.length - 1) + CO.fly * 0.62;
   return (
     <AbsoluteFill>
@@ -373,18 +495,17 @@ export const ColdOpen: React.FC<{ warp?: [number, number][] }> = ({ warp }) => {
           style={{
             position: "absolute",
             left: wx,
-            top: wy - 84 - 10 * (1 - easeIO(clamp((t - CO.word) / 0.5))),
+            top: wy - 46 + 8 * (1 - easeIO(clamp((t - CO.word - 0.15) / 0.5))),
             transform: "translateX(-50%)",
             opacity: wordA,
-            fontFamily: F.serif,
-            fontWeight: 500,
-            fontSize: 58,
-            letterSpacing: "-0.01em",
-            color: C.violet,
-            textShadow: `0 0 2px ${C.filmHi}, 0 0 10px rgba(250,252,254,0.95), 0 0 22px rgba(250,252,254,0.8)`,
+            textAlign: "center",
+            whiteSpace: "nowrap",
           }}
         >
-          hope
+          <div style={{ fontFamily: F.serif, fontWeight: 500, fontSize: 60, lineHeight: 1, letterSpacing: "-0.01em", color: C.violetLt }}>
+            hope <span style={{ color: C.chalk3 }}>·</span> go
+          </div>
+          <div style={{ marginTop: 10, fontFamily: F.sans, fontSize: 20, color: C.chalk2 }}>Muse read both words across the tear.</div>
         </div>
       )}
       <div style={{ opacity: exitA }}>

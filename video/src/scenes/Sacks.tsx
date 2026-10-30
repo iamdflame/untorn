@@ -24,10 +24,10 @@ export const Sacks: React.FC<{ cues?: SacksCues }> = ({ cues = SACKS_CUES }) => 
     pitch: lerp(16, 44, u) + noise1(t * 0.23, 5) * 0.3,
     fov: lerp(86, 58, u),
     roll: noise1(t * 0.17, 6) * 0.25,
-    exposure: lerp(0.95, 0.8, smooth(cues.sixteen - 1, cues.sixteen, t)) * (1 - 0.86 * smooth(cues.dim, cues.dim + 1.1, t)),
-    sat: 0.72,
-    warm: 0.6,
-    vignette: 0.45,
+    exposure: lerp(0.86, 0.72, smooth(cues.sixteen - 1, cues.sixteen, t)) * (1 - 0.86 * smooth(cues.dim, cues.dim + 1.1, t)),
+    sat: 0.56,
+    warm: 0.8,
+    vignette: 0.5,
   };
   const textA = easeOut(clamp((t - cues.sixteen) / 0.45)) * (1 - smooth(cues.dim - 0.2, cues.dim + 0.5, t));
   const second = smooth(cues.fifteen - 0.1, cues.fifteen + 0.5, t);

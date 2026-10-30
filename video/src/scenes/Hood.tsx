@@ -51,19 +51,21 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
   const imgs = useImages(paths);
   const t = useCurrentFrame() / FPS;
   // the camera dolly: each stage slides in from the right as the last leaves
-  const stage = (k: number) => {
+  // a stage's slide and opacity at time tt (passed in: the canvas draws at its own frame time)
+  const stageAt = (k: number, tt: number) => {
     const starts = [cues.s1, cues.s2, cues.s3, cues.s4, cues.s5, cues.end + 1];
-    const a = smoother(starts[k] - 0.5, starts[k] + 0.35, t);
-    const b = smoother(starts[k + 1] - 0.5, starts[k + 1] + 0.35, t);
+    const a = smoother(starts[k] - 0.5, starts[k] + 0.35, tt);
+    const b = smoother(starts[k + 1] - 0.5, starts[k + 1] + 0.35, tt);
     return { x: (1 - a) * 260 - b * 260, o: a * (1 - b) };
   };
+  const stage = (k: number) => stageAt(k, t);
 
   const draw = useCallback<DrawFn>(
     (g, tt, frame) => {
       if (!imgs) return;
       g.fillStyle = C.room;
       g.fillRect(0, 0, W, H);
-      const st = stage(0);
+      const st = stageAt(0, tt);
       if (st.o > 0.005) {
         // real pixels at x12, nearest neighbour, and the traced outline over them
         const ox = Math.round(W / 2 - (WIN.w * ZOOM) / 2 + st.x);

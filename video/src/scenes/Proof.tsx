@@ -42,14 +42,14 @@ const Output: React.FC<{ words: Word[]; t: number; t0: number; cps?: number; col
         const text = x.w.slice(0, Math.ceil(x.w.length * vis));
         if (x.missing)
           return (
-            <span key={i} style={{ color: C.redLt, textDecoration: "line-through", textDecorationThickness: 3, opacity: 0.85, marginRight: "0.55em" }}>
-              {text}
-            </span>
+            <React.Fragment key={i}>
+              <span style={{ color: C.redLt, textDecoration: "line-through", textDecorationThickness: 3, opacity: 0.85 }}>{text}</span>{" "}
+            </React.Fragment>
           );
         return (
-          <span key={i} style={{ color: x.extra ? C.redLt : color, marginRight: "0.55em" }}>
-            {text}
-          </span>
+          <React.Fragment key={i}>
+            <span style={{ color: x.extra ? C.redLt : color }}>{text}</span>{" "}
+          </React.Fragment>
         );
       })}
     </div>

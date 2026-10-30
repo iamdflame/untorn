@@ -28,7 +28,7 @@ function edl(c: GoldenCues): Seg[] {
     { t0: c.close, t1: c.assemble, f0: 600, step: 1, cam0: { x: 1500, y: 1580, z: 2.05 }, cam1: { x: 1530, y: 1600, z: 2.2 } },
     { t0: c.assemble, t1: c.climax, f0: 900, step: 2, cam0: { x: CW / 2 + 380, y: CH / 2, z: 1.15 }, cam1: { x: CW / 2 + 420, y: CH / 2, z: 1.22 } },
     { t0: c.climax, t1: c.transcript, f0: 1255, step: 1, cam0: WIDE, cam1: { x: CW / 2, y: CH / 2 - 30, z: 1.04 } },
-    { t0: c.transcript, t1: c.result, f0: 1430, step: 1, cam0: { x: 1150, y: 1300, z: 1.7 }, cam1: { x: 1150, y: 1330, z: 1.78 } },
+    { t0: c.transcript, t1: c.result, f0: 1430, step: 1, cam0: { x: 1180, y: 1430, z: 1.85 }, cam1: { x: 1180, y: 1450, z: 1.92 } },
     { t0: c.result, t1: c.end + 1, f0: 1530, step: 1, cam0: { x: CW / 2, y: CH / 2, z: 1.0 }, cam1: { x: CW / 2, y: CH / 2 + 60, z: 1.06 } },
   ];
 }

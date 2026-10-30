@@ -56,7 +56,7 @@ export function buildTimeline(): Timeline {
   };
 
   // 1 · cold open
-  const cold = place("cold", 0, 0.45);
+  const cold = place("cold", 0, 0.7);
   const coldEnd = cold[2].end + 0.95;
   // the cold open's own beats (trace 3.75, lift 5.75, title 9.7, end 12.0) moved onto the narration
   const coldWarp: [number, number][] = [

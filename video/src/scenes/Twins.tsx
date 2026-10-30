@@ -82,6 +82,12 @@ function scrapPose(k: number, t: number, cues: TwinsCues): PoseNow & { k: number
 const paths = ["fx/grain.png", ...[twins.anchor.id, ...twins.candidates.map((c) => c.id)].flatMap((id) => ["lit", "edge", "shadow", "contact", "plain"].map((k) => `${KIT}/${id}-${k}.png`))];
 const anchorOutline = typeof Path2D === "undefined" ? null : polyPath(anchor.poly);
 const candOutline = typeof Path2D === "undefined" ? [] : cands.map((c) => polyPath(c.piece.poly));
+const outlineLen = cands.map((c) => {
+  let L = 0;
+  const q = c.piece.poly;
+  for (let j = 2; j < q.length; j += 2) L += Math.hypot(q[j] - q[j - 2], q[j + 1] - q[j - 1]);
+  return L;
+});
 
 export const Twins: React.FC<{ cues?: TwinsCues; debug?: boolean }> = ({ cues = TWINS_CUES, debug = false }) => {
   const imgs = useImages(paths);
@@ -139,18 +145,30 @@ export const Twins: React.FC<{ cues?: TwinsCues; debug?: boolean }> = ({ cues = 
         drawPiece(g, cuts[cands[k].id], poses[k], 1, rejected ? 0.55 : 1);
         edgeLight(g, cuts[cands[k].id], poses[k], 0.5);
       });
-      // the shared torn edge, traced in graphite on all three (identical by construction of a stack tear)
-      const tieA = smooth(cues.tie - 0.2, cues.tie + 0.4, t) * (1 - smooth(cues.tryA - 0.4, cues.tryA, t));
-      if (tieA > 0.01)
+      // the same edge, three times: graphite traces run round all three scraps at once, then the three outlines
+      // lift off and fly into the empty slot, where they fit it exactly, one on top of another
+      const traceK = clamp((t - cues.fan - 0.9) / 1.3);
+      const flyK = easeIO(clamp((t - cues.tie) / 1.15));
+      const outA = 1 - smooth(cues.tryA - 0.5, cues.tryA - 0.1, t);
+      if (traceK > 0 && outA > 0.01)
         cands.forEach((cd, k) => {
           const ps = poses[k];
+          const L = outlineLen[k];
+          const x = lerp(ps.x, slot[k].x, flyK);
+          const y = lerp(ps.y, slot[k].y, flyK) - Math.sin(Math.PI * flyK) * (120 + 40 * k);
+          const a = lerp(ps.a, slot[k].a, flyK);
           g.save();
-          g.translate(ps.x, ps.y);
-          g.rotate(ps.a);
-          g.globalAlpha = tieA;
-          g.strokeStyle = C.ink;
-          g.lineWidth = 2.2 / c.s;
+          g.translate(x, y);
+          g.rotate(a);
+          g.globalAlpha = outA;
           g.lineJoin = "round";
+          g.lineCap = "round";
+          g.setLineDash(traceK < 1 ? [L * traceK, L] : []);
+          g.strokeStyle = "rgba(250,246,238,0.85)";
+          g.lineWidth = 6 / c.s;
+          if (candOutline[k]) g.stroke(candOutline[k]);
+          g.strokeStyle = C.ink;
+          g.lineWidth = 2.4 / c.s;
           if (candOutline[k]) g.stroke(candOutline[k]);
           g.restore();
         });
@@ -227,7 +245,7 @@ export const Twins: React.FC<{ cues?: TwinsCues; debug?: boolean }> = ({ cues = 
 
   const t = useCurrentFrame() / FPS;
   const verdictA = easeOut(clamp((t - cues.verdict) / 0.4));
-  const tieA = smooth(cues.tie - 0.2, cues.tie + 0.4, t) * (1 - smooth(cues.tryA - 0.4, cues.tryA, t));
+  const tieA = smooth(cues.tie + 0.9, cues.tie + 1.3, t) * (1 - smooth(cues.tryA - 0.5, cues.tryA - 0.1, t));
   const cam = camAt(t);
   const scoreLabel = cands.map((cd) => Math.round(cd.score)).join(" · ");
   const [w0, w1] = numbers.twins.words.map((w) => w.split("|"));
@@ -247,7 +265,7 @@ export const Twins: React.FC<{ cues?: TwinsCues; debug?: boolean }> = ({ cues = 
         );
       })}
       {tieA > 0.01 && (
-        <div style={{ position: "absolute", left: 0, right: 0, top: 438, textAlign: "center", opacity: tieA, fontFamily: F.serif, fontWeight: 500, fontSize: 40, color: C.chalk, textShadow: "0 2px 12px rgba(20,14,10,0.6)" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 480, textAlign: "center", opacity: tieA, fontFamily: F.serif, fontWeight: 500, fontSize: 40, color: C.chalk, textShadow: "0 2px 12px rgba(20,14,10,0.6)" }}>
           Shape: three alike. <span style={{ color: C.chalk2 }}>Edge fit {scoreLabel}, a tie.</span>
         </div>
       )}

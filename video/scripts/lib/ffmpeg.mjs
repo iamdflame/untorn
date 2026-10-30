@@ -25,7 +25,7 @@ export function ffmpeg(args, opts = {}) {
   return r;
 }
 export function probe(file) {
-  return JSON.parse(execFileSync(FFPROBE, ["-v", "error", "-show_format", "-show_streams", "-of", "json", file], { encoding: "utf8", cwd: DIR }));
+  return JSON.parse(execFileSync(FFPROBE, ["-v", "error", "-show_format", "-show_streams", "-of", "json", path.resolve(file)], { encoding: "utf8", cwd: DIR }));
 }
 /** Decode any audio file to mono 16-bit PCM WAV at the given rate. */
 export function toWav(input, output, rate = 24000) {

@@ -4,7 +4,7 @@
 
 import { C } from "../theme";
 
-export type Cam = { s: number; wx: number; wy: number; sx: number; sy: number };
+export type Cam = { s: number; wx: number; wy: number; sx: number; sy: number; roll?: number };
 export type Rect = { x: number; y: number; w: number; h: number };
 export type Box = { x0: number; y0: number; x1: number; y1: number };
 
@@ -14,6 +14,7 @@ export const camLerp = (a: Cam, b: Cam, u: number): Cam => ({
   wy: a.wy + (b.wy - a.wy) * u,
   sx: a.sx + (b.sx - a.sx) * u,
   sy: a.sy + (b.sy - a.sy) * u,
+  roll: (a.roll ?? 0) + ((b.roll ?? 0) - (a.roll ?? 0)) * u,
 });
 /**
  * A camera move that keeps its focus steady on screen while zooming: interpolate the zoom in log space and the
@@ -23,11 +24,27 @@ export const camZoomPath = (a: Cam, b: Cam, u: number): Cam => {
   const s = a.s * Math.pow(b.s / a.s, u);
   // weight the world-position blend by the zoom so the frame centre travels evenly in screen terms
   const k = a.s === b.s ? u : (1 / s - 1 / a.s) / (1 / b.s - 1 / a.s);
-  return { s, wx: a.wx + (b.wx - a.wx) * k, wy: a.wy + (b.wy - a.wy) * k, sx: a.sx + (b.sx - a.sx) * u, sy: a.sy + (b.sy - a.sy) * u };
+  return { s, wx: a.wx + (b.wx - a.wx) * k, wy: a.wy + (b.wy - a.wy) * k, sx: a.sx + (b.sx - a.sx) * u, sy: a.sy + (b.sy - a.sy) * u, roll: (a.roll ?? 0) + ((b.roll ?? 0) - (a.roll ?? 0)) * u };
 };
-export const w2s = (c: Cam, x: number, y: number): [number, number] => [c.sx + (x - c.wx) * c.s, c.sy + (y - c.wy) * c.s];
-export const s2w = (c: Cam, x: number, y: number): [number, number] => [c.wx + (x - c.sx) / c.s, c.wy + (y - c.sy) / c.s];
-export const setCam = (g: CanvasRenderingContext2D, c: Cam) => g.setTransform(c.s, 0, 0, c.s, c.sx - c.wx * c.s, c.sy - c.wy * c.s);
+export const w2s = (c: Cam, x: number, y: number): [number, number] => {
+  const r = c.roll ?? 0;
+  const dx = (x - c.wx) * c.s;
+  const dy = (y - c.wy) * c.s;
+  return [c.sx + dx * Math.cos(r) - dy * Math.sin(r), c.sy + dx * Math.sin(r) + dy * Math.cos(r)];
+};
+export const s2w = (c: Cam, x: number, y: number): [number, number] => {
+  const r = -(c.roll ?? 0);
+  const dx = x - c.sx;
+  const dy = y - c.sy;
+  return [c.wx + (dx * Math.cos(r) - dy * Math.sin(r)) / c.s, c.wy + (dx * Math.sin(r) + dy * Math.cos(r)) / c.s];
+};
+/** World to screen on the canvas: scale, roll about the screen point, translate. */
+export const setCam = (g: CanvasRenderingContext2D, c: Cam) => {
+  const r = c.roll ?? 0;
+  const a = c.s * Math.cos(r);
+  const b = c.s * Math.sin(r);
+  g.setTransform(a, b, -b, a, c.sx - (a * c.wx - b * c.wy), c.sy - (b * c.wx + a * c.wy));
+};
 export function fit(b: Box, r: Rect, pad = 0): Cam {
   const s = Math.min((r.w - pad * 2) / (b.x1 - b.x0), (r.h - pad * 2) / (b.y1 - b.y0));
   return { s, wx: (b.x0 + b.x1) / 2, wy: (b.y0 + b.y1) / 2, sx: r.x + r.w / 2, sy: r.y + r.h / 2 };

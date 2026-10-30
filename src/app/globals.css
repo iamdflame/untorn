@@ -697,8 +697,8 @@ i.bar {
   stroke-width: 3;
   fill: none;
   stroke-linecap: round;
-  stroke-dasharray: 150;
-  stroke-dashoffset: 150;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
 }
 .tw-c .tag {
   position: absolute;
@@ -1623,20 +1623,25 @@ h2 {
     --gx: 16px;
     --railh: 52px;
     --lc: 0px;
+    /* one hero height that the pinned action and the transcript are placed against too: a 664 px tall phone
+       (Safari with its bars) once got a 700 px hero, and the stage bar printed over "Tear your own" */
+    --hh: max(540px, min(100svh, 960px));
+    /* the stage starts under the headline and two lines of deck or transcript */
+    --stage-top: 192px;
   }
   body {
     font-size: 16px;
   }
   .hero {
-    height: 100svh;
-    min-height: 700px;
-    max-height: 960px;
+    height: var(--hh);
+    min-height: 0;
+    max-height: none;
   }
   .hero-photo {
     left: 0;
     width: 100%;
-    top: 170px;
-    height: calc(100% - 170px - 116px);
+    top: var(--stage-top);
+    height: calc(100% - var(--stage-top) - 116px);
   }
   .rail {
     left: 16px;
@@ -1697,7 +1702,7 @@ h2 {
     position: absolute;
     left: 0;
     right: 0;
-    top: calc(100svh - 54px - 74px);
+    top: calc(var(--hh) - 54px - 74px);
   }
   .hero .act .cta.tab {
     flex: 1;
@@ -1710,13 +1715,13 @@ h2 {
   .m-area {
     left: 0;
     right: 0;
-    top: 170px;
+    top: var(--stage-top);
     bottom: 116px;
   }
   .m-center {
     left: 12px;
     right: 12px;
-    top: 176px;
+    top: calc(var(--stage-top) + 6px);
     bottom: 122px;
   }
   .m-proof {
@@ -1745,14 +1750,19 @@ h2 {
   .tx {
     max-width: none;
   }
+  /* two lines fit above the stage; the heading becomes a run-in label so the page keeps its height */
   .tx-h {
-    font-size: 12.5px;
-    margin-bottom: 2px;
+    display: none;
   }
   .tx-body {
     font-size: 15px;
     height: calc(1.38em * 2);
     line-height: 1.38;
+  }
+  .tx-body::before {
+    content: "Muse read: ";
+    font: 600 12.5px var(--sans);
+    color: var(--violet-lt);
   }
   .tx-more {
     display: none;
@@ -1791,10 +1801,20 @@ h2 {
     left: 0;
     right: 0;
     top: 0;
-    bottom: 80px;
+    bottom: 116px;
     padding: 52px 12px 0;
     align-content: center;
     background: var(--room);
+  }
+  .tw-up .stagebar .honest {
+    visibility: hidden;
+  }
+  .tw-c .tag {
+    transform: scale(var(--tg, 1));
+    transform-origin: 100% 0;
+  }
+  .tw-c .strike {
+    stroke-width: 8;
   }
   .tw-cap {
     margin-bottom: 16px;

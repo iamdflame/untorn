@@ -28,7 +28,10 @@ export type ScenePiece = {
   /** Placed on a rebuilt page by the solver. */
   placed: boolean;
   page: number;
-  /** Where the solver put the centroid (world), and the turn it took to get there (rad). */
+  /**
+   * Where the solver put the centroid (world), and the turn it took to get there (rad). A piece the solver set aside
+   * goes home to the tray beside the pages instead, unturned.
+   */
   home: Vec;
   ang: number;
 };
@@ -81,6 +84,8 @@ export type Scene = {
   reads: number;
   /** World bounds of all the pages. */
   pagesBox: [number, number, number, number];
+  /** World bounds of the pages and the tray of set-aside pieces beside them (the pages alone when nothing is set aside). */
+  box: [number, number, number, number];
 };
 
 const PAGE_GAP = 0.06;
@@ -430,6 +435,7 @@ function makeScene(input: SceneInput): Scene {
     }
     return { id: p.id, i, k: i + 1, c, poly: local, bbox: p.box, r, len: arcLength([...poly, poly[0]]), text: p.text, placed: !!w, page: w?.page ?? -1, home, ang };
   });
+  const box = setAside(pieces, pagesBox, gap || PAGE_GAP * photo.width, pages.length > 0);
   const byId = new Map(pieces.map((p) => [p.id, p] as const));
 
   // seams: the shared edge of every join, found where the two outlines meet on the page
@@ -494,7 +500,46 @@ function makeScene(input: SceneInput): Scene {
 
   const climax = chooseClimax(seams);
   const order = joinOrder(pieces, seams, climax, pages.length);
-  return { photo, pages, pieces, seams, order, climax, reads: seams.filter((s) => s.read).length, pagesBox };
+  return { photo, pages, pieces, seams, order, climax, reads: seams.filter((s) => s.read).length, pagesBox, box };
+}
+
+/**
+ * The pieces the solver set aside go to a tray beside the pages, each in its own bounding circle: left where they lay
+ * in the photo, they were drawn over the rebuilt page and read as a wrong fit. The tray goes right of tall pages and
+ * under wide ones, packed about as long as the pages so the whole stays near the stage's shape. Returns the bounds of
+ * the pages and the tray. Before anything is assembled there's no tray: pieces stay put.
+ */
+function setAside(pieces: ScenePiece[], pagesBox: [number, number, number, number], gap: number, assembled: boolean): [number, number, number, number] {
+  const aside = [...pieces.filter((p) => !p.placed)].sort((a, b) => b.r - a.r);
+  if (!assembled || !aside.length) return pagesBox;
+  const [x0, y0, x1, y1] = pagesBox;
+  const right = y1 - y0 >= (x1 - x0) * 0.8;
+  // a shelf as long as the pages' side, or as the tray's own square if that is longer
+  const side = Math.max(right ? y1 - y0 : x1 - x0, Math.sqrt(aside.reduce((n, p) => n + 4 * p.r * p.r, 0)), 2 * aside[0].r);
+  const sx = right ? x1 + 1.5 * gap : x0; // where the tray starts
+  const sy = right ? y0 : y1 + 1.5 * gap;
+  let along = 0; // position along the shelf
+  let across = 0; // the current shelf's offset
+  let depth = 0; // the current shelf's thickness
+  let ex = x1;
+  let ey = y1;
+  for (const p of aside) {
+    const d = 2 * p.r;
+    if (along > 0 && along + d > side) {
+      across += depth + gap / 2;
+      along = 0;
+      depth = 0;
+    }
+    const cx = right ? sx + across + d / 2 : sx + along + d / 2;
+    const cy = right ? sy + along + d / 2 : sy + across + d / 2;
+    p.home = [cx, cy];
+    p.ang = 0;
+    along += d + gap / 2;
+    depth = Math.max(depth, d);
+    ex = Math.max(ex, cx + d / 2);
+    ey = Math.max(ey, cy + d / 2);
+  }
+  return [x0, y0, ex, ey];
 }
 
 /** A spanning tree over the seams, page by page, each step caused by its strongest real clue; the climax piece last. */

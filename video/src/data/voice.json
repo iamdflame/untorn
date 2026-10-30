@@ -1,0 +1,11 @@
+{
+  "note": "The narrator, chosen by evidence (out/voice-auditions/README.md, S4-VIDEO.md). Never a cloned voice of the user. Change NARRATOR to override, then re-run scripts/voice/narrate.mjs.",
+  "NARRATOR": "ZthjuvLPty3kTMaNKVKb",
+  "name": "Peter (ElevenLabs library, professional)",
+  "model": "eleven_v4",
+  "runnersUp": [
+    { "id": "MFZUKuGQUsGJPQjTS4wC", "name": "Jon - Warm & Grounded Storyteller" },
+    { "id": "G17SuINrv2H9FC6nvetn", "name": "Christopher - Gentle and Trustworthy" }
+  ],
+  "settings": { "stability": 0.5, "similarity_boost": 0.75, "speed": 1.0 }
+}

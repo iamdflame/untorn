@@ -1,0 +1,111 @@
+[
+  {
+    "at": "2026-10-29T19:11:00.000Z",
+    "purpose": "audition",
+    "id": "jon",
+    "model": "eleven_v4",
+    "voice": "MFZUKuGQUsGJPQjTS4wC",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 276,
+    "billed": 110,
+    "header": null,
+    "note": "ledger write failed after the request (missing folder); entry added by hand; billed 110 from the account counter (29,220 -> 29,330 before the next request), matching the character-cost header of the other takes"
+  },
+  {
+    "at": "2026-10-29T19:12:45.407Z",
+    "purpose": "audition",
+    "id": "christopher",
+    "model": "eleven_v4",
+    "voice": "G17SuINrv2H9FC6nvetn",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 276,
+    "billed": 110,
+    "header": 110,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29330,
+    "accountUsedAfter": 29330,
+    "accountDelta": 0,
+    "requestId": "wWmIYbI3OWb0ph1fJYsU"
+  },
+  {
+    "at": "2026-10-29T19:13:05.663Z",
+    "purpose": "audition",
+    "id": "frederick",
+    "model": "eleven_v4",
+    "voice": "j9jfwdrw7BRfcR43Qohk",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 276,
+    "billed": 110,
+    "header": 110,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29330,
+    "accountUsedAfter": 29550,
+    "accountDelta": 220,
+    "requestId": "BD4Bp7VzdUZB2bKNqdOW"
+  },
+  {
+    "at": "2026-10-29T19:13:28.362Z",
+    "purpose": "audition",
+    "id": "peter",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 276,
+    "billed": 110,
+    "header": 110,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29550,
+    "accountUsedAfter": 29550,
+    "accountDelta": 0,
+    "requestId": "OD51UvY3uLR9ZQx6ymc6"
+  },
+  {
+    "at": "2026-10-29T19:13:48.804Z",
+    "purpose": "audition",
+    "id": "jane",
+    "model": "eleven_v4",
+    "voice": "RILOU7YmBhvwJGDGjNmP",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 276,
+    "billed": 110,
+    "header": 110,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29550,
+    "accountUsedAfter": 29770,
+    "accountDelta": 220,
+    "requestId": "aHcYzsWmPGOR0qs2wX6K"
+  }
+]

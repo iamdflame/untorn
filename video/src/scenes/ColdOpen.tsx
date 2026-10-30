@@ -225,7 +225,9 @@ export function warpTime(t: number, warp?: [number, number][]) {
   return b + (t - a);
 }
 
-export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> = ({ warp, debug = false }) => {
+export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean; still?: number; bare?: boolean; forceRead?: boolean; loupeOffset?: [number, number, number?] }> = ({ warp, debug = false, still, bare = false, forceRead = false, loupeOffset }) => {
+  // a still (the thumbnail) can move and size the loupe: [dx, dy, radius]
+  const LP = { ...LOUPE, ...(loupeOffset ? { dx: loupeOffset[0], dy: loupeOffset[1], r: loupeOffset[2] ?? LOUPE.r } : {}) };
   const imgs = useImages(paths);
   const cuts = useMemo(() => {
     if (!imgs) return null;
@@ -240,7 +242,7 @@ export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> 
   const draw = useCallback<DrawFn>(
     (out, tf, frame, scratch) => {
       if (!imgs || !cuts) return;
-      const t = warpTime(tf, warp);
+      const t = still ?? warpTime(tf, warp);
       const g = scratch.a.getContext("2d")!;
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.imageSmoothingEnabled = true;
@@ -381,7 +383,7 @@ export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> 
       });
 
       // the read: a real-pixel loupe on the crossing, x2 nearest-neighbour, with a violet leader to the seam
-      const la = smooth(CO.word, CO.word + 0.3, t) * (1 - smooth(CO.word + 1.55, CO.word + 1.9, t)) * (1 - ex);
+      const la = forceRead ? 1 : smooth(CO.word, CO.word + 0.3, t) * (1 - smooth(CO.word + 1.2, CO.word + 1.45, t)) * (1 - ex);
       if (la > 0.01) {
         const p0 = pieces[HOPE.a];
         const ps0 = poses[HOPE.a];
@@ -391,10 +393,10 @@ export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> 
         const rx = ps0.x + Math.cos(da) * ox - Math.sin(da) * oy;
         const ry = ps0.y + Math.sin(da) * ox + Math.cos(da) * oy;
         const [px, py] = w2s(c, rx, ry);
-        const lx = Math.round(px + LOUPE.dx);
-        const ly = Math.round(py + LOUPE.dy);
-        const open = 0.86 + 0.14 * clamp((t - CO.word) / 0.3);
-        const R2 = LOUPE.r * open;
+        const lx = Math.round(px + LP.dx);
+        const ly = Math.round(py + LP.dy);
+        const open = forceRead ? 1 : 0.86 + 0.14 * clamp((t - CO.word) / 0.3);
+        const R2 = LP.r * open;
         g.save();
         g.setTransform(1, 0, 0, 1, 0, 0);
         g.globalAlpha = la;
@@ -420,7 +422,7 @@ export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> 
         g.arc(lx, ly, R2, 0, Math.PI * 2);
         g.clip();
         g.imageSmoothingEnabled = false;
-        g.setTransform(LOUPE.z, 0, 0, LOUPE.z, Math.round(lx - rx * LOUPE.z), Math.round(ly - ry * LOUPE.z));
+        g.setTransform(LP.z, 0, 0, LP.z, Math.round(lx - rx * LP.z), Math.round(ly - ry * LP.z));
         for (const i of [HOPE.a, HOPE.b]) drawPiece(g, cuts[pieces[i].id], poses[i], lit);
         g.imageSmoothingEnabled = true;
         g.setTransform(1, 0, 0, 1, 0, 0);
@@ -469,11 +471,11 @@ export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> 
       depthOfField(out, scratch, scratch.a, W * 0.4, H * 0.44, W * 0.5, H * 0.56, dof);
       grain(out, imgs["fx/grain.png"], frame, 0.09 * bgA);
     },
-    [imgs, cuts, warp, debug],
+    [imgs, cuts, warp, debug, still, forceRead, LP.dx, LP.dy, LP.r],
   );
 
   const frame = useCurrentFrame();
-  const t = warpTime(frame / FPS, warp);
+  const t = still ?? warpTime(frame / FPS, warp);
   const exitA = 1 - smooth(CO.exit0 - 0.1, CO.exit0 + 0.5, t);
   const c = camAt(t);
   // the read word, under the loupe (which sits off the crossing by LOUPE.dx, LOUPE.dy)
@@ -483,9 +485,9 @@ export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> 
   const hx = HOPE_AT[0] - p0.home[0];
   const hy = HOPE_AT[1] - p0.home[1];
   const [hpx, hpy] = w2s(c, ps0.x + Math.cos(da) * hx - Math.sin(da) * hy, ps0.y + Math.sin(da) * hx + Math.cos(da) * hy);
-  const wx = hpx + LOUPE.dx;
-  const wy = hpy + LOUPE.dy + LOUPE.r + 70;
-  const wordA = smooth(CO.word + 0.15, CO.word + 0.45, t) * (1 - smooth(CO.word + 1.55, CO.word + 1.9, t)) * exitA;
+  const wx = hpx + LP.dx;
+  const wy = hpy + LP.dy + LP.r + 70;
+  const wordA = forceRead ? 1 : smooth(CO.word + 0.15, CO.word + 0.45, t) * (1 - smooth(CO.word + 1.2, CO.word + 1.45, t)) * exitA;
   const lastSeat = stepT(order.length - 1) + CO.fly * 0.62;
   return (
     <AbsoluteFill>
@@ -508,7 +510,7 @@ export const ColdOpen: React.FC<{ warp?: [number, number][]; debug?: boolean }> 
           <div style={{ marginTop: 10, fontFamily: F.sans, fontSize: 20, color: C.chalk2 }}>Muse read both words across the tear.</div>
         </div>
       )}
-      <div style={{ opacity: exitA }}>
+      <div style={{ opacity: bare ? 0 : exitA }}>
         <TornWord text="Untorn" t={t} t0={CO.title0} seat={lastSeat} x={150} y={392} size={176} />
         <Label t={t} t0={4.4} x={110} y={40}>
           Simulated tear of a real 1927 letter, recorded run.

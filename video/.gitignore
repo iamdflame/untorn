@@ -7,3 +7,4 @@ node_modules/
 /public/audio/scratch/
 /public/audio/narration/*.wav
 /public/audio/mix.wav
+/public/audio/backup.wav

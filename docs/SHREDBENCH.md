@@ -47,20 +47,25 @@ reads as a part. No piece is misplaced.
 
 ### 12 and 16 pieces (replica only; ShredBench has not published these sets)
 
-At 12 pieces we ran every 2nd test document of each domain (32 documents).
+At 12 and 16 pieces we ran the same 32 documents: every 2nd test document of each domain.
 
-| pieces | n | Untorn | Muse Spark alone | pieces placed correctly | complete pages | seam reads/sample | $/sample |
-|---|---|---|---|---|---|---|---|
-| 12 | 32 | **0.050** | 0.436 | 87.8% | 18/32 | 6.3 | 0.082 |
+| pieces | n | Untorn | Muse Spark alone | pieces found | placed correctly | misplaced | complete pages | seam reads/sample | $/sample | median latency |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 8 | 64 | **0.050** | 0.404 | 512/512 | 87.5% | 2 (0.4%) | 37/64 | 3.1 | 0.050 | 53 s |
+| 12 | 32 | **0.050** | 0.436 | 384/384 | 87.8% | 4 (1.0%) | 18/32 | 6.3 | 0.082 | 90 s |
+| 16 | 32 | **0.077** | 0.469 | 512/512 | 76.6% | 14 (2.7%) | 10/32 | 19.0 | 0.202 | 162 s |
 
-By domain at 12 pieces:
+By domain:
 
-| domain | Untorn | Muse alone |
-|---|---|---|
-| English news | 0.003 | 0.483 |
-| Chinese news | 0.012 | 0.766 |
-| code | 0.082 | 0.207 |
-| tables | 0.104 | 0.289 |
+| domain | 12 pieces: Untorn | 12 pieces: Muse alone | 16 pieces: Untorn | 16 pieces: Muse alone |
+|---|---|---|---|---|
+| English news | 0.003 | 0.483 | 0.013 | 0.503 |
+| Chinese news | 0.012 | 0.766 | 0.144 | 0.833 |
+| code | 0.082 | 0.207 | 0.008 | 0.228 |
+| tables | 0.104 | 0.289 | 0.144 | 0.313 |
+
+Muse alone degrades as the pieces get smaller (0.404 → 0.436 → 0.469), as ShredBench's models do on their set.
+Untorn stays near 0.05 up to 12 pieces and rises to 0.077 at 16, where more pieces stay loose and are read as parts.
 
 ## What is public, and what we measured instead
 

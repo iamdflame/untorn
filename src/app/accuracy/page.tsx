@@ -186,14 +186,15 @@ export default function AccuracyPage() {
 
         <Section id="real" title="Real tears" label="Measured: 1 page" intro="Hand-torn paper photographed on a table with a phone, scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place.">
           <Table
-            caption="A printed report page, torn by hand into 10 pieces: the same photo, three live runs"
+            caption="A printed report page, torn by hand into 10 pieces: the same photo, four live runs"
             head={["Run", "Placed correctly", "Misplaced", "Page upright", "Transcript errors", "Photo to page"]}
             rows={[
-              [1, "6 of 10", 3, "yes", "38.9%", "63.5 s"],
-              [2, "7 of 10", 0, "yes", "25.2%", "53.8 s"],
-              [3, "6 of 10", 0, "yes", "38.9%", "67.9 s"],
+              [1, "8 of 10", 0, "yes", "12.0%", "74.7 s"],
+              [2, "6 of 10", "1 (a true neighbour, 2.3° off)", "yes", "24.8%", "55.0 s"],
+              [3, "8 of 10", 0, "yes", "11.7%", "89.9 s"],
+              ["4, on the live site from the phone's original photo", "7 of 10", 0, "yes", "25.5%", "80.3 s"],
             ]}
-            note="Run on 30 Oct 2026 with the deployed version. Results vary between runs because Muse's reads vary: in run 1 two confident misreads let three pieces join in the wrong place, which the next fix guards against. Before the real-paper work, this photo had 0 of 10 placed correctly and 77–88% transcript errors. The page's text is not shown here."
+            note="Run on 30 Oct 2026 with the deployed version. Pieces that aren't placed are set aside, never forced; the transcript errors count the text of set-aside pieces as missing. Results vary between runs because Muse's reads vary. The version before (a read could override the shape and the lines) placed 6, 7 and 6 of 10, with three wrong joins in one run; before the real-paper work, this photo had 0 of 10 placed correctly. The page's text is not shown here."
           />
         </Section>
 
@@ -212,8 +213,8 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl and a tilted camera, 6 or 7 of 10 pieces land in the right place on the one real page measured so far.</li>
-            <li>A confident misread can still join two pieces that don&apos;t belong together; a guard is in progress.</li>
+            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl and a tilted camera, 6 to 8 of 10 pieces land in the right place on the one real page measured so far; the rest are set aside.</li>
+            <li>A piece can join its true neighbour a few pixels off its place (run 2 above).</li>
           </ul>
         </Section>
       </div>

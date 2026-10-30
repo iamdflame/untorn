@@ -84,6 +84,8 @@ export type Candidate = {
   confidence: number;
   /** Score ratio to the best competing candidate on the same stretch of edge (∞ when unopposed). */
   margin: number;
+  /** The same against rivals with another partner only (another alignment of the same two pieces is no alternative). */
+  marginOther?: number;
   /** Segments of a and b touched by the seam. */
   segmentsA: number[];
   segmentsB: number[];

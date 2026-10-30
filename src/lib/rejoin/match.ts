@@ -977,9 +977,13 @@ function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candida
   const congruent: [string, string][] = [];
   for (const c of cands) {
     let margin = Infinity;
+    let marginOther = Infinity;
     for (const d of rivals.get(c.id) ?? []) {
       if (d.edge !== c.edge) continue;
       margin = Math.min(margin, c.score / Math.max(d.score, 1e-9));
+      // a rival that pairs the same two pieces is another alignment of this seam, not an alternative partner
+      const samePair = (d.a === c.a && d.b === c.b) || (d.a === c.b && d.b === c.a);
+      if (!samePair) marginOther = Math.min(marginOther, c.score / Math.max(d.score, 1e-9));
       // twins are a torn-edge notion; straight cuts are ambiguous by nature and go to pair checks
       if (c.edge === "cut" || c.id >= d.id || c.score < o.twinMinScore || d.score < o.twinMinScore) continue;
       // twins: same anchor fragment, different partners, footprints that coincide
@@ -1004,6 +1008,7 @@ function rank(cands: Candidate[], data: MatchData[], o: MatchOptions): { candida
       }
     }
     c.margin = margin;
+    c.marginOther = marginOther;
     const base = 1 - Math.exp(-c.score / 60);
     const amb = Number.isFinite(margin) ? Math.max(0, 1 - 1 / (margin * margin)) : 1;
     c.confidence = base * amb;

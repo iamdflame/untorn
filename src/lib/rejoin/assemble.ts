@@ -7,8 +7,8 @@
 // pieces overlap. Fragments that join nothing stay unplaced: never force a fit.
 
 import { competitors, correspond, interpenetration, measureSeam, MATCH_DEFAULTS, workspace, type MatchData } from "./match";
-import { poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
-import { gridTrusted, lineConsensus } from "./textlines";
+import { axialDiff, poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
+import { gridTrusted, lineConsensus, linesAlong, lineWeight } from "./textlines";
 import type { Candidate, Clue, Fragment, Join, Page, Unplaced } from "./types";
 
 export type AssembleOptions = {
@@ -33,6 +33,18 @@ export type AssembleOptions = {
   linesStiffness: number;
   /** Fibre-rim overlap a seam may rest at (px), as in matching (MatchOptions.rimMax). */
   rimMax: number;
+  /**
+   * A join a read confirms still needs the outline fit not to prefer another partner on that edge: its score at least
+   * this times every rival's with another partner. (On the real photo Muse said "same" at 0.85 to a chance fit whose
+   * edge three other partners fitted better.)
+   */
+  minContentMargin: number;
+  /** A read-confirmed join needs the fused reads at least this sure (a hesitant "same" is no clue). */
+  minReadConfidence: number;
+  /** The final check of every page also takes off pieces whose clear text lines run off the page's (linesAstray). */
+  pageLines: boolean;
+  /** …when their ink shows lines along the page's direction no more regular than this (linesAlong; 0–1). */
+  astrayAlong: number;
   /** Geometry this unambiguous (margin over every rival, and score) outvotes a single contrary read. */
   overrideMargin: number;
   overrideScore: number;
@@ -66,6 +78,10 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   linesMaxPhase: 0.3,
   linesStiffness: 3e4,
   rimMax: MATCH_DEFAULTS.rimMax,
+  minContentMargin: 1,
+  minReadConfidence: 0.7,
+  pageLines: true,
+  astrayAlong: 0.15,
   overrideMargin: 5,
   overrideScore: 300,
   loopPx: 6,
@@ -97,12 +113,17 @@ type Decision = { c: Candidate; combined: number; decidedBy: Clue; content: Join
  */
 function geometryAlone(c: Candidate, margin: number, o: AssembleOptions): boolean {
   if (margin < o.minMargin || c.score < o.minGeomScore) return false;
+  if (!linesContinue(c, o)) return false;
   const t = c.text;
-  if (t && t.weight >= 0.5) {
-    if (t.angle > o.linesMaxAngle || t.flipped || (t.phaseValid && Math.abs(t.phase) > o.linesMaxPhase)) return false;
-    if (t.logLR < o.minLinesLogLR) return false;
-  }
+  if (t && t.weight >= 0.5 && t.logLR < o.minLinesLogLR) return false;
   return true;
+}
+
+/** Where both pieces carry text lines, do they continue across the join (direction, phase where measurable, up)? */
+function linesContinue(c: Candidate, o: AssembleOptions): boolean {
+  const t = c.text;
+  if (!t || t.weight < 0.5) return true;
+  return !(t.angle > o.linesMaxAngle || t.flipped || (t.phaseValid && Math.abs(t.phase) > o.linesMaxPhase));
 }
 
 /** Which candidates may be accepted, how confidently, and which clue decides. */
@@ -127,6 +148,10 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
       if (!same || c.score < o.minContentScore) continue;
       // inside a twin group geometry is tied: content decides, and only when confirmed; elsewhere both clues agree
       const twin = c.twinGroup !== null;
+      // a read's "same" does not override the outline fit preferring another partner, nor lines that do not continue
+      if (!twin && c.edge !== "cut" && ((c.marginOther ?? c.margin) < o.minContentMargin || !linesContinue(c, o))) continue;
+      // and a clear one: a hesitant "same" (Muse at 0.55–0.62 on the real photo's chance fits) is no second clue
+      if (!twin && content.confidence < o.minReadConfidence) continue;
       // concordant: that many reads picked this very join (one pick plus one read against it is not two votes)
       if (twin && (ev.pos ?? ev.votes) < o.minTwinVotes) continue;
       const geomTerm = twin ? logit(1 - Math.exp(-c.score / 60)) : logit(g);
@@ -262,7 +287,7 @@ export function assemble(
   // A page never shows two pieces lying on each other. Merges were checked against overlap as they happened, but a
   // join that slipped through (or a loop closure) can still stack pieces: check every pair on every page, with a
   // stricter bound, and take the offending pieces off, weakest first, splitting what remains along its joins.
-  const overlapRejected = clearOverlaps(members, comp, accepted, direct, acceptedIds, byId, pose, radius, o);
+  const overlapRejected = clearOverlaps(members, comp, accepted, direct, acceptedIds, byId, pose, radius, consensus, o);
 
   // pages: components of two or more fragments
   const pages: Page[] = [];
@@ -481,6 +506,69 @@ function markUsed(used: Uint8Array, seam: [number, number], n: number) {
   for (let q = 0; q < seam[1]; q++) used[(seam[0] + q) % n] = 1;
 }
 
+/**
+ * Pieces whose text lines contradict their page. The page's lines run where most of its trusted line weight agrees
+ * (within `linesMaxAngle`); a trusted piece off that direction whose ink shows no lines along the page's either
+ * (`linesAlong` below `astrayAlong`: its own estimate was no alias), or whose clear up vote reverses the page's reading
+ * direction, is not on this page as placed, however the joins chained it there (on a real photo a piece came to sit at
+ * 154° among level neighbours through a join whose line test it was just too faint for). Trusted: a grid on the
+ * photo's line pitch (gridTrusted), as for the direction and phase of the pair test.
+ */
+export function linesAstray(
+  ids: string[],
+  byId: Map<string, MatchData>,
+  pose: Map<string, Pose>,
+  consensus: number | null,
+  o: AssembleOptions,
+): string[] {
+  if (consensus === null) return [];
+  const frag = (id: string) => byId.get(id)!.f;
+  const text = (id: string) => frag(id).text!;
+  const clear = ids.filter((id) => gridTrusted(frag(id), consensus));
+  if (clear.length < 2) return [];
+  const weight = (id: string) => lineWeight(text(id)) * Math.sqrt(text(id).ink);
+  const out = new Set<string>();
+  const dir = (id: string) => text(id).angle + pose.get(id)!.theta;
+  // the page's lines: the direction the most line weight agrees on, then the weighted axial mean of its inliers
+  let axis = 0;
+  let support = -1;
+  for (const k of clear) {
+    const s = clear.reduce((acc, j) => acc + (axialDiff(dir(j), dir(k)) <= o.linesMaxAngle ? weight(j) : 0), 0);
+    if (s > support) {
+      support = s;
+      axis = dir(k);
+    }
+  }
+  let sx = 0;
+  let sy = 0;
+  for (const j of clear) {
+    if (axialDiff(dir(j), axis) > o.linesMaxAngle) continue;
+    sx += weight(j) * Math.cos(2 * dir(j));
+    sy += weight(j) * Math.sin(2 * dir(j));
+  }
+  axis = Math.atan2(sy, sx) / 2;
+  for (const id of clear) {
+    if (axialDiff(dir(id), axis) <= o.linesMaxAngle) continue;
+    // in its own photo frame the page's lines run at axis − θ: an estimate that locked onto columns still has them
+    const along = linesAlong(frag(id), axis - pose.get(id)!.theta, consensus);
+    if (along !== null && along < o.astrayAlong) out.add(id);
+  }
+  // reading direction: a piece that clearly knows which way is up must agree with the others that do (a net 1.5 votes)
+  const ups = clear.filter((id) => !out.has(id) && text(id).up !== 0 && text(id).upConfidence >= 0.75);
+  const reading = (id: string) => text(id).angle + (text(id).up === -1 ? Math.PI : 0) + pose.get(id)!.theta;
+  for (const id of ups) {
+    let vx = 0;
+    let vy = 0;
+    for (const other of ups) {
+      if (other === id) continue;
+      vx += Math.cos(reading(other));
+      vy += Math.sin(reading(other));
+    }
+    if (Math.hypot(vx, vy) >= 1.5 && Math.cos(reading(id) - Math.atan2(vy, vx)) < 0) out.add(id);
+  }
+  return [...out];
+}
+
 /** Pairs of pieces on one page that lie on each other: deep overlap beyond `overlapPx` + `finalOverlapShare` of the smaller. */
 export function pageOverlaps(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, radius: Map<string, number>, o: AssembleOptions): [string, string][] {
   const out: [string, string][] = [];
@@ -508,6 +596,7 @@ function clearOverlaps(
   byId: Map<string, MatchData>,
   pose: Map<string, Pose>,
   radius: Map<string, number>,
+  consensus: number | null,
   o: AssembleOptions,
 ): Set<string> {
   const taken = new Set<string>();
@@ -516,9 +605,12 @@ function clearOverlaps(
     for (const [root, ids] of [...members]) {
       if (ids.length < 2) continue;
       const pairs = pageOverlaps(ids, byId, pose, radius, o);
-      if (!pairs.length) continue;
+      const astray = o.pageLines ? linesAstray(ids, byId, pose, consensus, o) : [];
+      if (!pairs.length && !astray.length) continue;
       const count = new Map<string, number>();
       for (const [a, b] of pairs) for (const x of [a, b]) count.set(x, (count.get(x) ?? 0) + 1);
+      // a piece whose lines run off the page's counts as more than one overlap: it cannot be on this page as it is
+      for (const x of astray) count.set(x, (count.get(x) ?? 0) + 2);
       const strength = (x: string) => accepted.filter((d) => d.c.a === x || d.c.b === x).reduce((m, d) => Math.max(m, d.combined), 0);
       const worst = [...count.keys()].sort((x, y) => count.get(y)! - count.get(x)! || strength(x) - strength(y))[0];
       taken.add(worst);

@@ -4,7 +4,8 @@
 // then predicts where b's lines land in a's frame, and the mismatch is cheap to compute.
 
 import { axialDiff, poseApply, poseInvert, type Pose } from "./geom";
-import type { Fragment, TextCheck } from "./types";
+import { lineGrid } from "./orientation";
+import type { Fragment, TextCheck, TextOrientation } from "./types";
 
 export type TextAgreement = {
   /** Angle between the two pieces' text lines once joined (rad, axial). */
@@ -37,6 +38,12 @@ export function gridTrusted(f: Fragment, consensus: number | null): boolean {
   return !!t && !!t.grid && consensus !== null && t.confidence >= 0.5 && t.grid.regularity >= 0.35 && Math.abs(t.grid.period / consensus - 1) < 0.12;
 }
 
+/** How far a piece's line grid can be trusted, 0–1: a clear text angle and a regular line period. */
+export function lineWeight(t: TextOrientation | null): number {
+  if (!t || !t.grid) return 0;
+  return Math.max(0, Math.min(1, (t.confidence - 0.3) / 0.5)) * Math.max(0, Math.min(1, (t.grid.regularity - 0.2) / 0.25));
+}
+
 /** The piece's line grid in photo coordinates: lines at r = offset + j·period, r = −x·sin(angle) + y·cos(angle). */
 export function photoGrid(f: Fragment): { angle: number; period: number; offset: number; weight: number } | null {
   const t = f.text;
@@ -44,9 +51,7 @@ export function photoGrid(f: Fragment): { angle: number; period: number; offset:
   const s = Math.sin(t.angle);
   const c = Math.cos(t.angle);
   const offset = t.grid.offset + (-f.input.x0 * s + f.input.y0 * c);
-  // trust needs a clear text angle and a regular line period
-  const weight = Math.max(0, Math.min(1, (t.confidence - 0.3) / 0.5)) * Math.max(0, Math.min(1, (t.grid.regularity - 0.2) / 0.25));
-  return { angle: t.angle, period: t.grid.period, offset, weight };
+  return { angle: t.angle, period: t.grid.period, offset, weight: lineWeight(t) };
 }
 
 /**
@@ -93,6 +98,39 @@ export function localLineOffset(f: Fragment, x: number, y: number, radius: numbe
   let off = (-Math.atan2(im, re) * t.grid.period) / (2 * Math.PI);
   off -= t.grid.period * Math.floor(off / t.grid.period);
   return off;
+}
+
+/**
+ * How regular the piece's ink is across a given line direction (photo frame, rad) near a given pitch: the strength of
+ * that period in the ink profile, 0–1 as TextOrientation.grid.regularity. A piece whose own estimate locked onto a
+ * column or a 90° alias still shows its lines here; a piece turned off the lines shows none (a quarter of a line's
+ * smear across its width flattens the profile). Null without pixels or with too little ink to tell.
+ */
+export function linesAlong(f: Fragment, angle: number, pitch: number): number | null {
+  const img = f.input.rgba;
+  if (!img || !f.paper) return null;
+  const level = 0.299 * f.paper[0] + 0.587 * f.paper[1] + 0.114 * f.paper[2];
+  const { mask } = f.input;
+  const s = Math.sin(angle);
+  const c = Math.cos(angle);
+  const R = Math.ceil(Math.hypot(mask.width, mask.height)) + 2;
+  const hist = new Float64Array(2 * R + 1);
+  const cx = mask.width / 2;
+  const cy = mask.height / 2;
+  let ink = 0;
+  for (let r = 0; r < mask.height; r++) {
+    for (let col = 0; col < mask.width; col++) {
+      const i = r * mask.width + col;
+      if (!mask.data[i] || f.depth[i] < 6) continue;
+      const lum = 0.299 * img.data[4 * i] + 0.587 * img.data[4 * i + 1] + 0.114 * img.data[4 * i + 2];
+      const dark = level - lum - 28;
+      if (dark <= 0) continue;
+      hist[Math.round(-(col + 0.5 - cx) * s + (r + 0.5 - cy) * c) + R] += Math.min(1, dark / 60);
+      ink++;
+    }
+  }
+  if (ink < 120) return null;
+  return lineGrid(hist, R, pitch)?.regularity ?? 0;
 }
 
 /**

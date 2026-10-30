@@ -151,8 +151,18 @@ where b's lines land in a's frame under a candidate pose.
 - **Order:** combined confidence (geometry log-odds + content log-odds).
 - **Acceptance (two clues):**
   - With a content verdict, a join needs geometry ≥ 30 and content "same".
+  - A read confirms only what the outline does not contradict. Outside twin groups and straight cuts, a "same" needs:
+    - the outline fit not to prefer another partner on that edge: score ≥ every rival's with another partner
+      (`minContentMargin` 1 over `marginOther`; another alignment of the same two pieces is no rival);
+    - the text lines to continue where both pieces carry them (direction within 6°, phase within 0.3 of a line where
+      measurable, neither piece turned upside down);
+    - the reads fused at confidence ≥ 0.7 (`minReadConfidence`): a hesitant "same" is no second clue.
+
+    On the real photo Muse said "same" at 0.55–0.85 to chance fits whose edge other partners fitted better; one turned
+    a piece 154° against its neighbours.
   - A twin needs two concordant reads (`minTwinVotes`), so one unconfirmed pick never places a piece.
-  - Without content, geometry alone must be unambiguous (no twin, not a straight cut, margin ≥ 1.4) and ≥ 60.
+  - Without content, geometry alone must be unambiguous (no twin, not a straight cut, margin ≥ 1.4) and ≥ 60, with
+    the text lines continuing as above.
 - **Consistency:** a join is refused when:
   - ≥ 35% of either seam is already used;
   - it closes a loop that disagrees with the page (> 6 px or > 2°);
@@ -162,6 +172,13 @@ where b's lines land in a's frame under a candidate pose.
 - **Relaxation:** after the greedy pass, margins are re-checked against the rivals that are still possible (seam free,
   pair not joined, consistent with the page). Joins whose rivals dropped out are accepted. This repeats until nothing
   changes.
+- **Final page check:** no piece may lie on another (stricter than during the merges: 300 px² + 2% of the smaller), and
+  no piece's text lines may contradict its page (`linesAstray`). The page's lines run where most of its trusted line
+  weight agrees (grids on the photo's pitch). A trusted piece more than 6° off them is taken off only when its own ink
+  shows no lines along the page's direction either (`linesAlong` < 0.15: its estimate was no 90° alias); a piece whose
+  clear up vote reverses the page's reading direction is taken off too. Offending pieces go weakest first, and the rest
+  of the page splits along its remaining joins. On Bench-S's true pages it flags none of 938 pieces; it catches 49 of 52
+  trusted pieces turned 26° off their page, 50 of 52 at 154°.
 - **Implied seams:** once pieces are placed, every pair whose outlines meet is measured. Those seams join the
   refinement and are reported as joins (loop closures).
 - **Joint refinement:** Gauss–Newton on point-to-line residuals of every seam of the page, all poses at once (largest
@@ -212,6 +229,9 @@ const png = encodePng(renderPage(result.pages[0], prepare(inputs).fragments));
 | match | cuts | false | straight-cut candidates (opt-in) |
 | solve | twinSides, maxPairChecks | "both", 48 | content requests |
 | assemble | minGeomScore, minMargin, minContentScore, minTwinVotes | 60, 1.4, 30, 2 | the two-clue acceptance rule |
+| assemble | minContentMargin, minReadConfidence | 1, 0.7 | what a read may confirm |
+| assemble | linesMaxAngle, linesMaxPhase | 6°, 0.3 line | text lines continuing across a join |
+| assemble | pageLines, astrayAlong | on, 0.15 | final page check of the text lines |
 | assemble | loopPx, loopDeg, overlapPx, seamReuse | 6 px, 2°, 300 px², 0.35 | consistency |
 
 `fineFloor` is the one parameter tied to the segmentation. It sits at the fine residual of true seams under the mask

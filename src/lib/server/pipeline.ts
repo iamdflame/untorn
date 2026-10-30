@@ -9,6 +9,7 @@ import { finish, prepare, questionPlan, askAll, type Prepared } from "@/lib/rejo
 import type { TwinStrategy } from "@/lib/rejoin/plan";
 import { fragmentsFromSegments } from "@/lib/rejoin/adapters";
 import { renderPage } from "@/lib/rejoin/render";
+import { poseCompose } from "@/lib/rejoin/geom";
 import { renderedInk } from "@/lib/rejoin/seam";
 import type { ContentRequest, ContentVerdict, Rgba, SolveResult } from "@/lib/rejoin/types";
 import { RunError } from "@/lib/run/errors";
@@ -32,7 +33,7 @@ import {
 } from "@/lib/run/types";
 import { decodePhoto, resizeJpeg, rotate180Jpeg, type DecodedPhoto } from "./images";
 import { simplifyClosed } from "./mask-geometry";
-import type { chooseContinuation, MuseOutcome, readPage, translate, verifySeam } from "./muse";
+import type { chooseContinuation, MuseOutcome, pageOrientation, readPage, translate, verifySeam } from "./muse";
 import type { SegmentResult } from "./segment";
 import { sharpness } from "./intake";
 
@@ -42,6 +43,8 @@ export type PipelineDeps = {
   chooseContinuation: typeof chooseContinuation;
   readPage: typeof readPage;
   translate: typeof translate;
+  /** Is a rebuilt page upright? Asked only for pages whose up/down the solver could not settle (optional). */
+  pageOrientation?: typeof pageOrientation;
   /** Store a run file and return the URL the browser loads it from. */
   putAsset: (name: string, bytes: Uint8Array, contentType: string) => Promise<string | null>;
   now?: () => number;
@@ -304,6 +307,23 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   // ── assemble: two-clue joins, pages, renders ─────────────────────────────────────────────────────────────
   stage("assemble", "active");
   const res: SolveResult = finish(prep, reqs, verdicts);
+  // Up or down: the solver's ascender vote settles most pages; where it could not (flipKnown false), a quick look by
+  // Muse at a small render decides, and the page is turned a half turn before it is drawn and transcribed.
+  if (deps.pageOrientation) {
+    await Promise.all(
+      res.pages.map(async (p, k) => {
+        if (p.upright.flipKnown || p.upright.by === "none") return;
+        const small = renderPage(p, prep.photo, { margin: PAGE_MARGIN, scale: Math.min(1, 1200 / Math.max(p.width, p.height)) });
+        const jpeg = await encodeJpeg(small, 85);
+        const out = await deps.pageOrientation!({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog });
+        museCost(out);
+        if (!out.ok || out.value.upright || out.value.confidence < 0.7) return;
+        // a half turn about the page centre: (x, y) → (W − x, H − y)
+        const turn = { theta: Math.PI, tx: p.width, ty: p.height };
+        res.pages[k] = { ...p, upright: { by: p.upright.by, flipKnown: true }, fragments: p.fragments.map((f) => ({ ...f, pose: poseCompose(turn, f.pose) })) };
+      }),
+    );
+  }
   const joins = res.joins.map((j) => joinOut(j, reqs, verdicts));
   const pages: PageOut[] = [];
   const pageJpegs = new Map<string, Uint8Array>();

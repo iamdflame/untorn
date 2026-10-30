@@ -460,6 +460,10 @@ export type RealScore = {
   tolerance: { px: number; deg: number };
   /** Each placed piece's error under its page's best alignment to the truth (px at the centroid, degrees). */
   errors: Record<string, { px: number; deg: number }>;
+  /** Pages with at least two pieces consistent with the truth, and of those the ones standing upright (rotation within
+   *  ±10° of the truth: "placed correctly" forgives one rigid move per page, a half turn included). */
+  pagesScored: number;
+  pagesUpright: number;
 };
 
 /**
@@ -497,6 +501,8 @@ export function scoreReal(
   };
   const groups: { page: number; ids: string[] }[] = [];
   const errors: Record<string, { px: number; deg: number }> = {};
+  let pagesScored = 0;
+  let pagesUpright = 0;
   const errorOf = (G: Pose, id: string, pose: Pose) => {
     const pred = poseCompose(G, pose);
     const tr = truth.get(id)!;
@@ -538,6 +544,10 @@ export function scoreReal(
       }
     }
     if (bestG) for (const m of pg.pieces) if (truth.has(m.id)) errors[m.id] = errorOf(bestG, m.id, m.pose);
+    if (bestG && best.length >= 2) {
+      pagesScored++;
+      if (Math.abs(Math.atan2(Math.sin(bestG.theta), Math.cos(bestG.theta))) <= (10 * Math.PI) / 180) pagesUpright++;
+    }
     groups.push({ page: k, ids: best.length >= 2 ? best : [] });
   });
   groups.sort((x, y) => y.ids.length - x.ids.length);
@@ -574,6 +584,8 @@ export function scoreReal(
     pages: pages.length,
     tolerance: { px: tolPx, deg: tolDeg },
     errors,
+    pagesScored,
+    pagesUpright,
   };
 }
 
@@ -702,7 +714,7 @@ async function solveCase(c: RealCase, out: string, k: number | "auto", pieceScal
   const s = scoreReal(gt, shapesOf(prep.fragments, prep.scale), pages, joins, inputs.map((i) => i.id));
   console.log(
     `${c.name} (scale ${working.toFixed(3)}${prep.pitch ? `, pitch ${prep.pitch.toFixed(1)} px` : ""}): ${s.correct.length}/${s.pieces} placed correctly, ${s.split.length} split off, ${s.misplaced.length} misplaced, ${s.unplaced.length} unplaced; ` +
-      `pages ${res.pages.map((p) => p.fragments.length).join("+") || "none"}; joins ${s.joinsRight} right, ${s.joinsWrong} wrong (of ${s.trueSeams} true seams); ${(total / 1000).toFixed(1)} s`,
+      `pages ${res.pages.map((p) => p.fragments.length).join("+") || "none"} (upright ${s.pagesUpright}/${s.pagesScored}); joins ${s.joinsRight} right, ${s.joinsWrong} wrong (of ${s.trueSeams} true seams); ${(total / 1000).toFixed(1)} s`,
   );
   s.joins.forEach((j, n) => {
     const rj = res.joins[n];
@@ -851,7 +863,7 @@ async function main() {
     const joins = result.joins.map((j) => ({ a: ren(j.a), b: ren(j.b), pose: poseOf.has(ren(j.a)) && poseOf.has(ren(j.b)) ? poseCompose(poseInvert(poseOf.get(ren(j.a))!), poseOf.get(ren(j.b))!) : null }));
     const s = scoreReal(gt, shapes, pages, joins, [...new Set([...idMap.values()])]);
     console.log(`pieces: ${result.pieces.length} found, ${idMap.size} matched to the truth`);
-    console.log(`placed correctly ${s.correct.length}/${s.pieces}, split off ${s.split.length}, misplaced ${s.misplaced.length}${s.misplaced.length ? ` (${s.misplaced.join(", ")})` : ""}, unplaced ${s.unplaced.length}; pages ${result.pages.map((p) => p.pieces.length).join("+") || "none"}`);
+    console.log(`placed correctly ${s.correct.length}/${s.pieces}, split off ${s.split.length}, misplaced ${s.misplaced.length}${s.misplaced.length ? ` (${s.misplaced.join(", ")})` : ""}, unplaced ${s.unplaced.length}; pages ${result.pages.map((p) => p.pieces.length).join("+") || "none"}, upright ${s.pagesUpright}/${s.pagesScored}`);
     console.log(`joins ${s.joinsRight} right, ${s.joinsWrong} wrong (of ${s.trueSeams} true seams):`);
     s.joins.forEach((j, n) => console.log(`  ${j.a}–${j.b}: ${j.right ? "right" : `WRONG (${j.why})`}  [${result.joins[n].decidedBy ?? ""}${result.joins[n].read ? `, read ${result.joins[n].read!.agrees === null ? "unsure" : result.joins[n].read!.agrees ? "agrees" : "disagrees"}` : ""}]`));
     console.log(`  piece errors: ${Object.entries(s.errors).map(([id, e]) => `${id} ${e.px.toFixed(0)}px/${e.deg.toFixed(1)}°`).join(", ")}`);

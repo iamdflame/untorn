@@ -6,7 +6,8 @@
 // validates them and decoding is constrained to them.
 
 // .1: the measured bench runs (seam v1/v2/flush, choice v1). .2: verifySeam defaults to seam v2 after the bench.
-export const PROMPTS_VERSION = "2026-10-28.2";
+// 2026-10-30.1: orient v1 (pageOrientation: is a rebuilt page upright? asked only where the solver is unsure).
+export const PROMPTS_VERSION = "2026-10-30.1";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -140,6 +141,26 @@ const READ_V1 =
   "each word you transcribed but are not sure of, exactly as it appears in text.";
 
 // ---------------------------------------------------------------------------------------------------------------
+// pageOrientation: is a rebuilt page upright? (asked only where the solver's own evidence is weak)
+
+export const ORIENTATION_SCHEMA: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["upright", "confidence", "reason"],
+  properties: {
+    upright: { type: "boolean" },
+    confidence: { type: "number" },
+    reason: { type: "string" },
+  },
+};
+
+const ORIENT_V1 =
+  "This image shows a page of printed or typed text that was torn into pieces and put back together; parts may be " +
+  "missing. Look at the letters: is the page upright (the text reads normally, left to right, top to bottom) or " +
+  "upside down (turned by 180 degrees, so the letters are inverted)? Return upright true or false, your confidence " +
+  "from 0 to 1, and a short reason naming a word you can read the right way up.";
+
+// ---------------------------------------------------------------------------------------------------------------
 // translate
 
 export const TRANSLATE_SCHEMA: JsonSchema = {
@@ -195,6 +216,7 @@ export const PROMPTS = {
   seam: { v1: SEAM_V1, v2: SEAM_V2, flush: SEAM_FLUSH },
   choice: { v1: CHOICE_V1, v2: CHOICE_V2, joined: CHOICE_JOINED },
   read: { v1: READ_V1 },
+  orient: { v1: ORIENT_V1 },
   translate: { v1: TRANSLATE_V1 },
   sort: { v1: SORT_V1, fragmentLabel },
   /** Added when the seam image is also sent rotated by 180°. */

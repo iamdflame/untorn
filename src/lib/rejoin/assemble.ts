@@ -42,6 +42,8 @@ export type AssembleOptions = {
   /** Deep overlap (px²) allowed between two placed fragments, plus a share of the smaller one's area. */
   overlapPx: number;
   overlapShare: number;
+  /** The final check of every page allows less: no piece may lie on another beyond overlapPx + this share. */
+  finalOverlapShare: number;
   /** A join is refused when this share of either seam is already used by an accepted join. */
   seamReuse: number;
   refineIters: number;
@@ -70,6 +72,7 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   loopDeg: 2,
   overlapPx: 300,
   overlapShare: 0.02,
+  finalOverlapShare: 0.02,
   seamReuse: 0.35,
   refineIters: 6,
   twinLoops: true,
@@ -256,6 +259,11 @@ export function assemble(
     }
   }
 
+  // A page never shows two pieces lying on each other. Merges were checked against overlap as they happened, but a
+  // join that slipped through (or a loop closure) can still stack pieces: check every pair on every page, with a
+  // stricter bound, and take the offending pieces off, weakest first, splitting what remains along its joins.
+  const overlapRejected = clearOverlaps(members, comp, accepted, direct, acceptedIds, byId, pose, radius, o);
+
   // pages: components of two or more fragments
   const pages: Page[] = [];
   const joins: Join[] = [];
@@ -266,7 +274,7 @@ export function assemble(
   for (const [root, ids] of members) {
     if (ids.length < 2) {
       const id = ids[0];
-      unplaced.push({ id, reason: twinMembers.has(id) ? "twin-unresolved" : withCands.has(id) ? "rejected" : "no-match" });
+      unplaced.push({ id, reason: overlapRejected.has(id) ? "rejected" : twinMembers.has(id) ? "twin-unresolved" : withCands.has(id) ? "rejected" : "no-match" });
       continue;
     }
     const pageId = `page-${pageNo++}`;
@@ -473,6 +481,87 @@ function markUsed(used: Uint8Array, seam: [number, number], n: number) {
   for (let q = 0; q < seam[1]; q++) used[(seam[0] + q) % n] = 1;
 }
 
+/** Pairs of pieces on one page that lie on each other: deep overlap beyond `overlapPx` + `finalOverlapShare` of the smaller. */
+export function pageOverlaps(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, radius: Map<string, number>, o: AssembleOptions): [string, string][] {
+  const out: [string, string][] = [];
+  const strict = { ...o, overlapShare: o.finalOverlapShare };
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const X = byId.get(ids[i])!;
+      const Y = byId.get(ids[j])!;
+      if (overlapping(X, pose.get(ids[i])!, Y, pose.get(ids[j])!, radius, strict) || overlapping(Y, pose.get(ids[j])!, X, pose.get(ids[i])!, radius, strict)) out.push([ids[i], ids[j]]);
+    }
+  }
+  return out;
+}
+
+/**
+ * Take pieces that lie on each other off their page: the piece in the most overlapping pairs first (then the one held
+ * by the weakest joins), with its joins; the rest of the page splits along its remaining joins. Returns the pieces taken.
+ */
+function clearOverlaps(
+  members: Map<string, string[]>,
+  comp: Map<string, string>,
+  accepted: Decision[],
+  direct: Set<string>,
+  acceptedIds: Set<string>,
+  byId: Map<string, MatchData>,
+  pose: Map<string, Pose>,
+  radius: Map<string, number>,
+  o: AssembleOptions,
+): Set<string> {
+  const taken = new Set<string>();
+  for (let guard = 0; guard < 64; guard++) {
+    let changed = false;
+    for (const [root, ids] of [...members]) {
+      if (ids.length < 2) continue;
+      const pairs = pageOverlaps(ids, byId, pose, radius, o);
+      if (!pairs.length) continue;
+      const count = new Map<string, number>();
+      for (const [a, b] of pairs) for (const x of [a, b]) count.set(x, (count.get(x) ?? 0) + 1);
+      const strength = (x: string) => accepted.filter((d) => d.c.a === x || d.c.b === x).reduce((m, d) => Math.max(m, d.combined), 0);
+      const worst = [...count.keys()].sort((x, y) => count.get(y)! - count.get(x)! || strength(x) - strength(y))[0];
+      taken.add(worst);
+      // drop its joins; the remaining members regroup along the joins left between them
+      for (let k = accepted.length - 1; k >= 0; k--) {
+        const c = accepted[k].c;
+        if (c.a !== worst && c.b !== worst) continue;
+        accepted.splice(k, 1);
+        acceptedIds.delete(c.id);
+        direct.delete(c.a < c.b ? `${c.a}|${c.b}` : `${c.b}|${c.a}`);
+      }
+      members.delete(root);
+      const rest = ids.filter((x) => x !== worst);
+      comp.set(worst, worst);
+      members.set(worst, [worst]);
+      const seen = new Set<string>();
+      for (const start of rest) {
+        if (seen.has(start)) continue;
+        const group: string[] = [];
+        const stack = [start];
+        seen.add(start);
+        while (stack.length) {
+          const x = stack.pop()!;
+          group.push(x);
+          for (const d of accepted) {
+            const y = d.c.a === x ? d.c.b : d.c.b === x ? d.c.a : null;
+            if (y && rest.includes(y) && !seen.has(y)) {
+              seen.add(y);
+              stack.push(y);
+            }
+          }
+        }
+        for (const x of group) comp.set(x, group[0]);
+        members.set(group[0], group);
+      }
+      changed = true;
+      break;
+    }
+    if (!changed) break;
+  }
+  return taken;
+}
+
 /** Do two placed fragments overlap by more than the noise allows? */
 function overlapping(X: MatchData, px: Pose, Y: MatchData, py: Pose, radius: Map<string, number>, o: AssembleOptions): boolean {
   const [ax, ay] = poseApply(px, X.f.centroid[0], X.f.centroid[1]);
@@ -615,11 +704,15 @@ function upright(ids: string[], byId: Map<string, MatchData>, pose: Map<string, 
     rot = -axis + (vote < 0 ? Math.PI : 0);
     flipKnown = Math.abs(vote) > 0.25 * wt;
     by = "text";
-    // typed lines start at one margin and end ragged: when the line ends say so clearly, they settle up and down
-    const side = alignedSide(ids, byId, pose, rot);
-    if (side !== 0 && (side < 0 || !flipKnown)) {
-      if (side < 0) rot += Math.PI;
-      flipKnown = true;
+    // Typed lines start at one margin and end ragged: a weak prior, used only when the ascender vote is inconclusive.
+    // It never overturns a clear vote: a page missing its left-margin pieces has a torn, ragged left edge and a flush
+    // (justified) right one, and the margins alone would turn it upside down (S7: the user's own page, live).
+    if (!flipKnown) {
+      const side = alignedSide(ids, byId, pose, rot);
+      if (side !== 0) {
+        if (side < 0) rot += Math.PI;
+        flipKnown = true;
+      }
     }
   } else {
     // page edges: dominant direction modulo 90°, then portrait

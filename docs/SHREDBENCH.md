@@ -1,6 +1,6 @@
 # ShredBench
 
-[ShredBench](https://github.com/ythere-y/ShredBench) (Findings of ACL 2026, Apache-2.0) is the published benchmark for
+[ShredBench](https://github.com/ythere-y/ShredBench) ([Findings of ACL 2026](https://aclanthology.org/2026.findings-acl.1135/), [arXiv 2604.23813](https://arxiv.org/abs/2604.23813); code Apache-2.0) is the published benchmark for
 reading a document that has been cut into pieces. A page is cut into 8, 12 or 16 Voronoi cells. The cells are rendered
 scattered in Blender, with curl and shadows, and a multimodal model must output the document's text. The score is the
 normalised edit distance (NED) to the ground truth, so lower is better. Their best model, Gemini 3 Pro, scores

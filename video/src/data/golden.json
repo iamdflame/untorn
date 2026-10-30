@@ -1,0 +1,31 @@
+{
+  "note": "The 'Tear your own' beat (1:04-1:24). `use` picks the variant the film renders (the UntornDemo composition's `tear` prop overrides it): `sim` is a simulated tear of a real 1903 letter (data/samples/chouteau-1903) filmed as a live run on untorn.vercel.app; `real` is the user's own hand-torn page, to be filmed only after the main loop clears it for public use. Each variant names its frame data (written by scripts/capture/golden-data.mjs), its on-screen honesty label, and the capture frames the edit cuts on, picked from that capture's contact sheet. See video/README.md, 'Swap the real-tear beat'.",
+  "use": "sim",
+  "variants": {
+    "sim": {
+      "label": "Live run on untorn.vercel.app, waits cut. The photo: a simulated tear of a real 1903 letter, sent from an emulated phone.",
+      "marks": {
+        "qr": 34,
+        "qrHold": 110,
+        "hero": 116,
+        "lift": 432,
+        "read": 880,
+        "readHold": 918,
+        "readAt": [
+          1900,
+          1590
+        ],
+        "home": 1170,
+        "climax": 1236,
+        "typing": 1366,
+        "whole": 1440
+      },
+      "frameNotes": "capture/golden-prod, 32 ms of page time per frame: the 'Tear your own' panel shows its QR from 32 (before that, the 'Show a QR code' button), so the edit starts at 34; 115 the hero takes the run, 140 the photo lands; 440-500 SAM 3.1's pieces lift onto the light table; 884-922 Muse's read 'emigrated' in the loupe; 1170-1235 the last pieces come home (7, 8, 9 of 10 at 1178, 1194, 1210); 1236-1296 the climax close-up ('Orleans' from 1244, the gap closes at about 1272, Muse's reason from 1292); 1366-1415 Muse types the page into the hero; 1440 on, the whole page and the transcript. The replay caught 17 single frames between two paints (an empty stage at a read's arrival; listed as `blank` in golden-frames.json): the film shows the frame before each."
+    },
+    "real": {
+      "label": "Live run on untorn.vercel.app, waits cut. The photo: a page torn by hand, sent from an emulated phone.",
+      "marks": null,
+      "frameNotes": "Not filmed yet: waits for clearance. Capture to capture/golden-real, write src/data/golden-frames-real.json, then pick these marks from its contact sheet."
+    }
+  }
+}

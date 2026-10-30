@@ -1,0 +1,564 @@
+{
+ "image": "kit/shredbench/news_041.jpg",
+ "reference": "The world's largest floating photovoltaic power station was connected to the grid and started generating power in Anhui province on Sunday, with the remaining capacity to be connected in May, said China Three Gorges Corp, the world's largest hydropower producer. The company invested 1 billion yuan ($151 million) in the 150MW floating photovoltaic power station, located in Huainan, using the water surface from an area of coal mining subsidence.",
+ "museAlone": [
+  {
+   "w": "The",
+   "ok": true
+  },
+  {
+   "w": "world's",
+   "ok": true
+  },
+  {
+   "w": "largest",
+   "ok": true
+  },
+  {
+   "w": "floating",
+   "ok": true
+  },
+  {
+   "w": "photovoltaic",
+   "ok": true
+  },
+  {
+   "w": "power",
+   "ok": true
+  },
+  {
+   "w": "station",
+   "ok": true
+  },
+  {
+   "w": "was",
+   "missing": true
+  },
+  {
+   "w": "connected",
+   "missing": true
+  },
+  {
+   "w": "to",
+   "missing": true
+  },
+  {
+   "w": "the",
+   "missing": true
+  },
+  {
+   "w": "grid",
+   "missing": true
+  },
+  {
+   "w": "and",
+   "missing": true
+  },
+  {
+   "w": "started",
+   "missing": true
+  },
+  {
+   "w": "generating",
+   "ok": true
+  },
+  {
+   "w": "power",
+   "ok": true
+  },
+  {
+   "w": "in",
+   "ok": true
+  },
+  {
+   "w": "Anhui",
+   "ok": true
+  },
+  {
+   "w": "province",
+   "ok": true
+  },
+  {
+   "w": "on",
+   "ok": true
+  },
+  {
+   "w": "Sunday,",
+   "missing": true
+  },
+  {
+   "w": "with",
+   "missing": true
+  },
+  {
+   "w": "the",
+   "missing": true
+  },
+  {
+   "w": "remaining",
+   "missing": true
+  },
+  {
+   "w": "capacity",
+   "missing": true
+  },
+  {
+   "w": "to",
+   "missing": true
+  },
+  {
+   "w": "be",
+   "missing": true
+  },
+  {
+   "w": "connected",
+   "missing": true
+  },
+  {
+   "w": "in",
+   "missing": true
+  },
+  {
+   "w": "May,",
+   "missing": true
+  },
+  {
+   "w": "Sun",
+   "extra": true
+  },
+  {
+   "w": "said",
+   "ok": true
+  },
+  {
+   "w": "China",
+   "ok": true
+  },
+  {
+   "w": "Three",
+   "ok": true
+  },
+  {
+   "w": "Gorges",
+   "ok": true
+  },
+  {
+   "w": "Corp,",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "world's",
+   "ok": true
+  },
+  {
+   "w": "largest",
+   "ok": true
+  },
+  {
+   "w": "hydropower",
+   "ok": true
+  },
+  {
+   "w": "producer.",
+   "ok": true
+  },
+  {
+   "w": "The",
+   "ok": true
+  },
+  {
+   "w": "company",
+   "ok": true
+  },
+  {
+   "w": "invested",
+   "ok": true
+  },
+  {
+   "w": "1",
+   "ok": true
+  },
+  {
+   "w": "billion",
+   "ok": true
+  },
+  {
+   "w": "yuan",
+   "ok": true
+  },
+  {
+   "w": "($151",
+   "ok": true
+  },
+  {
+   "w": "million)",
+   "ok": true
+  },
+  {
+   "w": "in",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "150MW",
+   "ok": true
+  },
+  {
+   "w": "floating",
+   "ok": true
+  },
+  {
+   "w": "photovoltaic",
+   "ok": true
+  },
+  {
+   "w": "power",
+   "ok": true
+  },
+  {
+   "w": "station,",
+   "ok": true
+  },
+  {
+   "w": "located",
+   "ok": true
+  },
+  {
+   "w": "in",
+   "ok": true
+  },
+  {
+   "w": "Huainan,",
+   "ok": true
+  },
+  {
+   "w": "using",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "water",
+   "ok": true
+  },
+  {
+   "w": "surface",
+   "ok": true
+  },
+  {
+   "w": "from",
+   "ok": true
+  },
+  {
+   "w": "an",
+   "ok": true
+  },
+  {
+   "w": "area",
+   "ok": true
+  },
+  {
+   "w": "of",
+   "ok": true
+  },
+  {
+   "w": "coal",
+   "ok": true
+  },
+  {
+   "w": "mining",
+   "ok": true
+  },
+  {
+   "w": "subsidence.",
+   "ok": true
+  }
+ ],
+ "untorn": [
+  {
+   "w": "The",
+   "ok": true
+  },
+  {
+   "w": "world's",
+   "ok": true
+  },
+  {
+   "w": "largest",
+   "ok": true
+  },
+  {
+   "w": "floating",
+   "ok": true
+  },
+  {
+   "w": "photovoltaic",
+   "ok": true
+  },
+  {
+   "w": "power",
+   "ok": true
+  },
+  {
+   "w": "station",
+   "ok": true
+  },
+  {
+   "w": "was",
+   "ok": true
+  },
+  {
+   "w": "connected",
+   "ok": true
+  },
+  {
+   "w": "to",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "grid",
+   "ok": true
+  },
+  {
+   "w": "and",
+   "ok": true
+  },
+  {
+   "w": "started",
+   "ok": true
+  },
+  {
+   "w": "generating",
+   "ok": true
+  },
+  {
+   "w": "power",
+   "ok": true
+  },
+  {
+   "w": "in",
+   "ok": true
+  },
+  {
+   "w": "Anhui",
+   "ok": true
+  },
+  {
+   "w": "province",
+   "ok": true
+  },
+  {
+   "w": "on",
+   "ok": true
+  },
+  {
+   "w": "Sunday,",
+   "ok": true
+  },
+  {
+   "w": "with",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "remaining",
+   "ok": true
+  },
+  {
+   "w": "capacity",
+   "ok": true
+  },
+  {
+   "w": "to",
+   "ok": true
+  },
+  {
+   "w": "be",
+   "ok": true
+  },
+  {
+   "w": "connected",
+   "ok": true
+  },
+  {
+   "w": "in",
+   "ok": true
+  },
+  {
+   "w": "May,",
+   "ok": true
+  },
+  {
+   "w": "said",
+   "ok": true
+  },
+  {
+   "w": "China",
+   "ok": true
+  },
+  {
+   "w": "Three",
+   "ok": true
+  },
+  {
+   "w": "Gorges",
+   "ok": true
+  },
+  {
+   "w": "Corp,",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "world's",
+   "ok": true
+  },
+  {
+   "w": "largest",
+   "ok": true
+  },
+  {
+   "w": "hydropower",
+   "ok": true
+  },
+  {
+   "w": "producer.",
+   "ok": true
+  },
+  {
+   "w": "The",
+   "ok": true
+  },
+  {
+   "w": "company",
+   "ok": true
+  },
+  {
+   "w": "invested",
+   "ok": true
+  },
+  {
+   "w": "1",
+   "ok": true
+  },
+  {
+   "w": "billion",
+   "ok": true
+  },
+  {
+   "w": "yuan",
+   "ok": true
+  },
+  {
+   "w": "($151",
+   "ok": true
+  },
+  {
+   "w": "million)",
+   "ok": true
+  },
+  {
+   "w": "in",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "150MW",
+   "ok": true
+  },
+  {
+   "w": "floating",
+   "ok": true
+  },
+  {
+   "w": "photovoltaic",
+   "ok": true
+  },
+  {
+   "w": "power",
+   "ok": true
+  },
+  {
+   "w": "station,",
+   "ok": true
+  },
+  {
+   "w": "located",
+   "ok": true
+  },
+  {
+   "w": "in",
+   "ok": true
+  },
+  {
+   "w": "Huainan,",
+   "ok": true
+  },
+  {
+   "w": "using",
+   "ok": true
+  },
+  {
+   "w": "the",
+   "ok": true
+  },
+  {
+   "w": "water",
+   "ok": true
+  },
+  {
+   "w": "surface",
+   "ok": true
+  },
+  {
+   "w": "from",
+   "ok": true
+  },
+  {
+   "w": "an",
+   "ok": true
+  },
+  {
+   "w": "area",
+   "ok": true
+  },
+  {
+   "w": "of",
+   "ok": true
+  },
+  {
+   "w": "coal",
+   "ok": true
+  },
+  {
+   "w": "mining",
+   "ok": true
+  },
+  {
+   "w": "subsidence.",
+   "ok": true
+  }
+ ]
+}

@@ -186,10 +186,14 @@ export default function AccuracyPage() {
 
         <Section id="real" title="Real tears" label="Measured: 1 page" intro="Hand-torn paper photographed on a table with a phone, scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place.">
           <Table
-            caption="Real tears (Bench-R), the whole live pipeline"
-            head={["Page", "Pieces", "Placed correctly", "Joins right", "Transcript errors"]}
-            rows={[["A printed report page, torn by hand", 10, "8 of 10; 2 set aside, 0 misplaced", "8 of 9", "11.6% of characters"]]}
-            note="Run on 30 Oct 2026 with the deployed solver. Before the real-paper work, the same photo had 0 of 10 placed correctly and 77–88% transcript errors. The page's text is not shown here."
+            caption="A printed report page, torn by hand into 10 pieces: the same photo, three live runs"
+            head={["Run", "Placed correctly", "Misplaced", "Page upright", "Transcript errors", "Photo to page"]}
+            rows={[
+              [1, "6 of 10", 3, "yes", "38.9%", "63.5 s"],
+              [2, "7 of 10", 0, "yes", "25.2%", "53.8 s"],
+              [3, "6 of 10", 0, "yes", "38.9%", "67.9 s"],
+            ]}
+            note="Run on 30 Oct 2026 with the deployed version. Results vary between runs because Muse's reads vary: in run 1 two confident misreads let three pieces join in the wrong place, which the next fix guards against. Before the real-paper work, this photo had 0 of 10 placed correctly and 77–88% transcript errors. The page's text is not shown here."
           />
         </Section>
 
@@ -208,8 +212,8 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper is harder than our simulations: fibrous rims, curl and a tilted camera cost 2 of 10 pieces on the one real page measured so far.</li>
-            <li>On real paper a rebuilt page has come out upside down; the fix is in progress.</li>
+            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl and a tilted camera, 6 or 7 of 10 pieces land in the right place on the one real page measured so far.</li>
+            <li>A confident misread can still join two pieces that don&apos;t belong together; a guard is in progress.</li>
           </ul>
         </Section>
       </div>

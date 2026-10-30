@@ -8,7 +8,8 @@ export async function GET(request: Request) {
   if (new URL(request.url).searchParams.has("warm")) return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   const store = getStore();
   const { last, lastOk } = await lastHealth(store).catch(() => ({ last: null, lastOk: null }));
-  const stale = !lastOk || Date.now() - Date.parse(lastOk.at) > 2 * 3600_000;
+  // the health cron runs every 3 hours (vercel.json): stale once a run and a half have been missed
+  const stale = !lastOk || Date.now() - Date.parse(lastOk.at) > 4.5 * 3600_000;
   return Response.json(
     {
       ok: true,

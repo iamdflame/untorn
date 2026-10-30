@@ -6,8 +6,9 @@
 // Every accepted join must leave its seams unused, agree with the page when it closes a loop, and not make placed
 // pieces overlap. Fragments that join nothing stay unplaced: never force a fit.
 
-import { competitors, correspond, interpenetration, measureSeam, workspace, type MatchData } from "./match";
+import { competitors, correspond, interpenetration, measureSeam, MATCH_DEFAULTS, workspace, type MatchData } from "./match";
 import { poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
+import { gridTrusted, lineConsensus } from "./textlines";
 import type { Candidate, Clue, Fragment, Join, Page, Unplaced } from "./types";
 
 export type AssembleOptions = {
@@ -18,6 +19,20 @@ export type AssembleOptions = {
   minContentScore: number;
   /** A twin (stack tear) needs this many concordant content reads: one unconfirmed pick never places a piece. */
   minTwinVotes: number;
+  /** A join on geometry alone between two pieces with trusted text lines needs at least this line evidence. */
+  minLinesLogLR: number;
+  /** Weight of the text-line evidence in the combined confidence (0: lines only prune, never rank). */
+  linesWeight: number;
+  /** A join on geometry alone needs its pieces' text lines within this angle (rad) and phase (pitch fraction). */
+  linesMaxAngle: number;
+  linesMaxPhase: number;
+  /**
+   * Stiffness of the text-line term in the joint refinement (working px² per rad²; 0: off). A seam of ~200 px pins
+   * a rotation with ~3·10⁵; this weighs each piece's own lines about as much as one seam.
+   */
+  linesStiffness: number;
+  /** Fibre-rim overlap a seam may rest at (px), as in matching (MatchOptions.rimMax). */
+  rimMax: number;
   /** Geometry this unambiguous (margin over every rival, and score) outvotes a single contrary read. */
   overrideMargin: number;
   overrideScore: number;
@@ -43,6 +58,12 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   minMargin: 1.4,
   minContentScore: 30,
   minTwinVotes: 2,
+  minLinesLogLR: -Infinity,
+  linesWeight: 0,
+  linesMaxAngle: (6 * Math.PI) / 180,
+  linesMaxPhase: 0.3,
+  linesStiffness: 3e4,
+  rimMax: MATCH_DEFAULTS.rimMax,
   overrideMargin: 5,
   overrideScore: 300,
   loopPx: 6,
@@ -65,18 +86,37 @@ const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 
 type Decision = { c: Candidate; combined: number; decidedBy: Clue; content: Join["content"] };
 
+/**
+ * May a join be accepted on its outline fit alone? Unambiguous (a clear margin over every rival) and long enough; and
+ * when both pieces carry text lines, the lines must continue: the same direction (whatever the angle confidence: a
+ * chance fit along two page margins can be 20° off), in phase where the phase is measurable, neither piece turned
+ * upside down. Without that second clue, a join needs the reading.
+ */
+function geometryAlone(c: Candidate, margin: number, o: AssembleOptions): boolean {
+  if (margin < o.minMargin || c.score < o.minGeomScore) return false;
+  const t = c.text;
+  if (t && t.weight >= 0.5) {
+    if (t.angle > o.linesMaxAngle || t.flipped || (t.phaseValid && Math.abs(t.phase) > o.linesMaxPhase)) return false;
+    if (t.logLR < o.minLinesLogLR) return false;
+  }
+  return true;
+}
+
 /** Which candidates may be accepted, how confidently, and which clue decides. */
 export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: AssembleOptions): Decision[] {
   const out: Decision[] = [];
   for (const c of cands) {
     const ev = evidence?.get(c.id);
     const g = Math.min(0.995, Math.max(0.005, c.confidence));
+    // the text lines (direction, phase, which way is up) of printed pages: evidence on top of the outline fit
+    const lines = o.linesWeight * (c.text?.logLR ?? 0);
     if (ev && ev.votes > 0 && ev.logOdds !== 0) {
       const same = ev.logOdds > 0;
       const content = { same, confidence: sigmoid(Math.abs(ev.logOdds)), votes: ev.votes };
       // one contrary read does not veto an overwhelming fit (a margin no false fit reaches): the edge decides, and the
       // join map shows that Muse disagreed. Twins and straight cuts never get here: geometry cannot decide them.
-      const overwhelming = !c.twinGroup && c.edge !== "cut" && c.margin >= o.overrideMargin && c.score >= o.overrideScore && ev.votes === 1;
+      const overwhelming =
+        !c.twinGroup && c.edge !== "cut" && c.margin >= o.overrideMargin && c.score >= o.overrideScore && ev.votes === 1 && geometryAlone(c, c.margin, o);
       if (!same && overwhelming) {
         out.push({ c, combined: sigmoid(logit(g) + ev.logOdds), decidedBy: "geometry", content });
         continue;
@@ -87,13 +127,13 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
       // concordant: that many reads picked this very join (one pick plus one read against it is not two votes)
       if (twin && (ev.pos ?? ev.votes) < o.minTwinVotes) continue;
       const geomTerm = twin ? logit(1 - Math.exp(-c.score / 60)) : logit(g);
-      out.push({ c, combined: sigmoid(geomTerm + ev.logOdds), decidedBy: twin ? "content" : "geometry+content", content });
+      out.push({ c, combined: sigmoid(geomTerm + ev.logOdds + lines), decidedBy: twin ? "content" : "geometry+content", content });
       continue;
     }
     // twins and straight cuts need the content clue: geometry cannot tell them apart
     if (c.twinGroup || c.edge === "cut") continue;
-    if (c.margin < o.minMargin || c.score < o.minGeomScore) continue;
-    out.push({ c, combined: g, decidedBy: "geometry", content: null });
+    if (!geometryAlone(c, c.margin, o)) continue;
+    out.push({ c, combined: sigmoid(logit(g) + lines), decidedBy: "geometry", content: null });
   }
   out.sort((x, y) => y.combined - x.combined || y.c.score - x.c.score);
   return out;
@@ -119,6 +159,9 @@ export function assemble(
     for (let i = 0; i < d.n; i++) r = Math.max(r, Math.hypot(d.X[i] - cx, d.Y[i] - cy));
     radius.set(d.f.id, r);
   }
+  // text-line directions of the pieces whose line grid sits on the photo's pitch: a page keeps them parallel
+  const consensus = lineConsensus(frags);
+  const lineDirs = new Map(frags.filter((f) => gridTrusted(f, consensus)).map((f) => [f.id, f.text!.angle] as const));
   const accepted: Decision[] = [];
   const loops = new Set<string>();
   const direct = new Set<string>();
@@ -146,7 +189,7 @@ export function assemble(
       // merge b's page into a's: X ↦ T ∘ pose_X, T from the join, then refined on every seam the merge creates
       const moved = members.get(cb)!;
       const staying = members.get(ca)!;
-      const T = alignComponents(poseCompose(pa, poseCompose(c.pose, poseInvert(pb))), moved, staying, byId, pose, radius);
+      const T = alignComponents(poseCompose(pa, poseCompose(c.pose, poseInvert(pb))), moved, staying, byId, pose, radius, Math.min(o.rimMax, c.rim ?? 0));
       for (const x of moved) {
         const px = poseCompose(T, pose.get(x)!);
         for (const y of staying) if (overlapping(byId.get(x)!, px, byId.get(y)!, pose.get(y)!, radius, o)) return no("overlap");
@@ -193,9 +236,9 @@ export function assemble(
       let best = 0;
       for (const d of rivals.get(c.id) ?? []) if (d.edge === c.edge && feasible(d)) best = Math.max(best, d.score);
       const margin = best > 0 ? c.score / best : Infinity;
-      if (margin < o.minMargin) continue;
+      if (!geometryAlone(c, margin, o)) continue;
       const base = 1 - Math.exp(-c.score / 60);
-      const combined = base * (Number.isFinite(margin) ? Math.max(0, 1 - 1 / (margin * margin)) : 1);
+      const combined = sigmoid(logit(base * (Number.isFinite(margin) ? Math.max(0, 1 - 1 / (margin * margin)) : 1)) + o.linesWeight * (c.text?.logLR ?? 0));
       if (tryAccept({ c, combined, decidedBy: "geometry", content: null })) added++;
     }
     if (!added) break;
@@ -229,9 +272,14 @@ export function assemble(
     const pageId = `page-${pageNo++}`;
     const pageJoins = accepted.filter((d) => comp.get(d.c.a) === root);
     // Once placed, every pair whose outlines meet is a seam: use all of them to refine, not only the accepted joins.
-    let implied = impliedSeams(ids, byId, pose, direct, radius);
-    const refined = refine(ids, [...pageJoins.map((d) => d.c), ...implied], byId, pose, o.refineIters);
-    implied = impliedSeams(ids, byId, pose, direct, radius);
+    // Fibre rims: each accepted join keeps the overlap it was matched at; seams the layout implies may rest at up to the
+    // page's median rim (0 where seams just touch, as on clean cuts and simulations)
+    const rims = pageJoins.map((d) => d.c.rim ?? 0).sort((x, y) => x - y);
+    const pageRim = Math.min(o.rimMax, rims.length ? rims[Math.floor(rims.length / 2)] : 0);
+    let implied = impliedSeams(ids, byId, pose, direct, radius, pageRim);
+    const seams = [...pageJoins.map((d) => ({ a: d.c.a, b: d.c.b, rim: Math.min(o.rimMax, d.c.rim ?? 0) })), ...implied];
+    const refined = refine(ids, seams, byId, pose, o.refineIters, lineDirs, o.linesStiffness);
+    implied = impliedSeams(ids, byId, pose, direct, radius, pageRim);
     const up = upright(ids, byId, pose);
     // bounding box of the placed outlines → origin at the top-left
     let minx = Infinity;
@@ -278,6 +326,7 @@ export function assemble(
         geometry: { score: c.score, confidence: c.confidence, rms: c.rms, overlap: c.overlap, margin: c.margin },
         appearance: c.appearance,
         content: d.content,
+        text: c.text ?? null,
         decidedBy: d.decidedBy,
         confidence: d.combined,
         loop: loops.has(c.id),
@@ -305,10 +354,10 @@ export function assemble(
   return { pages, joins, unplaced };
 }
 
-type Seam = { a: string; b: string; seamA: [number, number]; seamB: [number, number]; score: number; rms: number; overlap: number };
+type Seam = { a: string; b: string; seamA: [number, number]; seamB: [number, number]; score: number; rms: number; overlap: number; rim: number };
 
 /** Seams between placed fragments that no accepted join covers: pairs whose outlines meet where the page puts them. */
-function impliedSeams(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, direct: Set<string>, radius: Map<string, number>): Seam[] {
+function impliedSeams(ids: string[], byId: Map<string, MatchData>, pose: Map<string, Pose>, direct: Set<string>, radius: Map<string, number>, rimMax = 0): Seam[] {
   const out: Seam[] = [];
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
@@ -320,9 +369,9 @@ function impliedSeams(ids: string[], byId: Map<string, MatchData>, pose: Map<str
       const [bx, by] = poseApply(pose.get(b)!, ...B.f.centroid);
       if (Math.hypot(ax - bx, ay - by) > radius.get(a)! + radius.get(b)! + 4) continue;
       const rel = poseCompose(poseInvert(pose.get(a)!), pose.get(b)!);
-      const m = measureSeam(A, B, rel, { minOverlap: 40 });
+      const m = measureSeam(A, B, rel, { minOverlap: 40, rimMax });
       if (!m || m.score < 25 || m.rms > 2) continue;
-      out.push({ a, b, seamA: m.seamA, seamB: m.seamB, score: m.score, rms: m.rms, overlap: m.overlap });
+      out.push({ a, b, seamA: m.seamA, seamB: m.seamB, score: m.score, rms: m.rms, overlap: m.overlap, rim: m.rim });
     }
   }
   return out;
@@ -340,6 +389,7 @@ function alignComponents(
   byId: Map<string, MatchData>,
   pose: Map<string, Pose>,
   radius: Map<string, number>,
+  rimMax = 0,
 ): Pose {
   let T = T0;
   for (let it = 0; it < 4; it++) {
@@ -360,7 +410,9 @@ function alignComponents(
         if (Math.hypot(xcx - ycx, xcy - ycy) > radius.get(x)! + radius.get(y)! + 4) continue;
         const rel = poseCompose(poseInvert(py), px); // X's photo → Y's photo
         const w = workspace(X.sample.length);
-        correspond(Y, X, rel, 4, w);
+        // the seams between the two groups rest at the joining seam's rim overlap
+        const delta = rimMax;
+        correspond(Y, X, rel, 4, w, delta);
         const c = Math.cos(py.theta);
         const s = Math.sin(py.theta);
         for (let k = 0; k < X.sample.length; k++) {
@@ -368,7 +420,9 @@ function alignComponents(
           const a = w.ai[k];
           const q = poseApply(py, w.qx[k], w.qy[k]);
           const ap = poseApply(py, Y.X[a], Y.Y[a]);
-          pts.push([q[0], q[1], ap[0] - q[0], ap[1] - q[1], Math.atan2(s * Y.NX[a] + c * Y.NY[a], c * Y.NX[a] - s * Y.NY[a])]);
+          // the target is A's outline moved in by the rim overlap: the seam rests there
+          const nA = Math.atan2(s * Y.NX[a] + c * Y.NY[a], c * Y.NX[a] - s * Y.NY[a]);
+          pts.push([q[0], q[1], ap[0] - delta * Math.cos(nA) - q[0], ap[1] - delta * Math.sin(nA) - q[1], nA]);
           cx += q[0];
           cy += q[1];
           n++;
@@ -434,7 +488,15 @@ function overlapping(X: MatchData, px: Pose, Y: MatchData, py: Pose, radius: Map
  * Joint refinement of a page: Gauss–Newton on point-to-line seam residuals of every accepted join, all poses at
  * once (the largest fragment fixed). Returns the final RMS seam residual (px).
  */
-function refine(ids: string[], joins: { a: string; b: string }[], byId: Map<string, MatchData>, pose: Map<string, Pose>, iters: number): number {
+function refine(
+  ids: string[],
+  joins: { a: string; b: string; rim?: number }[],
+  byId: Map<string, MatchData>,
+  pose: Map<string, Pose>,
+  iters: number,
+  lineDirs: Map<string, number> = new Map(),
+  linesStiffness = 0,
+): number {
   const index = new Map(ids.map((id, k) => [id, k] as const));
   const root = ids.reduce((a, b) => (byId.get(a)!.f.area >= byId.get(b)!.f.area ? a : b));
   const N = 3 * ids.length;
@@ -452,7 +514,8 @@ function refine(ids: string[], joins: { a: string; b: string }[], byId: Map<stri
       const pb = pose.get(c.b)!;
       const rel = poseCompose(poseInvert(pa), pb);
       const w = workspace(B.sample.length);
-      correspond(A, B, rel, 3, w);
+      const delta = c.rim ?? 0;
+      correspond(A, B, rel, 3, w, delta);
       const ia = index.get(c.a)!;
       const ib = index.get(c.b)!;
       const ca = Math.cos(pa.theta);
@@ -465,7 +528,7 @@ function refine(ids: string[], joins: { a: string; b: string }[], byId: Map<stri
         const qb = poseApply(pa, w.qx[k], w.qy[k]);
         const nx = ca * A.NX[a] - sa * A.NY[a];
         const ny = sa * A.NX[a] + ca * A.NY[a];
-        const r = nx * (qb[0] - qa[0]) + ny * (qb[1] - qa[1]);
+        const r = nx * (qb[0] - qa[0]) + ny * (qb[1] - qa[1]) + delta;
         ss += r * r;
         cnt++;
         const wt = Math.abs(r) <= 1.5 ? 1 : 1.5 / Math.abs(r);
@@ -482,6 +545,29 @@ function refine(ids: string[], joins: { a: string; b: string }[], byId: Map<stri
     }
     rms = cnt ? Math.sqrt(ss / cnt) : 0;
     if (!cnt || ids.length < 2) break;
+    // Text lines: every piece with a trusted grid pulls its lines parallel to the page's (their weighted axial mean).
+    // Seams fitted through fibre rims and curl carry rotation errors of 1–2°; the lines of each piece do not.
+    const withLines = ids.filter((id) => lineDirs.has(id));
+    if (linesStiffness > 0 && withLines.length >= 2) {
+      let sx = 0;
+      let sy = 0;
+      for (const id of withLines) {
+        const a = 2 * (lineDirs.get(id)! + pose.get(id)!.theta);
+        sx += Math.cos(a);
+        sy += Math.sin(a);
+      }
+      const page = Math.atan2(sy, sx) / 2;
+      // a dead zone of ±0.6°: text angles are good to about that, and seams that already agree are left alone
+      const dz = (0.6 * Math.PI) / 180;
+      for (const id of withLines) {
+        const k = 3 * index.get(id)!;
+        let e = lineDirs.get(id)! + pose.get(id)!.theta - page;
+        e -= Math.PI * Math.round(e / Math.PI);
+        if (Math.abs(e) <= dz) continue;
+        H[k * N + k] += linesStiffness;
+        g[k] += linesStiffness * (e - Math.sign(e) * dz);
+      }
+    }
     // fix the root firmly, damp everything a little
     const r0 = 3 * index.get(root)!;
     for (let p = 0; p < 3; p++) H[(r0 + p) * N + r0 + p] += 1e9;

@@ -2,8 +2,7 @@
 // profile peaky when projected along them). The angle is ambiguous by 180°; an ascender/descender asymmetry vote
 // (Latin script has more ascenders than descenders) says which way is up when the evidence is clear.
 
-import { rng } from "./geom";
-import { luminance, paperTone } from "./raster";
+import { localPaperLevel, luminance, paperTone } from "./raster";
 import type { Mask, Rgba } from "./types";
 
 export type TextOrientation = {
@@ -15,6 +14,12 @@ export type TextOrientation = {
   confidence: number;
   /** Line pitch (px) when the profile is periodic. */
   pitch: number | null;
+  /**
+   * The line grid at sub-pixel precision, when the profile is periodic: text lines are centred at r = offset + j·period,
+   * r = −x·sin(angle) + y·cos(angle) in the crop's pixel coordinates (crop pixel (c, r) covers [c, c+1) × [r, r+1)).
+   * `regularity` is the strength of that period in the ink profile (0–1).
+   */
+  grid: { period: number; offset: number; regularity: number } | null;
   /** +1: reading direction is `angle` (ascenders toward −perpendicular); −1: it is angle + π; 0: unknown. */
   up: -1 | 0 | 1;
   upConfidence: number;
@@ -29,6 +34,11 @@ export type OrientationOptions = {
   minInk?: number;
   /** Most ink pixels sampled. */
   maxSamples?: number;
+  /**
+   * Measure ink against the local paper level within this radius (px) instead of one level per piece, so shadows,
+   * curl and vignetting are not read as ink (0: one level per piece).
+   */
+  localPaper?: number;
 };
 
 export function textOrientation(
@@ -37,10 +47,31 @@ export function textOrientation(
   depth: Float32Array,
   opts: OrientationOptions = {},
 ): TextOrientation | null {
-  const { margin = 6, minInk = 120, maxSamples = 40000 } = opts;
+  const { margin = 6, localPaper = 6 } = opts;
   const lum = luminance(img);
   const tone = paperTone(img, lum, depth, margin);
   if (!tone) return null;
+  const plain = orientationWith(lum, tone.level, null, mask, depth, opts);
+  // Shadows, curl and vignetting read as ink against one paper level per piece. When that reading is weak, measure ink
+  // against the local paper level instead; switch only when that is clearly stronger and its lines clearly regular
+  // (on small pieces the local level can also lock onto a confident wrong angle with irregular lines).
+  if (localPaper > 0 && (!plain || plain.confidence < 0.6)) {
+    const local = orientationWith(lum, tone.level, localPaperLevel(lum, mask.data, mask.width, mask.height, localPaper), mask, depth, opts);
+    if (local && local.confidence >= (plain?.confidence ?? 0) + 0.3 && (local.grid?.regularity ?? 0) >= 0.35) return local;
+  }
+  return plain;
+}
+
+function orientationWith(
+  lum: Float32Array,
+  paperLevel: number,
+  local: Float32Array | null,
+  mask: Mask,
+  depth: Float32Array,
+  opts: OrientationOptions,
+): TextOrientation | null {
+  const { margin = 6, minInk = 120, maxSamples = 40000 } = opts;
+  const tone = { level: paperLevel };
   const w = mask.width;
   const h = mask.height;
   // Ink: pixels clearly darker than the paper, weighted by how much darker.
@@ -51,7 +82,8 @@ export function textOrientation(
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
       if (depth[i] < margin) continue;
-      const dark = tone.level - lum[i] - 28;
+      const level = local && Number.isFinite(local[i]) ? Math.min(local[i], tone.level + 25) : tone.level;
+      const dark = level - lum[i] - 28;
       if (dark <= 0) continue;
       xs.push(x + 0.5);
       ys.push(y + 0.5);
@@ -59,23 +91,14 @@ export function textOrientation(
     }
   }
   if (xs.length < minInk) return null;
-  // Subsample at random, not every k-th pixel in raster order: a fixed stride over rows of ink makes a lattice whose
-  // diagonal can out-score the text lines (a 4800 px photo's piece read 135° instead of 3°).
-  const keep: number[] = [];
-  if (xs.length <= maxSamples) for (let i = 0; i < xs.length; i++) keep.push(i);
-  else {
-    const rand = rng(xs.length);
-    const p = maxSamples / xs.length;
-    for (let i = 0; i < xs.length; i++) if (rand() < p) keep.push(i);
-  }
-  const n = keep.length;
+  const stride = Math.max(1, Math.ceil(xs.length / maxSamples));
+  const n = Math.ceil(xs.length / stride);
   const X = new Float64Array(n);
   const Y = new Float64Array(n);
   const W = new Float64Array(n);
   let cx = 0;
   let cy = 0;
-  for (let k = 0; k < n; k++) {
-    const i = keep[k];
+  for (let k = 0, i = 0; i < xs.length; i += stride, k++) {
     X[k] = xs[i];
     Y[k] = ys[i];
     W[k] = ws[i];
@@ -101,17 +124,8 @@ export function textOrientation(
       tot += W[k];
     }
     let ss = 0;
-    let lo = -1;
-    let hi = -1;
-    for (let b = 0; b < hist.length; b++) {
-      if (!hist[b]) continue;
-      ss += hist[b] * hist[b];
-      if (lo < 0) lo = b;
-      hi = b;
-    }
-    // energy times extent: ink spread evenly over the piece scores 1 in every direction, so a narrow piece's short
-    // axis no longer beats its text lines (a diagonal strip read 135° instead of 3°); banded lines score above 1
-    return (ss / (tot * tot)) * (hi - lo + 1);
+    for (let b = 0; b < hist.length; b++) ss += hist[b] * hist[b];
+    return ss / (tot * tot);
   };
   const coarse = new Float64Array(180);
   let best = 0;
@@ -119,37 +133,122 @@ export function textOrientation(
     coarse[d] = crit((d * Math.PI) / 180);
     if (coarse[d] > coarse[best]) best = d;
   }
-  let bestAngle = (best * Math.PI) / 180;
-  let bestVal = coarse[best];
-  for (let t = -1; t <= 1.0001; t += 0.1) {
-    const a = ((best + t) * Math.PI) / 180;
-    const v = crit(a);
-    if (v > bestVal) {
-      bestVal = v;
-      bestAngle = a;
+  const refineAt = (deg: number): [number, number] => {
+    let angle = (deg * Math.PI) / 180;
+    let val = coarse[deg];
+    for (let t = -1; t <= 1.0001; t += 0.1) {
+      const a = ((deg + t) * Math.PI) / 180;
+      const v = crit(a);
+      if (v > val) {
+        val = v;
+        angle = a;
+      }
+    }
+    return [angle, val];
+  };
+  const profileAt = (a: number) => {
+    hist.fill(0);
+    const s = Math.sin(a);
+    const c = Math.cos(a);
+    for (let k = 0; k < n; k++) hist[Math.round(-X[k] * s + Y[k] * c) + R] += W[k];
+  };
+  let [bestAngle, bestVal] = refineAt(best);
+  // A narrow piece projected along its length can be as peaky as along its short text lines; only text lines are
+  // periodic at the line pitch. Among the strong peaks, prefer the one whose profile has a regular line period.
+  const rivals: number[] = [];
+  for (let d = 0; d < 180; d++) {
+    const v = coarse[d];
+    if (d === best || v < 0.4 * coarse[best] || v < coarse[(d + 179) % 180] || v < coarse[(d + 1) % 180]) continue;
+    if (Math.min(Math.abs(d - best), 180 - Math.abs(d - best)) <= 3) continue;
+    rivals.push(d);
+  }
+  if (rivals.length) {
+    const regularityAt = (a: number) => {
+      profileAt(a);
+      const p = linePitch(hist);
+      return p ? (lineGrid(hist, R, p)?.regularity ?? 0) : 0;
+    };
+    let bestScore = bestVal * (0.1 + regularityAt(bestAngle));
+    for (const d of rivals.sort((x, y) => coarse[y] - coarse[x]).slice(0, 3)) {
+      const [a, v] = refineAt(d);
+      const score = v * (0.1 + regularityAt(a));
+      if (score > bestScore) {
+        bestScore = score;
+        bestAngle = a;
+        bestVal = v;
+      }
     }
   }
   const sorted = Array.from(coarse).sort((a, b) => a - b);
   const median = sorted[90];
   const strength = bestVal / median;
-  // Profile at the best angle, for the pitch and the up/down vote.
-  hist.fill(0);
+  // Profile at the chosen angle, for the pitch and the up/down vote.
+  profileAt(bestAngle);
   const s = Math.sin(bestAngle);
   const c = Math.cos(bestAngle);
-  for (let k = 0; k < n; k++) hist[Math.round(-X[k] * s + Y[k] * c) + R] += W[k];
   const pitch = linePitch(hist);
   const { up, conf } = upDown(hist, pitch);
   let angle = bestAngle % Math.PI;
   if (angle < 0) angle += Math.PI;
   const confidence = Math.max(0, Math.min(1, (strength - 1.25) / 1.0)) * Math.min(1, n / (3 * minInk));
-  return { angle, strength, confidence, pitch, up, upConfidence: conf, ink: xs.length };
+  let grid: TextOrientation["grid"] = null;
+  if (pitch) {
+    const g = lineGrid(hist, R, pitch);
+    if (g) {
+      // centred r → crop r: add the centroid's r. Folding bestAngle into [0, π) flips the normal, and r with it.
+      const sgn = Math.abs(angle - bestAngle) < 1e-9 ? 1 : -1;
+      let offset = sgn * (g.offset + (-cx * s + cy * c));
+      offset -= g.period * Math.floor(offset / g.period);
+      grid = { period: g.period, offset, regularity: g.regularity };
+    }
+  }
+  return { angle, strength, confidence, pitch, grid, up, upConfidence: conf, ink: xs.length };
 }
 
 /**
- * The dominant period (px) of a projection profile, from its autocorrelation, or null: the first autocorrelation peak
- * that comes close to the strongest one. (At high resolution a text line's own structure, the top and foot of the
- * x-height band, makes early minor peaks; a later peak at twice the pitch is a harmonic.)
+ * The strongest Fourier component of an ink profile (bins at integer r, centred at index R) near a coarse pitch:
+ * the line period at sub-pixel precision, and the offset of the line centres (in the profile's centred r).
  */
+export function lineGrid(profile: Float64Array, R: number, pitch0: number): { period: number; offset: number; regularity: number } | null {
+  let total = 0;
+  for (let b = 0; b < profile.length; b++) total += profile[b];
+  if (total <= 0) return null;
+  const component = (p: number): [number, number] => {
+    const w = (2 * Math.PI) / p;
+    let re = 0;
+    let im = 0;
+    for (let b = 0; b < profile.length; b++) {
+      const v = profile[b];
+      if (!v) continue;
+      re += v * Math.cos(w * (b - R));
+      im -= v * Math.sin(w * (b - R));
+    }
+    return [re, im];
+  };
+  let best = pitch0;
+  let bestMag = -1;
+  const scan = (from: number, to: number, step: number) => {
+    for (let p = from; p <= to + 1e-9; p += step) {
+      const [re, im] = component(p);
+      const mag = re * re + im * im;
+      if (mag > bestMag) {
+        bestMag = mag;
+        best = p;
+      }
+    }
+  };
+  // the autocorrelation pitch is biased low (fewer overlapping terms at longer lags): search −8% … +15%
+  const step = 0.002 * pitch0;
+  scan(Math.max(4, 0.92 * pitch0), 1.15 * pitch0, step);
+  scan(best - step, best + step, step / 10);
+  const [re, im] = component(best);
+  // F = Σ v·e^(−iωr): ink concentrated at r0 + j·p gives arg F = −ω·r0
+  let offset = (-Math.atan2(im, re) * best) / (2 * Math.PI);
+  offset -= best * Math.floor(offset / best);
+  return { period: best, offset, regularity: Math.sqrt(bestMag) / total };
+}
+
+/** The dominant period (px) of a projection profile, from its autocorrelation, or null. */
 function linePitch(p: Float64Array): number | null {
   const n = p.length;
   let lo = 0;
@@ -165,21 +264,24 @@ function linePitch(p: Float64Array): number | null {
   let a0 = 0;
   for (let i = 0; i < q.length; i++) a0 += q[i] * q[i];
   if (a0 <= 0) return null;
-  const maxLag = Math.min(320, Math.floor(q.length / 2));
-  const ac = new Float64Array(maxLag + 2);
-  for (let lag = 6; lag <= maxLag + 1 && lag < q.length; lag++) {
+  const maxLag = Math.min(160, Math.floor(q.length / 2));
+  let bestLag = 0;
+  let bestVal = 0.15;
+  let prev = 1;
+  let falling = true;
+  for (let lag = 6; lag <= maxLag; lag++) {
     let a = 0;
     for (let i = 0; i + lag < q.length; i++) a += q[i] * q[i + lag];
-    ac[lag] = a / a0;
+    a /= a0;
+    if (falling && a > prev) falling = false;
+    if (!falling && a > bestVal) {
+      bestVal = a;
+      bestLag = lag;
+    }
+    if (!falling && bestLag && a < bestVal - 0.15) break;
+    prev = a;
   }
-  // local maxima after the autocorrelation first stops falling
-  const peaks: number[] = [];
-  let lag = 7;
-  while (lag <= maxLag && ac[lag] <= ac[lag - 1]) lag++;
-  for (; lag <= maxLag; lag++) if (ac[lag] > 0.15 && ac[lag] >= ac[lag - 1] && ac[lag] > ac[lag + 1]) peaks.push(lag);
-  if (!peaks.length) return null;
-  const top = Math.max(...peaks.map((k) => ac[k]));
-  return peaks.find((k) => ac[k] >= 0.8 * top) ?? null;
+  return bestLag || null;
 }
 
 /** Ascender vs descender ink around each text line: more ink just above the x-height band means upright. */

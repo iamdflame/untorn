@@ -15,8 +15,8 @@ export type PageRenderOptions = {
 };
 
 /** Composite a page's fragments at their poses. Later fragments paint over earlier ones where noise makes them overlap. */
-export function renderPage(page: Page, frags: Fragment[] | Map<string, Fragment>, opts: PageRenderOptions = {}): Rgba {
-  const byId = frags instanceof Map ? frags : new Map(frags.map((f) => [f.id, f] as const));
+export function renderPage(page: Page, frags: Fragment[] | Map<string, Pick<Fragment, "input">>, opts: PageRenderOptions = {}): Rgba {
+  const byId: Map<string, Pick<Fragment, "input">> = frags instanceof Map ? frags : new Map(frags.map((f) => [f.id, f] as const));
   const scale = opts.scale ?? 1;
   const margin = opts.margin ?? 8;
   const bg = opts.background ?? [0, 0, 0, 0];

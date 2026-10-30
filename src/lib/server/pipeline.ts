@@ -238,6 +238,8 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     const jpeg = await encodeJpeg(img, SEAM_JPEG_QUALITY);
     const image = { data: jpeg, mime: "image/jpeg" as const };
     const rotated = req.uprightKnown ? undefined : { data: await rotate180Jpeg(jpeg), mime: "image/jpeg" as const };
+    // the deadline may have passed while the image was encoded: don't start a call that is already cancelled
+    if (readAbort.signal.aborted) return null;
     const callOpts = { rotated, signal: readAbort.signal, onLog: quietLog, hedgeAfterMs: opts.readHedgeMs ?? 12_000 };
     const base = { id: req.id, image: `data:image/jpeg;base64,${Buffer.from(jpeg).toString("base64")}` };
     let read: ReadOut;
@@ -307,7 +309,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const pageJpegs = new Map<string, Uint8Array>();
   await Promise.all(
     res.pages.map(async (p, k) => {
-      const img = renderPage(p, prep.byId, { margin: PAGE_MARGIN });
+      const img = renderPage(p, prep.photo, { margin: PAGE_MARGIN });
       const raw = sharp(Buffer.from(img.data.buffer, img.data.byteOffset, img.data.length), { raw: { width: img.width, height: img.height, channels: 4 } });
       const [png, jpeg] = await Promise.all([
         raw.clone().png({ compressionLevel: 6 }).toBuffer(),

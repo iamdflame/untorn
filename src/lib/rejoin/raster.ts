@@ -82,6 +82,65 @@ export function paperTone(
   return { level, rgb: [r / m, g / m, b / m] };
 }
 
+/**
+ * The local paper level under each pixel of a piece: the brightest paper within ±r px (strokes are thinner than that),
+ * smoothed over ±2r. Follows shadows, curl and vignetting, which a single paper level per piece cannot; ink is then
+ * `level − luminance`. Pixels outside the mask get the level of the paper near them (NaN when none is near).
+ */
+export function localPaperLevel(lum: Float32Array, mask: Uint8Array, w: number, h: number, r: number): Float32Array {
+  const n = w * h;
+  const tmp = new Float32Array(n).fill(-Infinity);
+  const mx = new Float32Array(n).fill(-Infinity);
+  // separable max filter over mask pixels only
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let m = -Infinity;
+      for (let d = Math.max(0, x - r); d <= Math.min(w - 1, x + r); d++) {
+        const i = y * w + d;
+        if (mask[i] && lum[i] > m) m = lum[i];
+      }
+      tmp[y * w + x] = m;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let m = -Infinity;
+      for (let d = Math.max(0, y - r); d <= Math.min(h - 1, y + r); d++) if (tmp[d * w + x] > m) m = tmp[d * w + x];
+      mx[y * w + x] = m;
+    }
+  }
+  // box blur over ±2r of the finite values (summed-area tables)
+  const R = 2 * r;
+  const S = new Float64Array((w + 1) * (h + 1));
+  const C = new Float64Array((w + 1) * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let rs = 0;
+    let rc = 0;
+    for (let x = 0; x < w; x++) {
+      const v = mx[y * w + x];
+      if (Number.isFinite(v)) {
+        rs += v;
+        rc++;
+      }
+      S[(y + 1) * (w + 1) + x + 1] = S[y * (w + 1) + x + 1] + rs;
+      C[(y + 1) * (w + 1) + x + 1] = C[y * (w + 1) + x + 1] + rc;
+    }
+  }
+  const out = new Float32Array(n);
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - R);
+    const y1 = Math.min(h, y + R + 1);
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - R);
+      const x1 = Math.min(w, x + R + 1);
+      const s = S[y1 * (w + 1) + x1] - S[y0 * (w + 1) + x1] - S[y1 * (w + 1) + x0] + S[y0 * (w + 1) + x0];
+      const c = C[y1 * (w + 1) + x1] - C[y0 * (w + 1) + x1] - C[y1 * (w + 1) + x0] + C[y0 * (w + 1) + x0];
+      out[y * w + x] = c > 0 ? s / c : NaN;
+    }
+  }
+  return out;
+}
+
 /** Bilinear RGBA sample at continuous raster coordinates (pixel centres at +0.5); writes into out[0..3]. */
 export function sampleRgba(img: Rgba, x: number, y: number, out: Float64Array): boolean {
   const fx = x - 0.5;

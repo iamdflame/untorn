@@ -18,6 +18,8 @@
 //   --compare RATES        compare the strategies with the oracle at each error rate (e.g. 0,0.05,0.1), --trials N
 //                          oracle seeds per case (default 5); geometry is prepared once per case
 //   --cuts              also match straight cuts (opt-in; for scissor-cut and ShredBench-style pieces)
+//   --scale auto|K     working scale of the geometry (default auto: text lines ~32 px apart, never enlarged)
+//   --match JSON, --assemble JSON   override solver options (experiments), e.g. --match '{"textSeeds":false}'
 //
 // Metrics: a fragment is placed correctly when its pose is within 3 px (at its centroid) and 1° of the truth, up to
 // one rigid transform per page; joins are correct when the pair is adjacent on the page and the joined pose agrees
@@ -29,14 +31,44 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { fitRigid, poseApply, poseCompose, poseInvert, rng, type Pose } from "../../src/lib/rejoin/geom";
 import { encodePng } from "../../src/lib/rejoin/render";
-import { askPlanned, finish, prepare } from "../../src/lib/rejoin/solve";
+import { askPlanned, finish, photoCandidate, prepare } from "../../src/lib/rejoin/solve";
 import type { Candidate, ContentCheck, ContentRequest, ContentVerdict, Fragment, SolveResult } from "../../src/lib/rejoin/types";
 import { listCases, loadCase, trueRelative, type BenchCase, type GroundTruth } from "./cases";
 
-type Args = { root: string; family?: string[]; content: string; masks: "sam" | "gt"; limit: number; json?: string; renders?: string; twinSides: "one" | "both"; cuts: boolean; strategy: "all" | "tree"; twinLoops: boolean; compare?: number[]; trials: number };
+type Args = {
+  root: string;
+  family?: string[];
+  content: string;
+  masks: "sam" | "gt";
+  limit: number;
+  json?: string;
+  renders?: string;
+  twinSides: "one" | "both";
+  cuts: boolean;
+  strategy: "all" | "tree";
+  twinLoops: boolean;
+  compare?: number[];
+  trials: number;
+  scale: number | "auto";
+  match: Record<string, unknown>;
+  assemble: Record<string, unknown>;
+};
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { root: path.join(process.cwd(), "scripts/bench/out"), content: "none", masks: "sam", limit: 0, twinSides: "both", cuts: false, strategy: "all", twinLoops: true, trials: 5 };
+  const a: Args = {
+    root: path.join(process.cwd(), "scripts/bench/out"),
+    content: "none",
+    masks: "sam",
+    limit: 0,
+    twinSides: "both",
+    cuts: false,
+    strategy: "all",
+    twinLoops: true,
+    trials: 5,
+    scale: "auto",
+    match: {},
+    assemble: {},
+  };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     const v = argv[i + 1];
@@ -48,6 +80,9 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--json") a.json = v;
     else if (k === "--renders") a.renders = v;
     else if (k === "--twin-sides") a.twinSides = v as "one" | "both";
+    else if (k === "--scale") a.scale = v === "auto" ? "auto" : Number(v);
+    else if (k === "--match") a.match = JSON.parse(v);
+    else if (k === "--assemble") a.assemble = JSON.parse(v);
     else if (k === "--strategy") a.strategy = v as "all" | "tree";
     else if (k === "--compare") a.compare = v.split(",").map(Number);
     else if (k === "--trials") a.trials = Number(v);
@@ -271,16 +306,21 @@ async function compare(args: Args) {
   for (const fam of fams) {
     for (const name of listCases(args.root, [fam]).slice(0, args.limit || undefined)) {
       const c = loadCase(path.join(args.root, name), args.masks);
-      const base = prepare(c.inputs, { twinSides: args.twinSides, match: { cuts: args.cuts }, assemble: { twinLoops: args.twinLoops } });
-      const cands = new Map(base.match.candidates.map((x) => [x.id, x] as const));
+      const base = prepare(c.inputs, { twinSides: args.twinSides, match: { cuts: args.cuts, ...args.match }, assemble: { twinLoops: args.twinLoops, ...args.assemble }, scale: args.scale });
+      // the truth and the result are in photo px; the solver works at base.scale
+      const k = base.scale;
+      const shapes = new Map(
+        base.fragments.map((f) => [f.id, k === 1 ? f : ({ ...f, centroid: [f.centroid[0] / k, f.centroid[1] / k], outline: f.outline.map((v) => v / k) } as Fragment)] as const),
+      );
+      const cands = new Map(base.match.candidates.map((x) => [x.id, photoCandidate(x, k)] as const));
       for (const strategy of ["all", "tree"] as const) {
         const prep = { ...base, options: { ...base.options, twinStrategy: strategy } };
         for (const rate of args.compare!) {
           for (let t = 0; t < args.trials; t++) {
-            const check = oracle(c.gt, prep.byId, cands, rate, c.gt.seed + 7919 * t);
+            const check = oracle(c.gt, shapes, cands, rate, c.gt.seed + 7919 * t);
             const { reqs, verdicts } = await askPlanned(prep, check, 8);
             const res = finish(prep, reqs, verdicts);
-            const s = score(c, prep.byId, res);
+            const s = score(c, shapes, res);
             const key = `${strategy} ${rate}`;
             const a = acc.get(key) ?? { frags: 0, correct: 0, split: 0, misplaced: 0, unplaced: 0, perfect: 0, pages: 0, reads: [], joinsOk: 0, joins: 0 };
             a.frags += s.fragments;
@@ -324,12 +364,23 @@ async function main() {
     for (const name of names) {
       const c = loadCase(path.join(args.root, name), args.masks);
       const t0 = performance.now();
-      const prep = prepare(c.inputs, { twinSides: args.twinSides, twinStrategy: args.strategy, match: { cuts: args.cuts }, assemble: { twinLoops: args.twinLoops } });
+      const prep = prepare(c.inputs, {
+        twinSides: args.twinSides,
+        twinStrategy: args.strategy,
+        match: { cuts: args.cuts, ...args.match },
+        assemble: { twinLoops: args.twinLoops, ...args.assemble },
+        scale: args.scale,
+      });
+      // the solver works at prep.scale; the truth and the result are in photo px
+      const k = prep.scale;
+      const shapes = new Map(
+        prep.fragments.map((f) => [f.id, k === 1 ? f : ({ ...f, centroid: [f.centroid[0] / k, f.centroid[1] / k], outline: f.outline.map((v) => v / k) } as Fragment)] as const),
+      );
       let reqs: ContentRequest[] = [];
       let verdicts: (ContentVerdict | null)[] = [];
       if (args.content !== "none") {
-        const cands = new Map(prep.match.candidates.map((x) => [x.id, x] as const));
-        const check = external ?? oracle(c.gt, prep.byId, cands, Number(args.content.split(":")[1] ?? 0.1), c.gt.seed);
+        const cands = new Map(prep.match.candidates.map((x) => [x.id, photoCandidate(x, k)] as const));
+        const check = external ?? oracle(c.gt, shapes, cands, Number(args.content.split(":")[1] ?? 0.1), c.gt.seed);
         ({ reqs, verdicts } = await askPlanned(prep, check, 8));
         if (args.renders && !results.length) {
           mkdirSync(args.renders, { recursive: true });
@@ -338,7 +389,7 @@ async function main() {
       }
       const res = finish(prep, reqs, verdicts);
       const total = performance.now() - t0;
-      const s = score(c, prep.byId, res);
+      const s = score(c, shapes, res);
       const row: CaseResult = {
         ...s,
         contentAsked: reqs.length,
@@ -350,7 +401,8 @@ async function main() {
           `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
           (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups} appearance-picks ${row.twinAppearanceHits}/${row.twinAppearanceGroups}  ` : "") +
           (reqs.length ? `asked ${reqs.length}  ` : "") +
-          `${row.ms.total.toFixed(0)} ms`,
+          `${row.ms.total.toFixed(0)} ms` +
+          (k !== 1 ? `  scale ${k.toFixed(2)}` : ""),
       );
     }
   }

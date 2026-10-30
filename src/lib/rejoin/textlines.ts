@@ -160,6 +160,13 @@ export function textAgreement(a: Fragment, b: Fragment, pose: Pose, at: [number,
   return { angle, phase, pitchRatio: gb.period / ga.period, weight: Math.min(ga.weight, gb.weight) };
 }
 
+/**
+ * Up votes this sure count for which way is up (a join turning a piece upside down, a piece reading against its page).
+ * Measured against the truth on trusted grids: Bench-S 1 wrong of 59 between 0.5 and 0.75, 1 of 248 above; the real
+ * photo's 9 votes all right down to 0.58.
+ */
+export const UP_CONFIDENCE = 0.75;
+
 /** Spread of the line direction (rad) and phase (pitch fractions) on true joins of real photos (S7: ≤ 2.7°, ≤ 0.18). */
 const SIGMA_ANGLE = (1.5 * Math.PI) / 180;
 const SIGMA_PHASE = 0.1;
@@ -171,7 +178,7 @@ const SIGMA_PHASE = 0.1;
  * pitch (`consensus`; a grid locked onto columns or a harmonic says nothing), the turn only when both up votes are
  * clear. Null without line grids.
  */
-export function textCheck(a: Fragment, b: Fragment, pose: Pose, at: [number, number], consensus: number | null): TextCheck | null {
+export function textCheck(a: Fragment, b: Fragment, pose: Pose, at: [number, number], consensus: number | null, upConfidence = UP_CONFIDENCE): TextCheck | null {
   const t = textAgreement(a, b, pose, at);
   if (!t) return null;
   const ta = a.text!;
@@ -181,7 +188,7 @@ export function textCheck(a: Fragment, b: Fragment, pose: Pose, at: [number, num
   const phaseValid = angleValid && t.pitchRatio >= 0.87 && t.pitchRatio <= 1.15;
   let flipped = false;
   let upTerm = 0;
-  if (ta.up !== 0 && tb.up !== 0 && ta.upConfidence >= 0.75 && tb.upConfidence >= 0.75) {
+  if (ta.up !== 0 && tb.up !== 0 && ta.upConfidence >= upConfidence && tb.upConfidence >= upConfidence) {
     const ra = ta.angle + (ta.up === -1 ? Math.PI : 0);
     const rb = tb.angle + (tb.up === -1 ? Math.PI : 0) + pose.theta;
     flipped = Math.cos(ra - rb) < 0;

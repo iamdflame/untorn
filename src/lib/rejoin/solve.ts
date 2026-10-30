@@ -7,7 +7,7 @@
 //   const verdicts = await Promise.all(reqs.map(museCheck));               // async: S2's callback
 //   const result = finish(prep, reqs, verdicts);                           // sync: assembly
 
-import { assemble, ASSEMBLE_DEFAULTS, type AssembleOptions, type ContentEvidence } from "./assemble";
+import { assemble, ASSEMBLE_DEFAULTS, linesContinue, type AssembleOptions, type ContentEvidence } from "./assemble";
 import { permutationVotes, planQuestions, type QuestionPlan, type TwinStrategy } from "./plan";
 import { analyzeFragment, type FragmentOptions } from "./fragment";
 import { matchFragments, type MatchOptions, type MatchResult } from "./match";
@@ -150,8 +150,11 @@ export function contentRequests(prep: Prepared): ContentRequest[] {
   }
   if (o.pairChecks ?? true) {
     // torn joins first (geometry already strong), then straight cuts (only content can confirm them)
+    // a join whose text lines run apart can never be accepted (assemble's linesContinue, with a read or without):
+    // reading it would only cost time
+    const ao = { ...ASSEMBLE_DEFAULTS, ...o.assemble };
     const pairs = prep.match.candidates
-      .filter((c) => !c.twinGroup && c.score >= minScore && c.margin >= 0.7)
+      .filter((c) => !c.twinGroup && c.score >= minScore && c.margin >= 0.7 && (c.edge === "cut" || linesContinue(c, ao)))
       .sort((x, y) => (x.edge === y.edge ? y.score - x.score : x.edge === "torn" ? -1 : 1))
       .slice(0, o.maxPairChecks ?? 48);
     for (const c of pairs) {
@@ -264,7 +267,9 @@ export async function askPlanned(
 export function finish(prep: Prepared, reqs: ContentRequest[] = [], verdicts: (ContentVerdict | null)[] = []): SolveResult {
   const t0 = now();
   const evidence = verdicts.some((v) => v) ? fuseVerdicts(reqs, verdicts, prep) : null;
-  const r = assemble(prep.fragments, prep.match.data, prep.match.candidates, evidence, prep.options.assemble);
+  // stack twins never get a second chance against a finished page: their twins fit the gap as well
+  const twins = new Set(prep.match.twinClass.keys());
+  const r = assemble(prep.fragments, prep.match.data, prep.match.candidates, evidence, { ...prep.options.assemble, twins });
   const t1 = now();
   prep.options.onProgress?.("assemble", 1, 1);
   // everything back in photo px

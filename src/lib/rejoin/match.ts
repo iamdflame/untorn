@@ -12,7 +12,7 @@
 import { axialDiff, fitRigid, PointGrid, poseCompose, poseInvert, solveSPD, type Pose } from "./geom";
 import { seamAppearance } from "./appearance";
 import { matchCuts } from "./cuts";
-import { gridTrusted, lineConsensus, photoGrid, textCheck } from "./textlines";
+import { gridTrusted, lineConsensus, photoGrid, textCheck, UP_CONFIDENCE } from "./textlines";
 import type { Candidate, Fragment, TwinGroup } from "./types";
 
 export type MatchOptions = {
@@ -73,6 +73,8 @@ export type MatchOptions = {
   textMaxAngle: number;
   textMaxAngleLoose: number;
   textMaxPhase: number;
+  /** Up votes this sure count for a join turning a piece upside down (textlines.UP_CONFIDENCE). */
+  textUpConfidence: number;
   /**
    * Also seed pairs whose text lines are both trusted from the lines themselves: the lines fix the rotation (the up
    * votes the turn), and outline points with facing normals vote for the translation, weighted by line phase. Finds
@@ -110,6 +112,7 @@ export const MATCH_DEFAULTS: MatchOptions = {
   textMaxAngle: (6 * Math.PI) / 180,
   textMaxAngleLoose: Math.PI,
   textMaxPhase: 0.3,
+  textUpConfidence: UP_CONFIDENCE,
   textSeeds: true,
   textSeedsPerPair: 4,
 };
@@ -730,7 +733,7 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
       rim: r.rim,
     };
     const mid = (seamA[0] + Math.floor(seamA[1] / 2)) % A.n;
-    cand.text = textCheck(A.f, B.f, r.pose, [A.X[mid], A.Y[mid]], consensus);
+    cand.text = textCheck(A.f, B.f, r.pose, [A.X[mid], A.Y[mid]], consensus, o.textUpConfidence);
     const t = cand.text;
     // the direction test is strict where both text angles are clear, coarse (or off) where one of them is less sure
     const maxAngle = t?.angleValid ? o.textMaxAngle : o.textMaxAngleLoose;

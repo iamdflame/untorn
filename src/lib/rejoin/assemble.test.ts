@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ASSEMBLE_DEFAULTS, decide, linesAstray, type ContentEvidence } from "./assemble";
+import { ASSEMBLE_DEFAULTS, completePages, decide, linesAstray, type ContentEvidence } from "./assemble";
 import { analyzeFragment } from "./fragment";
-import { poseCompose, poseInvert } from "./geom";
-import type { MatchData } from "./match";
+import { poseApply, poseCompose, poseInvert } from "./geom";
+import { matchData, type MatchData } from "./match";
 import { gridTrusted, lineConsensus } from "./textlines";
 import type { Candidate, Pose, TextCheck } from "./types";
-import { gridTear, scatterPiece } from "./__tests__/synth";
+import { gridTear, scatterPage, scatterPiece } from "./__tests__/synth";
 
 const cand = (over: Partial<Candidate> = {}): Candidate => ({
   id: "a~b#0",
@@ -156,5 +156,58 @@ describe("linesAstray: pieces whose text lines contradict their page", () => {
     const alias = new Map(byId);
     alias.set(victim, { f: { ...f, text: { ...f.text!, angle: f.text!.angle + Math.PI / 2 } } } as unknown as MatchData);
     expect(linesAstray(ids, alias, truth, consensus, o)).toEqual([]);
+  });
+});
+
+describe("completePages: a second chance against the finished page", () => {
+  // a page torn 3 × 3 with typed lines, scattered; all but the centre piece placed where they belong
+  const page = gridTear(900, 840, 3, 3, 23);
+  const { inputs, poses } = scatterPage(page, 5, { noise: 0.4 });
+  const frags = inputs.map((inp, k) => analyzeFragment(inp, k)!);
+  const data = frags.map((f) => matchData(f));
+  const byId = new Map(data.map((d) => [d.f.id, d] as const));
+  const consensus = lineConsensus(frags);
+  const radius = new Map(data.map((d) => [d.f.id, Math.max(...Array.from({ length: d.n }, (_, i) => Math.hypot(d.X[i] - d.f.centroid[0], d.Y[i] - d.f.centroid[1])))] as const));
+  const truth = new Map(frags.map((f, k) => [f.id, poseInvert(poses[k])] as const));
+  const state = (left: string[]) => {
+    const placed = frags.map((f) => f.id).filter((id) => !left.includes(id));
+    const members = new Map<string, string[]>([[placed[0], placed], ...left.map((id) => [id, [id]] as [string, string[]])]);
+    const comp = new Map<string, string>([...placed.map((id) => [id, placed[0]] as [string, string]), ...left.map((id) => [id, id] as [string, string])]);
+    return {
+      byId,
+      members,
+      comp,
+      pose: new Map(truth),
+      used: new Map(data.map((d) => [d.f.id, new Uint8Array(d.n)] as const)),
+      radius,
+      consensus,
+    };
+  };
+
+  it("lays a set-aside piece into its gap from its text lines alone, where it belongs", () => {
+    const s = state(["p4"]);
+    const made = completePages(s, ["p4"], [], null, ASSEMBLE_DEFAULTS);
+    expect(made.map((p) => p.unit)).toEqual(["p4"]);
+    expect(made[0].seams.length).toBeGreaterThanOrEqual(2);
+    // where the truth has it, relative to the page
+    const [cx, cy] = byId.get("p4")!.f.centroid;
+    const [x1, y1] = poseApply(made[0].pose, cx, cy);
+    const [x2, y2] = poseApply(truth.get("p4")!, cx, cy);
+    expect(Math.hypot(x1 - x2, y1 - y2)).toBeLessThan(4);
+    expect(Math.abs(Math.atan2(Math.sin(made[0].pose.theta - truth.get("p4")!.theta), Math.cos(made[0].pose.theta - truth.get("p4")!.theta)))).toBeLessThan((1 * Math.PI) / 180);
+    expect(s.members.get("p0")).toContain("p4");
+  });
+
+  it("leaves a piece out when no gap holds it on two sides", () => {
+    // the corner p8 with both its neighbours (p5, p7) off the page: nothing holds it
+    const s = state(["p5", "p7", "p8"]);
+    expect(completePages(s, ["p8"], [], null, ASSEMBLE_DEFAULTS)).toEqual([]);
+  });
+
+  it("does not place a piece where a read said they are not the same", () => {
+    const rel = poseCompose(poseInvert(truth.get("p1")!), truth.get("p4")!);
+    const no = cand({ id: "p1~p4#0", a: "p1", b: "p4", pose: rel });
+    const evidence: ContentEvidence = new Map([[no.id, { logOdds: -2, votes: 1, pos: 0 }]]);
+    expect(completePages(state(["p4"]), ["p4"], [no], evidence, ASSEMBLE_DEFAULTS)).toEqual([]);
   });
 });

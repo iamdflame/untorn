@@ -15,4 +15,4 @@ playwright-report
 scripts/bench/pages
 scripts/bench/sample
 /video
-/docs/media
+/docs

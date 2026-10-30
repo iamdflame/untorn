@@ -1,10 +1,20 @@
 // The judge's path (BLUEPRINT §2): the first screen plays a recorded run, "Run it live" runs the real pipeline on the
 // same photo, the phone handoff starts a run on the laptop, bad input gets a designed error, and any run replays.
 
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type ConsoleMessage, type Page } from "@playwright/test";
 
 const SAMPLE = path.join(__dirname, "..", "data", "samples", "chouteau-1903", "photo.jpg");
+// the first screen plays the manifest's default sample: its own transcript's first line must come back
+const MANIFEST = JSON.parse(readFileSync(path.join(__dirname, "..", "public", "samples", "manifest.json"), "utf8")) as {
+  default: string;
+  samples: Record<string, { recorded: string }>;
+};
+const DEFAULT_RUN = JSON.parse(readFileSync(path.join(__dirname, "..", "public", MANIFEST.samples[MANIFEST.default].recorded), "utf8")) as {
+  transcripts: { text: string }[];
+};
+const FIRST_LINE = DEFAULT_RUN.transcripts[0].text.split("\n")[0].trim();
 const LIVE = !!process.env.E2E_LIVE;
 const SHOTS = process.env.E2E_SHOTS;
 
@@ -37,7 +47,7 @@ test("first screen: the recorded run plays, labelled, and ends in a rebuilt, rea
   await expect(page.locator(".rd-word")).toHaveText(/\w/, { timeout: 15000 });
   await shot(page, "02-first-screen-reading");
   await expect(page.locator('.hero[data-phase="whole"]')).toBeVisible({ timeout: 30000 });
-  await expect(page.locator(".r-tx")).toContainText("Chouteau", { ignoreCase: true, timeout: 15000 });
+  await expect(page.locator(".r-tx")).toContainText(FIRST_LINE, { ignoreCase: true, timeout: 15000 });
   await expect(page.locator(".key-list li:not(.key-sub)")).not.toHaveCount(0);
   await shot(page, "03-first-screen-whole", true);
   expect(errors).toEqual([]);

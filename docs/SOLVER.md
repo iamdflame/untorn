@@ -160,6 +160,13 @@ where b's lines land in a's frame under a candidate pose.
 
     On the real photo Muse said "same" at 0.55–0.85 to chance fits whose edge other partners fitted better; one turned
     a piece 154° against its neighbours.
+  - A "not the same" vetoes a join, except against two clues of their own:
+    - an overwhelming fit (margin ≥ 5, score ≥ 300);
+    - a fit geometry alone would take whose text lines continue clearly: direction and phase both measured,
+      logLR ≥ 3, against one read at most 0.9 sure.
+
+    Replaying the 13 stored runs with their own reads, this placed 7 more pieces and misplaced none more. Muse said
+    "not the same" at 0.75–0.9 to true joins of the real photo in about one run in three.
   - A twin needs two concordant reads (`minTwinVotes`), so one unconfirmed pick never places a piece.
   - Without content, geometry alone must be unambiguous (no twin, not a straight cut, margin ≥ 1.4) and ≥ 60, with
     the text lines continuing as above.

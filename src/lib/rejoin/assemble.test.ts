@@ -97,6 +97,17 @@ describe("decide: a read confirms a join only where the geometry agrees", () => 
     expect(decide([c], reads(c.id, true, 0.62, 2), o)).toHaveLength(1);
   });
 
+  it("lets the outline and continuing lines outvote one unsure 'not the same'", () => {
+    // a fit geometry alone would take, its lines continuing in direction and phase
+    const strong = cand({ margin: 2, marginOther: 2, score: 160, confidence: 0.8, text: lines({ logLR: 4 }) });
+    expect(decide([strong], reads(strong.id, false, 0.85), o)).toHaveLength(1);
+    // not against a sure read, nor with lines that only half measure, nor for a fit geometry alone would not take
+    expect(decide([strong], reads(strong.id, false, 0.95), o)).toHaveLength(0);
+    expect(decide([cand({ ...strong, text: lines({ logLR: 4, phaseValid: false }) })], reads(strong.id, false, 0.85), o)).toHaveLength(0);
+    expect(decide([cand({ ...strong, text: lines({ logLR: 2 }) })], reads(strong.id, false, 0.85), o)).toHaveLength(0);
+    expect(decide([cand({ ...strong, margin: 1.2, marginOther: 1.2 })], reads(strong.id, false, 0.85), o)).toHaveLength(0);
+  });
+
   it("leaves twins and straight cuts to the reads, as before", () => {
     // inside a twin group geometry is tied: the rival partner's fit is no evidence against the read
     const twin = cand({ twinGroup: "twin-a-0", margin: 0.95, marginOther: 0.95 });

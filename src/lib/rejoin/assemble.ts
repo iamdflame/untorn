@@ -83,6 +83,12 @@ export type AssembleOptions = {
   /** Geometry this unambiguous (margin over every rival, and score) outvotes a single contrary read. */
   overrideMargin: number;
   overrideScore: number;
+  /**
+   * So does a fit geometry alone would take whose text lines continue with this much evidence (logLR, direction and
+   * phase both measured), against one read at most `linesOverrideRead` sure. 0 / Infinity: off.
+   */
+  linesOverrideLogLR: number;
+  linesOverrideRead: number;
   /** Loop closure tolerance: px at the fragment's centroid, and degrees. */
   loopPx: number;
   loopDeg: number;
@@ -134,6 +140,8 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   completeLinesStiffness: 1e6,
   overrideMargin: 5,
   overrideScore: 300,
+  linesOverrideLogLR: 3,
+  linesOverrideRead: 0.9,
   loopPx: 6,
   loopDeg: 2,
   overlapPx: 300,
@@ -191,7 +199,20 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
       // join map shows that Muse disagreed. Twins and straight cuts never get here: geometry cannot decide them.
       const overwhelming =
         !c.twinGroup && c.edge !== "cut" && c.margin >= o.overrideMargin && c.score >= o.overrideScore && ev.votes === 1 && geometryAlone(c, c.margin, o);
-      if (!same && overwhelming) {
+      // the outline and the text lines, two clues of their own, outvote one contrary read that is not sure: a fit that
+      // geometry alone would take, with both pieces' lines continuing across it (direction and phase both measured)
+      const t = c.text;
+      const linesBacked =
+        !c.twinGroup &&
+        c.edge !== "cut" &&
+        ev.votes === 1 &&
+        content.confidence <= o.linesOverrideRead &&
+        geometryAlone(c, c.margin, o) &&
+        !!t &&
+        t.angleValid &&
+        t.phaseValid &&
+        t.logLR >= o.linesOverrideLogLR;
+      if (!same && (overwhelming || linesBacked)) {
         out.push({ c, combined: sigmoid(logit(g) + ev.logOdds), decidedBy: "geometry", content });
         continue;
       }

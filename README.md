@@ -77,5 +77,6 @@ pnpm dev
 - Untorn's idea, research and code date from Oct 27–28. The repository's other branches hold an earlier project from this event (Push, a CPR trainer), from which only the SAM 3.1 client and parser were carried over.
 
 ## Credits and licences
+- Every third-party model, package, font, document, photo and voice, with its licence: [`THIRD_PARTY.md`](THIRD_PARTY.md).
 - Sample letters: public domain. Pierre Chouteau to Mary Louise Dalton, 1903, Missouri Historical Society, via DPLA and Wikimedia Commons. Other pages are listed in [`scripts/bench/PAGES.md`](scripts/bench/PAGES.md).
 - The tears in the samples are simulated, and every sample is labelled as such in the app.

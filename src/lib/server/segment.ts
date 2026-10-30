@@ -12,7 +12,7 @@
 // Each fragment comes back with a cleaned mask raster (largest component, holes filled), its outline polygon and
 // SAM's confidence. A piece whose refinement fails keeps its snapped pass-1 mask and says so (refined: false).
 
-import type { Box } from "@/lib/contracts";
+import type { Box } from "@/lib/sam/types";
 import { openSamStream, samFrames, META_API_BASE } from "@/lib/sam/client";
 import { decodeMask } from "@/lib/sam/mask";
 import { UpstreamError, type RawObject } from "@/lib/sam/parse";

@@ -1,4 +1,4 @@
-// Eval harness for the Rejoin solver on Bench-S cases.
+// Eval harness for the Untorn solver on Bench-S cases.
 //
 //   pnpm tsx scripts/eval/solver.ts                                   # every case in scripts/bench/out, geometry only
 //   pnpm tsx scripts/eval/solver.ts --family single --content oracle:0.1
@@ -151,6 +151,9 @@ type CaseResult = {
   unplaced: number;
   pages: number;
   perfectPages: number;
+  /** Rebuilt pages (each true page's best one) that stand upright: their rotation within ±10° of the truth. */
+  pagesUpright: number;
+  pagesScored: number;
   gtPages: number;
   joinsAccepted: number;
   joinsCorrect: number;
@@ -174,6 +177,8 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
   const correct = new Set<string>();
   const consistent = new Set<string>();
   let perfect = 0;
+  let pagesUpright = 0;
+  let pagesScored = 0;
   for (let g = 0; g < gt.pages.length; g++) {
     const gtIds = gt.fragments.filter((f) => f.page === g && frags.has(f.id)).map((f) => f.id);
     let bestCorrect: string[] = [];
@@ -194,6 +199,19 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
     }
     for (const id of bestCorrect) correct.add(id);
     if (bestPage && bestCorrect.length === gtIds.length && bestPage.fragments.length === gtIds.length) perfect++;
+    // upright: "placed correctly" forgives one rigid move per page, a half turn included; the reader does not
+    if (bestPage && bestCorrect.length >= 2) {
+      pagesScored++;
+      let sx = 0;
+      let sy = 0;
+      for (const id of bestCorrect) {
+        const pred = bestPage.fragments.find((f) => f.id === id)!.pose.theta;
+        const e = -gtOf.get(id)!.pose.theta - pred;
+        sx += Math.cos(e);
+        sy += Math.sin(e);
+      }
+      if (Math.abs(Math.atan2(sy, sx)) <= (10 * Math.PI) / 180) pagesUpright++;
+    }
   }
   const placed = res.pages.reduce((s, p) => s + p.fragments.length, 0);
   const split = [...consistent].filter((id) => !correct.has(id)).length;
@@ -244,6 +262,8 @@ function score(c: BenchCase, frags: Map<string, Fragment>, res: SolveResult): Om
     unplaced: c.inputs.length - placed,
     pages: res.pages.length,
     perfectPages: perfect,
+    pagesUpright,
+    pagesScored,
     gtPages: gt.pages.length,
     joinsAccepted: res.joins.length,
     joinsCorrect,
@@ -398,7 +418,7 @@ async function main() {
       results.push(row);
       console.log(
         `${name.padEnd(12)} frags ${String(row.fragments).padStart(3)}  correct ${String(row.correct).padStart(3)}  split ${row.split}  misplaced ${row.misplaced}  unplaced ${row.unplaced}  ` +
-          `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
+          `pages ${row.pages}/${row.gtPages} perfect ${row.perfectPages} upright ${row.pagesUpright}/${row.pagesScored}  joins ${row.joinsCorrect}/${row.joinsAccepted} of ${row.gtJoins}  ` +
           (row.twinSeams ? `twins ${row.twinSeamsDetected}/${row.twinSeams} groups ${row.twinGroups} appearance-picks ${row.twinAppearanceHits}/${row.twinAppearanceGroups}  ` : "") +
           (reqs.length ? `asked ${reqs.length}  ` : "") +
           `${row.ms.total.toFixed(0)} ms` +
@@ -407,8 +427,8 @@ async function main() {
     }
   }
   // summary table per family
-  console.log("\n| Family | Cases | Fragments | Placed correctly | Split off | Mis-placed | Unplaced | Join precision | Join recall | Perfect pages | Twin seams detected | Runtime median (max) |");
-  console.log("|---|---|---|---|---|---|---|---|---|---|---|---|");
+  console.log("\n| Family | Cases | Fragments | Placed correctly | Split off | Mis-placed | Unplaced | Join precision | Join recall | Perfect pages | Pages upright | Twin seams detected | Runtime median (max) |");
+  console.log("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
   for (const fam of fams) {
     const r = results.filter((x) => x.family === fam);
     if (!r.length) continue;
@@ -416,7 +436,7 @@ async function main() {
     const ms = r.map((x) => x.ms.total).sort((a, b) => a - b);
     console.log(
       `| ${fam} | ${r.length} | ${sum("fragments")} | ${pct(sum("correct"), sum("fragments"))} | ${sum("split")} | ${sum("misplaced")} | ${sum("unplaced")} | ${pct(sum("joinsCorrect"), sum("joinsAccepted"))} | ` +
-        `${pct(sum("joinsCorrect"), sum("gtJoins"))} | ${sum("perfectPages")}/${sum("gtPages")} | ${sum("twinSeams") ? pct(sum("twinSeamsDetected"), sum("twinSeams")) : "–"} | ` +
+        `${pct(sum("joinsCorrect"), sum("gtJoins"))} | ${sum("perfectPages")}/${sum("gtPages")} | ${sum("pagesUpright")}/${sum("pagesScored")} | ${sum("twinSeams") ? pct(sum("twinSeamsDetected"), sum("twinSeams")) : "–"} | ` +
         `${(ms[Math.floor(ms.length / 2)] / 1000).toFixed(2)} s (${(ms[ms.length - 1] / 1000).toFixed(2)} s) |`,
     );
   }

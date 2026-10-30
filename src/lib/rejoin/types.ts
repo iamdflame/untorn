@@ -1,4 +1,4 @@
-// Public types of the Rejoin solver. Pure data: no DOM, no Node APIs. Coordinates are image pixels, x right, y down.
+// Public types of the Untorn solver. Pure data: no DOM, no Node APIs. Coordinates are image pixels, x right, y down.
 
 import type { Pose } from "./geom";
 import type { PageCorner, Segment } from "./edges";

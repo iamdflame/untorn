@@ -4,7 +4,7 @@ import { poseApply, poseCompose, poseInvert, type Pose } from "./geom";
 import { renderChoiceSheet, renderSeam } from "./seam";
 import { renderPage } from "./render";
 import { askPlanned, contentRequests, finish, prepare, solve } from "./solve";
-import { gridTear, scatterPage } from "./__tests__/synth";
+import { gridTear, scatterPage, scatterPiece } from "./__tests__/synth";
 import type { ContentCheck, FragmentInput, SolveResult } from "./types";
 
 /** Every placed fragment agrees with the truth up to one rigid transform per page (3 px, 1°). */
@@ -221,4 +221,27 @@ describe("working scale", async () => {
     // the page is about 3 × 520 px wide in photo px
     expect(Math.max(res.pages[0].width, res.pages[0].height)).toBeGreaterThan(1300);
   });
+});
+
+describe("pages stand upright", async () => {
+  // the same torn page, photographed turned by a quarter, a half and three quarters
+  const page = gridTear(520, 420, 3, 2, 21);
+  for (const quarter of [0, 1, 2, 3]) {
+    it(`whichever way the photo was turned (${quarter * 90}°)`, async () => {
+      const turn: Pose = { theta: (quarter * Math.PI) / 2, tx: 3000, ty: 3000 };
+      const { inputs, poses } = scatterPage(page, 5 + quarter, { noise: 0.6 });
+      // turn every piece's page → photo pose by the same quarter turns about a far point
+      const turned = inputs.map((inp, k) => scatterPiece(page, k, poseCompose(turn, poses[k]), { noise: 0.6, seed: 5 * 31 + k, id: inp.id }));
+      const res = await solve(turned);
+      expect(res.pages.length).toBeGreaterThan(0);
+      const pg = res.pages[0];
+      // photo → page rotation of each piece, against the truth (photo → true page = inverse of page → photo)
+      for (const f of pg.fragments) {
+        const k = Number(f.id.slice(1));
+        const truth = -poseCompose(turn, poses[k]).theta;
+        const e = Math.atan2(Math.sin(f.pose.theta - truth), Math.cos(f.pose.theta - truth));
+        expect(Math.abs(e)).toBeLessThan((10 * Math.PI) / 180);
+      }
+    });
+  }
 });

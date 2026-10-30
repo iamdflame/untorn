@@ -5,3 +5,4 @@ node_modules/
 /public/capture
 /public/kit/
 /public/audio/scratch/
+/public/audio/narration/*.wav

@@ -5,9 +5,11 @@
 // timeline so any run can be replayed. Model calls are injected (tests mock them); S2's client does the retries.
 
 import sharp from "sharp";
-import { finish, prepare, contentRequests, askAll, type Prepared } from "@/lib/rejoin/solve";
+import { finish, prepare, questionPlan, askAll, type Prepared } from "@/lib/rejoin/solve";
+import type { TwinStrategy } from "@/lib/rejoin/plan";
 import { fragmentsFromSegments } from "@/lib/rejoin/adapters";
 import { renderPage } from "@/lib/rejoin/render";
+import { renderedInk } from "@/lib/rejoin/seam";
 import type { ContentRequest, ContentVerdict, Rgba, SolveResult } from "@/lib/rejoin/types";
 import { RunError } from "@/lib/run/errors";
 import { WARNINGS } from "@/lib/run/errors";
@@ -57,6 +59,12 @@ export type PipelineOptions = {
   readDeadlineMs?: number;
   /** Most pair checks to ask; default 3 per piece, at most 40. */
   maxPairChecks?: number;
+  /** Stack tears: read every twin seam ("all") or along a spanning tree of slots ("tree", fewer reads). */
+  twinStrategy?: TwinStrategy;
+  /** k-way sheets: candidates on their own under the left piece ("stacked"), or each joined to it ("joined"). */
+  choiceSheet?: "stacked" | "joined";
+  /** k-way sheet strip size (px): 640 x 280 shows more lines across the tear than the pair image's 420 x 150. */
+  sheetWindow?: [number, number];
   /** Start a duplicate Muse request when a seam read hasn't answered after this long (median 7–9 s, p90 ~13 s). */
   readHedgeMs?: number;
   /** Translate transcripts that are not in this language. */
@@ -70,6 +78,17 @@ export type PipelineOptions = {
 };
 
 const SEAM_JPEG_QUALITY = 90;
+/** Fewest type pixels a question needs to be worth a read: a pair image, each candidate of a k-way sheet, and the
+ *  sheet's left piece (a few words). Measured on the stack sample: these keep 45 of 65 sheets and lift Muse's picks
+ *  from 46/60 to 34/40 right. */
+const MIN_INK = 300;
+const MIN_ANCHOR_INK = 800;
+/** The read strategy for live runs: on the real stack sample "tree" placed the same 18 of 24 with 0 misplaced as "all",
+ *  with 22 reads instead of 46 ($0.32 against $0.60), so a stack fits the read deadline (S6b). */
+export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "tree";
+/** The k-way sheet layout for live runs (S6b measured both on the real stack sample). */
+export const DEFAULT_CHOICE_SHEET: "stacked" | "joined" = "stacked";
+export const DEFAULT_SHEET_WINDOW: [number, number] = [640, 280];
 const PAGE_MARGIN = 8;
 
 /** Run the whole pipeline on one photo. Emits events as it goes; returns the stored result. Throws RunError. */
@@ -171,14 +190,18 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   stage("match", "active");
   const rgba = rgbToRgba(photo.rgb);
   const inputs = fragmentsFromSegments(rgba, seg.fragments.map((f) => ({ id: pieceId(f.id), mask: f.mask })));
-  const prep: Prepared = prepare(inputs, { maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length) });
+  const strategy = opts.twinStrategy ?? DEFAULT_TWIN_STRATEGY;
+  const sheet = opts.choiceSheet ?? DEFAULT_CHOICE_SHEET;
+  const win = opts.sheetWindow ?? DEFAULT_SHEET_WINDOW;
+  const sheetArea = (win[0] * win[1]) / (420 * 150);
+  const prep: Prepared = prepare(inputs, { maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length), twinStrategy: strategy, render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1] } });
   const textOf = new Map(prep.fragments.map((f) => [f.id, !!f.text && f.text.confidence >= 0.3] as const));
   for (const p of pieces) p.text = textOf.get(p.id) ?? false;
   const blank = pieces.filter((p) => !p.text).length;
   if (blank === pieces.length) warn("no-text");
   else if (blank > 0) warn("some-blank");
-  const reqs = contentRequests(prep);
-  const asks: AskOut[] = reqs.map((r) => askOut(r, prep));
+  const plan = questionPlan(prep);
+  const asks: AskOut[] = plan.first.map((r) => askOut(r, prep));
   const candidates: CandidateOut[] = [...prep.match.candidates]
     .sort((x, y) => y.score - x.score)
     .slice(0, 150)
@@ -194,6 +217,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const onOuterAbort = () => readAbort.abort(signal?.reason);
   signal?.addEventListener("abort", onOuterAbort, { once: true });
   let deadlineHit = false;
+  let skipped = 0;
   const deadline = setTimeout(() => {
     deadlineHit = true;
     readAbort.abort(new Error("read deadline"));
@@ -201,7 +225,17 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const check = async (req: ContentRequest): Promise<ContentVerdict | null> => {
     if (readAbort.signal.aborted) return null;
     const started = now();
-    const jpeg = await encodeJpeg(req.render(), SEAM_JPEG_QUALITY);
+    const img = req.render();
+    // a question with almost no type is a guess, not a read: skip it (the seam then rests on shape, or on other reads)
+    const ink = req.kind === "choice" ? renderedInk(img, req.candidates.length + 1, win[1]) : renderedInk(img, 1);
+    // a k-way sheet needs type on the left piece and on every candidate: shown one scrap with words and two blank ones,
+    // Muse picks the one with words, even when the true continuation is the blank margin
+    const blankQuestion = req.kind === "choice" ? ink[0] < MIN_ANCHOR_INK * sheetArea || Math.min(...ink.slice(1)) < MIN_INK * sheetArea : ink[0] < MIN_INK;
+    if (blankQuestion) {
+      skipped++;
+      return null;
+    }
+    const jpeg = await encodeJpeg(img, SEAM_JPEG_QUALITY);
     const image = { data: jpeg, mime: "image/jpeg" as const };
     const rotated = req.uprightKnown ? undefined : { data: await rotate180Jpeg(jpeg), mime: "image/jpeg" as const };
     // the deadline may have passed while the image was encoded: don't start a call that is already cancelled
@@ -220,7 +254,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
         verdict = { kind: "pair", id: req.id, same: v.same_place, confidence: v.confidence, reason: v.reason, wordsAcross: v.words_across };
       } else read.error = out.error.code;
     } else {
-      const out = await deps.chooseContinuation(image, req.candidates.length, callOpts);
+      const out = await deps.chooseContinuation(image, req.candidates.length, sheet === "joined" ? { ...callOpts, prompt: "joined" } : callOpts);
       museCost(out);
       const partners = req.candidates.map((id) => partnerOf(prep, id, req.anchor));
       read = { ...base, kind: "choice", pieces: [req.anchor, ...partners], candidates: req.candidates, ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started };
@@ -237,9 +271,27 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     send({ type: "read", read });
     return verdict;
   };
-  let verdicts: (ContentVerdict | null)[];
+  // ask round by round: "all" has one round; "tree" re-reads only where reads disagree (rejoin/plan.ts)
+  const reqs: ContentRequest[] = [];
+  const verdicts: (ContentVerdict | null)[] = [];
+  const answers = new Map<string, ContentVerdict | null>();
+  let rounds = 0;
   try {
-    verdicts = await askAll(reqs, check, opts.concurrency ?? 16);
+    let round = plan.first;
+    while (round.length && !readAbort.signal.aborted && rounds < 12) {
+      if (rounds > 0) {
+        asks.push(...round.map((r) => askOut(r, prep)));
+        send({ type: "match", candidates, asks: [...asks] });
+      }
+      const vs = await askAll(round, check, opts.concurrency ?? 16);
+      round.forEach((r, i) => {
+        reqs.push(r);
+        verdicts.push(vs[i]);
+        answers.set(r.id, vs[i]);
+      });
+      rounds++;
+      round = plan.next(answers);
+    }
   } finally {
     clearTimeout(deadline);
     signal?.removeEventListener("abort", onOuterAbort);
@@ -331,6 +383,17 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     warnings,
     timings,
     cost: { ...cost, usd: Math.round(cost.usd * 10000) / 10000 },
+    stats: {
+      twinStrategy: strategy,
+      choiceSheet: sheet,
+      sheetWindow: win,
+      readRounds: rounds,
+      twinGroups: prep.match.twinGroups.length,
+      twinClasses: new Set([...prep.match.twinClass.values()]).size,
+      pairReads: reads.filter((r) => r.kind === "pair").length,
+      choiceReads: reads.filter((r) => r.kind === "choice").length,
+      skippedBlank: skipped,
+    },
     timeline,
   };
   // the done event is the last timeline entry; the result is stored with it

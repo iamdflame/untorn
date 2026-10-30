@@ -1,9 +1,13 @@
 """Rejoin spike: tear a real page image into N pieces with ragged fractal edges, scatter them on a desk, and save
 a phone-like photo plus the ground truth (each piece's polygon in page and photo coordinates).
 
-Usage: python tear.py <page.jpg> <out_dir> [n_pieces=10] [seed=7] [--canvas WxH] [--page-width N] [--stack page2.jpg page3.jpg]
-With --stack, the SAME tear paths cut every page (pieces with identical outlines, as when a folded stack is torn).
-(Copied from the spike, spikes/v3/tear.py; added --canvas and --page-width for the 30-piece stack photo.)
+Usage: python tear.py <page.jpg> <out_dir> [n_pieces=10] [seed=7] [--canvas WxH] [--page-width N] [--buffer PX]
+                      [--smooth-desk] [--fine-tears] [--quality Q] [--stack page2.jpg page3.jpg]
+With --stack, the SAME tear paths cut every page (pieces with identical outlines, as when a folded stack is torn). Stack
+pages are centre-cropped to the first page's aspect (not stretched) and re-levelled to its paper tone (one paper stock).
+(Copied from the spike, spikes/v3/tear.py; added --canvas and --page-width for the 30-piece stack photo, and --buffer,
+--smooth-desk, --fine-tears and --quality for the first screen's high-resolution samples. --smooth-desk interpolates the desk's
+coarse noise instead of repeating it in 8 px blocks, from the same random draws, so a seed gives the same tear.)
 """
 import json, math, random, sys
 from pathlib import Path
@@ -13,6 +17,26 @@ from PIL import Image, ImageDraw, ImageFilter
 from shapely.affinity import rotate, translate
 from shapely.geometry import LineString, Polygon, box
 from shapely.ops import split
+
+
+def fit_aspect(im, aspect):
+    """Centre-crop to width/height = aspect (trims the side margins of a wider page, the foot of a taller one)."""
+    if im.width / im.height > aspect:
+        w = round(im.height * aspect)
+        x = (im.width - w) // 2
+        return im.crop((x, 0, x + w, im.height))
+    h = round(im.width / aspect)
+    return im.crop((0, 0, im.width, h))
+
+
+def match_paper(im, ref):
+    """Re-level a page so its paper tone matches `ref` (stacked pages are one paper stock)."""
+    def tone(a):
+        lum = a.mean(axis=2)
+        return a[lum > np.percentile(lum, 60)].mean(axis=0)
+    a = np.asarray(im).astype(float)
+    a = a * (tone(np.asarray(ref).astype(float)) / np.maximum(tone(a), 1))[None, None, :]
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
 
 
 def load_page(path, width=820):
@@ -26,6 +50,9 @@ def load_page(path, width=820):
     return im.resize((width, h), Image.LANCZOS)
 
 
+FINE = {"rng": None, "finest": 2.0}
+
+
 def fractal_line(p0, p1, rng, depth=8, rough=0.07, decay=0.56):
     pts = [np.array(p0, float), np.array(p1, float)]
     amp = rough * np.linalg.norm(pts[1] - pts[0])
@@ -36,6 +63,18 @@ def fractal_line(p0, p1, rng, depth=8, rough=0.07, decay=0.56):
             n = np.array([-d[1], d[0]]) / (np.linalg.norm(d) + 1e-9)
             out += [(a + b) / 2 + n * rng.normal(0, amp), b]
         pts, amp = out, amp * decay
+    # --fine-tears: keep subdividing (from a separate random stream, so a seed keeps its coarse tear) until segments
+    # are ~2 px; otherwise a high-resolution tear is a polyline of 40-60 px straight segments, which no paper is
+    fr = FINE["rng"]
+    while fr is not None and np.linalg.norm(pts[1] - pts[0]) > FINE["finest"]:
+        P = np.asarray(pts)
+        d = P[1:] - P[:-1]
+        n = np.stack([-d[:, 1], d[:, 0]], axis=1) / (np.linalg.norm(d, axis=1, keepdims=True) + 1e-9)
+        mid = (P[:-1] + P[1:]) / 2 + n * fr.normal(0, amp, (len(d), 1))
+        out = np.empty((2 * len(P) - 1, 2))
+        out[0::2] = P
+        out[1::2] = mid
+        pts, amp = list(out), amp * decay
     return LineString([tuple(p) for p in pts])
 
 
@@ -61,12 +100,16 @@ def tear_paths(w, h, n, rng):
     return pieces, cuts
 
 
-def wood(W, H, rng):
+def wood(W, H, rng, smooth=False):
     y = np.arange(H)[:, None]
     x = np.arange(W)[None, :]
     grain = np.sin((y + 18 * np.sin(x / 240 + rng.uniform(0, 6)) + 9 * np.sin(x / 57)) / 7.0)
     noise = rng.normal(0, 1, (H // 8 + 1, W // 8 + 1))
-    noise = np.kron(noise, np.ones((8, 8)))[:H, :W]
+    if smooth:
+        im = Image.fromarray(noise.astype(np.float32), mode="F").resize(((W // 8 + 1) * 8, (H // 8 + 1) * 8), Image.BICUBIC)
+        noise = np.asarray(im)[:H, :W]
+    else:
+        noise = np.kron(noise, np.ones((8, 8)))[:H, :W]
     base = np.array([128, 92, 62], float)
     img = base[None, None, :] * (1 + 0.06 * grain[..., None] + 0.04 * noise[..., None])
     img += rng.normal(0, 3, img.shape)
@@ -96,8 +139,18 @@ def piece_image(page, poly, cuts, rng):
     return crop, (minx, miny)
 
 
-def scatter(pages, polys, cuts, out, rng, W=2400, H=1800):
-    canvas = wood(W, H, rng).convert("RGBA")
+def thin(coords, step):
+    """Indices of a polygon's vertices at least `step` px apart (the same indices serve its rigidly moved copy)."""
+    keep, last = [0], np.asarray(coords[0])
+    for i in range(1, len(coords)):
+        if np.linalg.norm(np.asarray(coords[i]) - last) >= step:
+            keep.append(i)
+            last = np.asarray(coords[i])
+    return keep
+
+
+def scatter(pages, polys, cuts, out, rng, W=2400, H=1800, buffer=12, smooth=False, quality=88):
+    canvas = wood(W, H, rng, smooth).convert("RGBA")
     shadow = Image.new("L", (W, H), 0)
     placed, gt = [], []
     layers = []
@@ -113,15 +166,17 @@ def scatter(pages, polys, cuts, out, rng, W=2400, H=1800):
                 tx = rng.uniform(40, W - rot.width - 40)
                 ty = rng.uniform(40, H - rot.height - 40)
                 gp = translate(g, tx - (cx - rot.width / 2), ty - (cy - rot.height / 2))
-                if all(not gp.buffer(12).intersects(q) for q in placed):
+                if all(not gp.buffer(buffer).intersects(q) for q in placed):
                     break
             else:
                 raise SystemExit("could not place all pieces; use a bigger canvas or fewer pieces")
             placed.append(gp)
             layers.append((rot, (int(round(tx)), int(round(ty)))))
             ImageDraw.Draw(shadow).polygon([(x + 7, y + 9) for x, y in gp.exterior.coords], fill=120)
-            gt.append({"page": pi, "piece": k, "angle_deg": ang, "page_polygon": [list(map(float, p)) for p in poly.exterior.coords],
-                       "photo_polygon": [list(map(float, p)) for p in gp.exterior.coords]})
+            pc, qc = list(poly.exterior.coords), list(gp.exterior.coords)
+            keep = thin(pc, 4.0) if FINE["rng"] is not None else range(len(pc))
+            gt.append({"page": pi, "piece": k, "angle_deg": ang, "page_polygon": [[round(float(v), 2) for v in pc[i]] for i in keep],
+                       "photo_polygon": [[round(float(v), 2) for v in qc[i]] for i in keep]})
     shadow = shadow.filter(ImageFilter.GaussianBlur(9))
     canvas = Image.composite(Image.new("RGBA", (W, H), (30, 20, 12, 255)), canvas, shadow.point(lambda v: int(v * 0.55)))
     for rot, (x, y) in layers:
@@ -131,7 +186,7 @@ def scatter(pages, polys, cuts, out, rng, W=2400, H=1800):
     yy, xx = np.mgrid[0:H, 0:W]
     v = 1 - 0.18 * (((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2)
     a = a * v[..., None] + rng.normal(0, 2.5, a.shape)
-    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).save(out / "photo.jpg", quality=88)
+    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).save(out / "photo.jpg", quality=quality)
     return gt
 
 
@@ -146,6 +201,21 @@ def main():
         i = args.index("--page-width")
         page_w = int(args[i + 1])
         args = args[:i] + args[i + 2:]
+    buffer, quality, smooth = 12, 88, False
+    if "--buffer" in args:
+        i = args.index("--buffer")
+        buffer = int(args[i + 1])
+        args = args[:i] + args[i + 2:]
+    if "--quality" in args:
+        i = args.index("--quality")
+        quality = int(args[i + 1])
+        args = args[:i] + args[i + 2:]
+    if "--smooth-desk" in args:
+        smooth = True
+        args.remove("--smooth-desk")
+    fine = "--fine-tears" in args
+    if fine:
+        args.remove("--fine-tears")
     stack = []
     if "--stack" in args:
         i = args.index("--stack")
@@ -154,17 +224,20 @@ def main():
     n = int(args[2]) if len(args) > 2 else 10
     seed = int(args[3]) if len(args) > 3 else 7
     rng = np.random.default_rng(seed)
+    if fine:
+        FINE["rng"] = np.random.default_rng(seed + 7919)
     out.mkdir(parents=True, exist_ok=True)
     first = load_page(page_path, page_w)
-    pages = [first] + [load_page(p, page_w).resize(first.size) for p in stack]
+    aspect = first.width / first.height
+    pages = [first] + [match_paper(fit_aspect(load_page(p, page_w), aspect).resize(first.size, Image.LANCZOS), first) for p in stack]
     W, H = pages[0].size
     polys, cuts = tear_paths(W, H, n, rng)
     for i, p in enumerate(pages):
         p.save(out / f"page{i}.png")
     big = len(pages) > 1
     W0, H0 = canvas or ((3000, 2200) if big else (2400, 1800))
-    gt = scatter(pages, polys, cuts, out, rng, W=W0, H=H0)
-    json.dump({"page_size": [W, H], "n_pieces": len(polys) * len(pages), "cuts": [list(map(list, c.coords)) for c in cuts], "pieces": gt},
+    gt = scatter(pages, polys, cuts, out, rng, W=W0, H=H0, buffer=buffer, smooth=smooth, quality=quality)
+    json.dump({"page_size": [W, H], "photo_size": [W0, H0], "pages": [page_path] + stack, "seed": seed, "n_pieces": len(polys) * len(pages), "cuts": [[[round(v, 2) for v in p] for p in c.coords][:: (8 if FINE["rng"] is not None else 1)] for c in cuts], "pieces": gt},
               open(out / "gt.json", "w"), indent=1)
     print(f"{len(polys)} pieces per page x {len(pages)} page(s) -> {out / 'photo.jpg'}")
 

@@ -5,6 +5,12 @@
 //     same frame (cw3: the true stack twin picked 9 of 9 times).
 // Pure TypeScript: RGBA rasters in, RGBA rasters out.
 
+/** The median line pitch over pieces with a confident text estimate (for `pitchHint`), or null. */
+export function medianPitch(frags: Fragment[]): number | null {
+  const ps = frags.filter((f) => f.text && f.text.confidence >= 0.4 && f.text.pitch).map((f) => f.text!.pitch!).sort((a, b) => a - b);
+  return ps.length ? ps[Math.floor(ps.length / 2)] : null;
+}
+
 import { drawText } from "./font";
 import { poseApply, poseInvert, type Pose } from "./geom";
 import { side } from "./match";
@@ -15,10 +21,21 @@ export type SeamRenderOptions = {
   /** Output window (px). */
   width?: number;
   height?: number;
-  /** Output px per photo px; default: about 32 px per text line, else 1.5. */
+  /** Output px per photo px; default: about 32 px per text line (between ×0.5 and ×3), else 1.5. */
   scale?: number;
+  /**
+   * The photo's typical line pitch (median over its pieces). A piece whose own estimate is far from it (a letterhead,
+   * a harmonic) is drawn at this pitch instead, so one odd estimate cannot zoom a seam onto a single word.
+   */
+  pitchHint?: number | null;
   /** Draw the tear as a dark line (pair images). */
   seamLine?: boolean;
+  /** Choice sheets: show each candidate joined, flush, to the left piece (one strip per candidate; Muse's "joined"
+   *  prompt) instead of on its own under it. */
+  joined?: boolean;
+  /** Choice sheets: the window of each strip (default: width / height). Taller strips show more lines across the tear. */
+  sheetWidth?: number;
+  sheetHeight?: number;
   background?: [number, number, number];
 };
 
@@ -65,8 +82,11 @@ function seamFrame(anchor: Fragment, seam: [number, number], partner: Fragment, 
   const n = anchor.outline.length / 2;
   const width = o.width ?? 420;
   const height = o.height ?? 150;
-  const pitch = anchor.text?.pitch ?? partner.text?.pitch ?? null;
-  const scale = o.scale ?? (pitch ? Math.max(1, Math.min(3, 32 / pitch)) : 1.5);
+  const hint = o.pitchHint ?? null;
+  const near = (p: number | null | undefined) => !!p && (!hint || (p >= 0.6 * hint && p <= 1.6 * hint));
+  const own = [anchor.text?.pitch, partner.text?.pitch].find(near);
+  const pitch = own ?? hint ?? anchor.text?.pitch ?? partner.text?.pitch ?? null;
+  const scale = o.scale ?? (pitch ? Math.max(0.5, Math.min(3, 32 / pitch)) : 1.5);
   const at = (q: number) => (seam[0] + Math.round(q)) % n;
   // outward normal at the seam middle (towards the partner)
   const mid = at(seam[1] / 2);
@@ -209,7 +229,7 @@ export function renderChoiceSheet(
   const anchor = get(anchorId);
   const bg = opts.background ?? BG;
   const first = side(candidates[0], anchorId);
-  const fr = seamFrame(anchor, first.seam, get(first.partner), first.pose, opts);
+  const fr = seamFrame(anchor, first.seam, get(first.partner), first.pose, { ...opts, width: opts.sheetWidth ?? opts.width, height: opts.sheetHeight ?? opts.height });
   const pad = 20;
   const gap = 34;
   const W = fr.width + 2 * pad;
@@ -222,7 +242,35 @@ export function renderChoiceSheet(
     const sd = side(cand, anchorId);
     const top = pad + (fr.height + gap) * (k + 1);
     drawText(out, `CANDIDATE ${String.fromCharCode(65 + k)}`, pad, top - 18, white, 2);
-    paint(out, pad, top, fr, [{ f: get(sd.partner), pose: sd.pose }], bg);
+    const layers = [{ f: get(sd.partner), pose: sd.pose }];
+    if (opts.joined) layers.unshift({ f: anchor, pose: { theta: 0, tx: 0, ty: 0 } });
+    paint(out, pad, top, fr, layers, bg);
   });
   return out;
+}
+
+/**
+ * Type in a rendered question, per panel: grey pixels clearly darker than paper (the desk is brown, so it never counts).
+ * A choice sheet gives [anchor, candidate A, …]; a pair image gives one count. A question with almost no type is a
+ * guess, not a read: the caller can skip it (Muse answers blank sheets with confident picks).
+ */
+export function renderedInk(img: Rgba, panels: number, panelHeight = 150, pad = 20, gap = 34): number[] {
+  const counts: number[] = [];
+  for (let k = 0; k < panels; k++) {
+    const y0 = panels === 1 ? 0 : pad + (panelHeight + gap) * k;
+    const y1 = panels === 1 ? img.height : y0 + panelHeight;
+    let n = 0;
+    for (let y = y0; y < Math.min(y1, img.height); y++) {
+      for (let x = 0; x < img.width; x++) {
+        const i = 4 * (y * img.width + x);
+        const r = img.data[i];
+        const g = img.data[i + 1];
+        const b = img.data[i + 2];
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (lum < 165 && Math.abs(r - b) < 28 && Math.abs(r - g) < 28) n++;
+      }
+    }
+    counts.push(n);
+  }
+  return counts;
 }

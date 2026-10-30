@@ -26,19 +26,19 @@ test("first screen: the recorded run plays, labelled, and ends in a rebuilt, rea
   const t0 = Date.now();
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.locator(".stage image").first()).toBeVisible();
+  await expect(page.locator(".hero-photo")).toBeVisible();
   const firstPaintMs = Date.now() - t0;
   console.log(`first screen visible in ${firstPaintMs} ms`);
   expect(firstPaintMs).toBeLessThan(3000);
-  await expect(page.getByText("A recorded run of the real pipeline")).toBeVisible();
+  await expect(page.locator(".honest")).toContainText("recorded run");
   await expect(page.getByRole("button", { name: "Run it live" })).toBeEnabled();
-  await expect(page.locator(".stage-piece")).toHaveCount(10, { timeout: 8000 });
+  await expect(page.locator('.hero[data-phase="outlined"], .hero[data-phase="assembling"]').first()).toBeVisible({ timeout: 8000 });
   await shot(page, "01-first-screen-outlines");
-  await expect(page.locator(".read-card").first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".rd-word")).toHaveText(/\w/, { timeout: 15000 });
   await shot(page, "02-first-screen-reading");
-  await expect(page.locator('.stage[data-phase="assembled"]')).toBeVisible({ timeout: 25000 });
-  await expect(page.locator(".transcript-text")).toContainText("Chouteau", { ignoreCase: true, timeout: 15000 });
-  await expect(page.locator(".join-map tbody tr")).not.toHaveCount(0);
+  await expect(page.locator('.hero[data-phase="whole"]')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator(".r-tx")).toContainText("Chouteau", { ignoreCase: true, timeout: 15000 });
+  await expect(page.locator(".key-list li:not(.key-sub)")).not.toHaveCount(0);
   await shot(page, "03-first-screen-whole", true);
   expect(errors).toEqual([]);
 });
@@ -47,7 +47,8 @@ test("reduced motion shows the finished reconstruction as a still", async ({ bro
   const ctx = await browser.newContext({ reducedMotion: "reduce" });
   const page = await ctx.newPage();
   await page.goto("/");
-  await expect(page.locator('.stage[data-phase="assembled"][data-motion="reduced"]')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.hero.paused[data-phase="whole"]')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".tx")).toBeVisible();
   await ctx.close();
 });
 
@@ -87,10 +88,10 @@ test("phone handoff: QR code, the phone sends a photo, the laptop starts the run
 
   // the laptop picks it up within a couple of polls and starts a live run
   const t0 = Date.now();
-  await expect(page.locator('.run-view[data-mode="live"]')).toBeVisible({ timeout: 6000 });
+  await expect(page.locator('.hero[data-mode="live"]')).toBeVisible({ timeout: 6000 });
   console.log(`laptop picked up the phone photo in ${Date.now() - t0} ms`);
   if (!LIVE) return; // stop here without spending on models
-  await expect(page.locator('.run-view[data-status="done"]')).toBeVisible({ timeout: 120000 });
+  await expect(page.locator(".result .key-list")).toBeVisible({ timeout: 120000 });
   await shot(page, "08b-phone-run-done", true);
 });
 
@@ -101,21 +102,21 @@ test("run it live: the real pipeline on the same photo, then its permalink repla
   await page.goto("/");
   const t0 = Date.now();
   await page.getByRole("button", { name: "Run it live" }).click();
-  await expect(page.getByText("Live run")).toBeVisible();
-  await expect(page.locator('.stages li[data-stage="segment"]:not([data-status="pending"])')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(".honest")).toContainText("Live run");
+  await expect(page.locator(".status")).toContainText("SAM 3.1", { timeout: 5000 });
   const firstStageMs = Date.now() - t0;
-  await expect(page.locator(".stage-piece")).not.toHaveCount(0, { timeout: 30000 });
+  await expect(page.locator('.hero[data-phase="outlined"], .hero[data-phase="reading"]').first()).toBeVisible({ timeout: 30000 });
   await shot(page, "09-live-outlines");
-  await expect(page.locator(".read-card").first()).toBeVisible({ timeout: 40000 });
+  await expect(page.locator(".rd-word, .rd-note").first()).toHaveText(/\w/, { timeout: 40000 });
   await shot(page, "10-live-reading");
-  await expect(page.locator('.run-view[data-status="done"]')).toBeVisible({ timeout: 120000 });
+  await expect(page.locator(".result .key-list")).toBeVisible({ timeout: 120000 });
   const liveMs = Date.now() - t0;
   await shot(page, "11-live-done", true);
   console.log(`live run: first stage ${firstStageMs} ms, done ${liveMs} ms`);
-  const href = await page.getByRole("link", { name: "permalink" }).getAttribute("href");
+  const href = await page.getByRole("link", { name: "Permalink" }).getAttribute("href");
   expect(href).toMatch(/^\/r\/[a-z0-9]+$/);
   await page.goto(href!);
-  await expect(page.locator('.stage[data-phase="assembled"]')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.hero[data-phase="assembling"], .hero[data-phase="whole"]').first()).toBeVisible({ timeout: 30000 });
   await shot(page, "12-permalink");
   expect(errors).toEqual([]);
 });

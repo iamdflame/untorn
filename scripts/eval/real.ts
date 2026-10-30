@@ -24,7 +24,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { fragmentsFromSegments, type SegmentedFragment } from "../../src/lib/rejoin/adapters";
 import { analyzeFragment } from "../../src/lib/rejoin/fragment";
-import { fitRigid, poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "../../src/lib/rejoin/geom";
+import { fitRigid, polygonCentroid, poseApply, poseCompose, poseInvert, solveSPD, type Pose } from "../../src/lib/rejoin/geom";
 import { icp, MATCH_DEFAULTS, measureSeam, workspace } from "../../src/lib/rejoin/match";
 import { textOrientation } from "../../src/lib/rejoin/orientation";
 import { downscaleInput } from "../../src/lib/rejoin/scale";
@@ -810,19 +810,62 @@ async function main() {
     return;
   }
   if (cmd === "score") {
+    // a pipeline result.json (record-run): its pieces come from a fresh SAM run, so they are matched to the truth's
+    // pieces by where their centroids fall on the case's label map, and scored with their own outlines
     const file = opt("--result");
-    if (!file) throw new Error("score needs --result FILE");
+    if (!file) throw new Error("score needs --result FILE [--text reference.txt]");
     const c = cases[0];
     const gt = loadGt(c);
-    const result = JSON.parse(readFileSync(file, "utf8")) as { pages: { pieces: { id: string; pose: Pose }[] }[]; pieces: { id: string }[]; joins: { a: string; b: string }[] };
-    const torn = await loadRgb(c.photo);
-    const inputs: FragmentInput[] = fragmentsFromSegments(rgbToRgba(torn), loadSegments(c));
-    const frags = new Map(inputs.map((inp, i) => analyzeFragment(inp, i)).filter((f): f is Fragment => !!f).map((f) => [f.id, f] as const));
-    // joins from the page poses (the stored result has no join poses)
-    const poseOf = new Map(result.pages.flatMap((p) => p.pieces.map((q) => [q.id, q.pose] as const)));
-    const joins = result.joins.map((j) => ({ a: j.a, b: j.b, pose: poseOf.has(j.a) && poseOf.has(j.b) ? poseCompose(poseInvert(poseOf.get(j.a)!), poseOf.get(j.b)!) : null }));
-    const s = scoreReal(gt, frags, result.pages, joins, result.pieces.map((p) => p.id));
-    console.log(JSON.stringify({ ...s, joins: s.joins.map((j) => `${j.a}-${j.b}:${j.right ? "right" : `WRONG (${j.why})`}`) }, null, 1));
+    type Res = {
+      pages: { id: string; pieces: { id: string; pose: Pose }[] }[];
+      pieces: { id: string; polygon: [number, number][] }[];
+      joins: { a: string; b: string; decidedBy?: string; read?: { agrees: boolean | null } | null }[];
+      reads?: { kind: string; same: boolean | null; confidence: number; pieces: string[] }[];
+      transcripts?: { page: string; ok: boolean; text: string }[];
+      timings?: Record<string, number>;
+      cost?: { usd: number; samCalls: number; museCalls: number };
+    };
+    const result = JSON.parse(readFileSync(file, "utf8")) as Res;
+    const segs = loadSegments(c);
+    const labelAt = (x: number, y: number) => {
+      for (const sg of segs) {
+        const cx = Math.floor(x - sg.mask.x);
+        const cy = Math.floor(y - sg.mask.y);
+        if (cx >= 0 && cy >= 0 && cx < sg.mask.width && cy < sg.mask.height && sg.mask.data[cy * sg.mask.width + cx]) return sg.id;
+      }
+      return null;
+    };
+    const idMap = new Map<string, string>();
+    const shapes = new Map<string, PieceShape>();
+    for (const pc of result.pieces) {
+      const flat = Float64Array.from(pc.polygon.flat());
+      const cen = polygonCentroid(flat);
+      const id = labelAt(cen[0], cen[1]);
+      if (!id) continue;
+      idMap.set(pc.id, id);
+      shapes.set(id, { centroid: cen, outline: flat });
+    }
+    const ren = (id: string) => idMap.get(id) ?? `?${id}`;
+    const pages = result.pages.map((pg) => ({ pieces: pg.pieces.filter((q) => idMap.has(q.id)).map((q) => ({ id: ren(q.id), pose: q.pose })) }));
+    const poseOf = new Map(pages.flatMap((p) => p.pieces.map((q) => [q.id, q.pose] as const)));
+    const joins = result.joins.map((j) => ({ a: ren(j.a), b: ren(j.b), pose: poseOf.has(ren(j.a)) && poseOf.has(ren(j.b)) ? poseCompose(poseInvert(poseOf.get(ren(j.a))!), poseOf.get(ren(j.b))!) : null }));
+    const s = scoreReal(gt, shapes, pages, joins, [...new Set([...idMap.values()])]);
+    console.log(`pieces: ${result.pieces.length} found, ${idMap.size} matched to the truth`);
+    console.log(`placed correctly ${s.correct.length}/${s.pieces}, split off ${s.split.length}, misplaced ${s.misplaced.length}${s.misplaced.length ? ` (${s.misplaced.join(", ")})` : ""}, unplaced ${s.unplaced.length}; pages ${result.pages.map((p) => p.pieces.length).join("+") || "none"}`);
+    console.log(`joins ${s.joinsRight} right, ${s.joinsWrong} wrong (of ${s.trueSeams} true seams):`);
+    s.joins.forEach((j, n) => console.log(`  ${j.a}–${j.b}: ${j.right ? "right" : `WRONG (${j.why})`}  [${result.joins[n].decidedBy ?? ""}${result.joins[n].read ? `, read ${result.joins[n].read!.agrees === null ? "unsure" : result.joins[n].read!.agrees ? "agrees" : "disagrees"}` : ""}]`));
+    console.log(`  piece errors: ${Object.entries(s.errors).map(([id, e]) => `${id} ${e.px.toFixed(0)}px/${e.deg.toFixed(1)}°`).join(", ")}`);
+    if (result.reads) {
+      const pair = result.reads.filter((r) => r.kind === "pair");
+      console.log(`reads: ${result.reads.length} (${pair.length} pair), same ${pair.filter((r) => r.same === true).length}, not ${pair.filter((r) => r.same === false).length}, unsure ${pair.filter((r) => r.same === null || r.confidence <= 0.5).length}`);
+    }
+    const ref = opt("--text") ? readFileSync(opt("--text")!, "utf8") : null;
+    for (const t of result.transcripts ?? []) {
+      const words = t.text.split(/\s+/).filter(Boolean).length;
+      console.log(`transcript ${t.page}: ${t.ok ? `${t.text.length} chars, ${words} words` : "failed"}${ref && t.ok ? `, CER vs the whole intact page ${(100 * cer(t.text, ref)).toFixed(1)}%` : ""}`);
+    }
+    if (result.timings) console.log(`time ${((result.timings.total ?? 0) / 1000).toFixed(1)} s: ${Object.entries(result.timings).filter(([k]) => k !== "total").map(([k, v]) => `${k} ${((v ?? 0) / 1000).toFixed(1)}`).join(", ")}`);
+    if (result.cost) console.log(`cost $${result.cost.usd.toFixed(3)} (SAM ${result.cost.samCalls}, Muse ${result.cost.museCalls})`);
     return;
   }
   throw new Error(`unknown command ${cmd}; see the header of scripts/eval/real.ts`);

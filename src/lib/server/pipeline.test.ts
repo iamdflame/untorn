@@ -62,8 +62,10 @@ describe("runPipeline (mocked models)", async () => {
   });
 
   it("stops reading at the deadline and assembles with what it has", async () => {
-    const result = await runPipeline(scene.photo, fakeDeps(put, { readDelayMs: 8000 }), { runId: "t6", source: "upload", readDeadlineMs: 150 }, () => {});
+    // Each fake read would take a minute; only the deadline can end the stage this early. The bound leaves room for
+    // seam rendering under a loaded parallel test run (it flaked at 6 s with 8 s reads).
+    const result = await runPipeline(scene.photo, fakeDeps(put, { readDelayMs: 60_000 }), { runId: "t6", source: "upload", readDeadlineMs: 150 }, () => {});
     expect(result.warnings.map((w) => w.code)).toContain("slow-reading");
-    expect(result.timings.read).toBeLessThan(6000);
-  });
+    expect(result.timings.read).toBeLessThan(30_000);
+  }, 40_000); // the whole pipeline (segment, match, render, assemble) runs here, slower under a parallel suite
 });

@@ -1,15 +1,23 @@
 "use client";
 
-// /r/<runId>: any stored run, replayed with its real timing (a still with reduced motion).
+// /r/<runId>: any stored run, played back by the same hero (a still with reduced motion), then its result.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Recovery } from "@/lib/run/errors";
+import { SAMPLES } from "@/lib/run/samples";
 import type { RunResult } from "@/lib/run/types";
-import { ErrorPanel } from "./run/panels";
-import { RunView, usePrefersReducedMotion } from "./run/RunView";
+import { Hero } from "./hero/Hero";
+import { ErrorNote } from "./hero/LeadNote";
+import { usePrefersReducedMotion } from "./hooks";
+import dynamic from "next/dynamic";
 import { useRun } from "./run/useRun";
+
+// below the fold: its code loads when it is needed
+const ResultSection = dynamic(() => import("./result/ResultSection").then((m) => m.ResultSection), { ssr: false });
+
+const SOURCE: Record<RunResult["source"], string> = { sample: "a sample run", phone: "a phone run", upload: "an uploaded run", health: "a health-check run" };
 
 export function Permalink({ runId }: { runId: string }) {
   const run = useRun();
@@ -17,6 +25,7 @@ export function Permalink({ runId }: { runId: string }) {
   const reduced = usePrefersReducedMotion();
   const [result, setResult] = useState<RunResult | null>(null);
   const [missing, setMissing] = useState<"not-found" | "network" | null>(null);
+  const [J, setJ] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,48 +44,53 @@ export function Permalink({ runId }: { runId: string }) {
 
   const { replay } = run;
   useEffect(() => {
-    if (result) replay(result, { instant: reduced, targetMs: 20_000 });
-  }, [result, reduced, replay]);
+    if (!result) return;
+    replay(result, { instant: true });
+  }, [result, replay]);
 
   const onAction = (r: Recovery) => {
     if (r === "recorded") router.push("/");
     else if (r === "retry") window.location.reload();
   };
 
+  if (missing)
+    return (
+      <main className="page">
+        <header className="page-rail">
+          <Link className="mark" href="/" aria-label="Untorn, home">
+            Un<span className="bar" aria-hidden="true" />
+            torn
+          </Link>
+        </header>
+        <div className="page-body nf">
+          <ErrorNote code={missing} onAction={onAction} actions={missing === "not-found" ? ["recorded"] : ["retry", "recorded"]} />
+        </div>
+      </main>
+    );
+
+  const sample = result?.sample ? (SAMPLES[result.sample] ?? null) : null;
+  const when = result ? new Date(result.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) : "";
+  const honesty = (
+    <p className="honest">
+      {result ? `Replay of ${SOURCE[result.source]}, ${when} UTC${result.caption ? "; simulated tear" : ""}.` : "Loading the run…"}
+      <Link href="/#tear">Tear your own</Link>
+    </p>
+  );
+  const photoSrc = sample ? (sample.photo.hires ?? sample.photo.url) : (result?.photo.url ?? null);
   return (
-    <main className="permalink">
-      <header className="site-header">
-        <Link href="/" className="wordmark">
-          Untorn
-        </Link>
-        <nav aria-label="Site">
-          <Link href="/#tear">Tear your own</Link>
-          <Link href="/accuracy">Accuracy</Link>
-        </nav>
-      </header>
-      {missing ? (
-        <ErrorPanel error={{ code: missing, message: "" }} onAction={onAction} actions={missing === "not-found" ? ["recorded"] : ["retry", "recorded"]} />
-      ) : !result ? (
-        <p role="status">Loading the run…</p>
-      ) : (
-        <RunView
-          run={run}
-          onAction={onAction}
-          label={
-            <div className="run-label">
-              <span className="run-label-text">
-                Replay of a {result.source === "sample" ? "sample" : result.source === "phone" ? "phone" : result.source === "health" ? "health-check" : "uploaded"} run ·{" "}
-                {new Date(result.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC
-              </span>
-              <span className="run-label-actions">
-                <button type="button" className="btn" onClick={() => replay(result, { instant: reduced })}>
-                  Replay
-                </button>
-              </span>
-            </div>
-          }
-        />
-      )}
+    <main>
+      <Hero
+        state={run.state}
+        mode="replay"
+        runKey={`replay-${result?.runId ?? "none"}`}
+        sample={sample}
+        twins={null}
+        reduced={reduced}
+        honesty={honesty}
+        samplePhoto={!!sample}
+        photoAlt={result ? `The photo of ${result.pieces.length} torn pieces this run started from.` : "Loading the run."}
+      />
+      {result && <ResultSection result={result} photoSrc={photoSrc} J={J} setJ={setJ} />}
     </main>
   );
 }

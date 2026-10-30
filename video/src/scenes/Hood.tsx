@@ -22,8 +22,8 @@ const pieces = scene.pieces as SP[];
 const SEAM = scene.seams.find((s) => s.read?.words?.includes("Patients'"))!; // p7~p9: "here, week and Patients'"
 const PA = pieces[SEAM.a];
 // a stretch of p7's torn edge, in the photo, for the pixel close-up
-const ZOOM = 12;
-const WIN = { w: 64, h: 36 };
+const ZOOM = 16;
+const WIN = { w: 80, h: 44 };
 const edgePt = (() => {
   // the outline point of p7 closest to the seam's midpoint, carried back into the photo
   const [mx, my] = SEAM.mid;
@@ -67,7 +67,7 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
       if (st.o > 0.005) {
         // real pixels at x12, nearest neighbour, and the traced outline over them
         const ox = Math.round(W / 2 - (WIN.w * ZOOM) / 2 + st.x);
-        const oy = 250;
+        const oy = 214;
         g.save();
         g.globalAlpha = st.o;
         g.imageSmoothingEnabled = false;
@@ -142,7 +142,7 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
   const s4 = stage(3);
   const s5 = stage(4);
   const label = (txt: React.ReactNode, o: number, x: number) => (
-    <div style={{ position: "absolute", left: 0, right: 0, top: 120, textAlign: "center", transform: `translateX(${x * 0.6}px)`, opacity: o, fontFamily: F.serif, fontWeight: 500, fontSize: 46, color: C.chalk }}>{txt}</div>
+    <div style={{ position: "absolute", left: 0, right: 0, top: 96, textAlign: "center", transform: `translateX(${x * 0.6}px)`, opacity: o, fontFamily: F.serif, fontWeight: 500, fontSize: 46, color: C.chalk }}>{txt}</div>
   );
   return (
     <AbsoluteFill style={{ backgroundColor: C.room }}>
@@ -155,19 +155,23 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
         stage(0).x,
       )}
       {stage(0).o > 0.01 && (
-        <div style={{ position: "absolute", left: 0, right: 0, top: 712, textAlign: "center", opacity: stage(0).o, fontFamily: F.sans, fontSize: 21, color: C.chalk3 }}>
-          Real pixels of the 1927 letter at ×12. The line is the outline the solver traced: it runs between pixel centres.
+        <div style={{ position: "absolute", left: 0, right: 0, top: 176, textAlign: "center", opacity: stage(0).o, fontFamily: F.sans, fontSize: 21, color: C.chalk3 }}>
+          Real pixels of the 1927 letter at ×16. The line is the outline the solver traced from the mask: it runs between pixel centres.
         </div>
       )}
       {s2.o > 0.01 && (
-        <div style={{ position: "absolute", left: 410 + s2.x, top: 300, width: 1100, height: 420, opacity: s2.o }}>
-          <svg width={1100} height={420} viewBox="0 0 1100 420" style={{ overflow: "visible" }}>
-            <path d={prof(A, lerp(110, 200, fitK), 1)} fill="none" stroke={C.chalk} strokeWidth={2.4} />
-            <path d={prof(B, lerp(290, 200, fitK), -1)} fill="none" stroke={C.chalk2} strokeWidth={2.4} strokeDasharray="1 0" />
-            <path d={prof(sum, 360, 1)} fill="none" stroke={C.chalk3} strokeWidth={1.6} opacity={smooth(0.85, 1, fitK)} />
+        <div style={{ position: "absolute", left: 360 + s2.x, top: 250, width: 1200, height: 560, opacity: s2.o }}>
+          <svg width={1200} height={560} viewBox="0 0 1100 520" style={{ overflow: "visible" }}>
+            <path d={prof(A, lerp(90, 210, fitK), 1)} fill="none" stroke={C.chalk} strokeWidth={3} />
+            <path d={prof(B, lerp(330, 210, fitK), -1)} fill="none" stroke={C.chalk2} strokeWidth={3} />
+            <line x1={0} y1={430} x2={1100} y2={430} stroke={C.chalkHair2} strokeWidth={1} opacity={smooth(0.85, 1, fitK)} />
+            <path d={prof(sum, 430, 1)} fill="none" stroke={C.chalk3} strokeWidth={2.2} opacity={smooth(0.85, 1, fitK)} />
           </svg>
-          <div style={{ position: "absolute", left: 0, top: 380, fontFamily: F.sans, fontSize: 19, color: C.chalk3, opacity: smooth(0.85, 1, fitK) }}>
-            A + B: the two traces cancel where the edges meet
+          <div style={{ position: "absolute", left: -150, top: lerp(70, 205, fitK), fontFamily: F.sans, fontWeight: 600, fontSize: 21, color: C.chalk }}>edge A</div>
+          <div style={{ position: "absolute", left: -150, top: lerp(335, 230, fitK), fontFamily: F.sans, fontWeight: 600, fontSize: 21, color: C.chalk2, opacity: 1 - smooth(0.8, 1, fitK) }}>edge B</div>
+          <div style={{ position: "absolute", left: -150, top: 455, fontFamily: F.sans, fontWeight: 600, fontSize: 21, color: C.chalk3, opacity: smooth(0.85, 1, fitK) }}>A + B</div>
+          <div style={{ position: "absolute", left: 0, top: 500, fontFamily: F.sans, fontSize: 20, color: C.chalk3, opacity: smooth(0.85, 1, fitK) }}>
+            Each torn edge, traced from its own piece's mask. Where two pieces belong together, the traces mirror and cancel.
           </div>
         </div>
       )}

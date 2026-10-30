@@ -4,8 +4,20 @@
   "name": "Peter (ElevenLabs library, professional)",
   "model": "eleven_v4",
   "runnersUp": [
-    { "id": "MFZUKuGQUsGJPQjTS4wC", "name": "Jon - Warm & Grounded Storyteller" },
-    { "id": "G17SuINrv2H9FC6nvetn", "name": "Christopher - Gentle and Trustworthy" }
+    {
+      "id": "MFZUKuGQUsGJPQjTS4wC",
+      "name": "Jon - Warm & Grounded Storyteller"
+    },
+    {
+      "id": "G17SuINrv2H9FC6nvetn",
+      "name": "Christopher - Gentle and Trustworthy"
+    }
   ],
-  "settings": { "stability": 0.5, "similarity_boost": 0.75, "speed": 1.0 }
+  "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "speed": 1
+  },
+  "tempo": 1.035,
+  "tempoNote": "The narration plays 3.5% faster than generated (ffmpeg atempo, pitch kept) so the film fits 2:00; about 152 -> 157 wpm, inside the documentary range."
 }

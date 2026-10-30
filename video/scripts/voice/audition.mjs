@@ -173,8 +173,12 @@ async function score() {
   fs.writeFileSync(path.join(OUT, "auditions.json"), JSON.stringify(rows, null, 1));
 }
 
-const [cmd, ...rest] = process.argv.slice(2);
-if (cmd === "generate") await generate(rest.length ? rest : Object.keys(FINALISTS));
-else if (cmd === "score") await score();
-else if (cmd === "text") console.log(TEXT.length, "characters per take\n" + TEXT);
-else console.log("usage: audition.mjs generate [names] | score | text");
+// the command line runs only when this file is run directly: importing it for its helpers must never spend characters
+const self = path.resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+if (process.argv[1] && path.resolve(process.argv[1]) === self) {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (cmd === "generate") await generate(rest.length ? rest : Object.keys(FINALISTS));
+  else if (cmd === "score") await score();
+  else if (cmd === "text") console.log(TEXT.length, "characters per take\n" + TEXT);
+  else console.log("usage: audition.mjs generate [names] | score | text");
+}

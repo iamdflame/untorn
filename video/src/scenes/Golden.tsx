@@ -16,12 +16,13 @@ export const GOLDEN_CUES: GoldenCues = { phone: 2.2, live: 6.6, reads: 9.0, clos
 const CW = 3840;
 const CH = 2160;
 type Cam = { x: number; y: number; z: number }; // focus (capture px) and zoom (1 = whole capture fills the window)
-type Seg = { t0: number; t1: number; f0: number; step: number; cam0: Cam; cam1: Cam };
+type Seg = { t0: number; t1: number; f0: number; step: number; cam0: Cam; cam1: Cam; max?: number };
 
 const WIDE: Cam = { x: CW / 2, y: CH / 2, z: 1 };
 function edl(c: GoldenCues): Seg[] {
   return [
-    { t0: 0, t1: c.live, f0: 12, step: 1, cam0: { x: 1900, y: 1250, z: 1.55 }, cam1: { x: 2050, y: 1200, z: 1.75 } },
+    // the QR waits on the laptop (held before the page jumps to the run) until the phone has sent the photo
+    { t0: 0, t1: c.live, f0: 12, step: 1, max: 104, cam0: { x: 1900, y: 1250, z: 1.55 }, cam1: { x: 2050, y: 1200, z: 1.75 } },
     { t0: c.live, t1: c.reads, f0: 116, step: 2, cam0: WIDE, cam1: { x: CW / 2 + 40, y: CH / 2, z: 1.04 } },
     { t0: c.reads, t1: c.close, f0: 300, step: 2, cam0: { x: CW / 2 + 40, y: CH / 2, z: 1.04 }, cam1: { x: CW / 2 + 60, y: CH / 2 + 20, z: 1.08 } },
     { t0: c.close, t1: c.assemble, f0: 600, step: 1, cam0: { x: 1500, y: 1580, z: 2.05 }, cam1: { x: 1530, y: 1600, z: 2.2 } },
@@ -102,7 +103,7 @@ export const Golden: React.FC<{ cues?: GoldenCues }> = ({ cues = GOLDEN_CUES }) 
   const seg = segs.find((s) => t >= s.t0 && t < s.t1) ?? segs[segs.length - 1];
   const k = smoother(seg.t0, seg.t1, t);
   const cam = { x: lerp(seg.cam0.x, seg.cam1.x, k), y: lerp(seg.cam0.y, seg.cam1.y, k), z: lerp(seg.cam0.z, seg.cam1.z, k) };
-  const fno = seg.f0 + Math.floor((t - seg.t0) * FPS) * seg.step;
+  const fno = Math.min(seg.max ?? Infinity, seg.f0 + Math.floor((t - seg.t0) * FPS) * seg.step);
   // the laptop window makes room for the phone, then takes the frame back
   const side = smooth(cues.phone - 0.1, cues.phone + 0.6, t) * (1 - smooth(cues.live - 0.5, cues.live, t));
   const ww = lerp(1720, 1180, side);

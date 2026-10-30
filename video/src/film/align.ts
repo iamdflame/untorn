@@ -9,6 +9,10 @@ import sGolden from "../data/narration/scratch-golden.json";
 import sHood from "../data/narration/scratch-hood.json";
 import sPeak from "../data/narration/scratch-peak.json";
 import { FINAL, FINAL_READY } from "./final";
+import voice from "../data/voice.json";
+
+/** The narration plays at this tempo (scripts/audio/tempo.mjs), so its timestamps shrink by the same factor. */
+const TEMPO = (voice as { tempo?: number }).tempo ?? 1;
 
 export type SceneId = "cold" | "sacks" | "twins" | "proof" | "golden" | "hood" | "peak";
 export type Word = { w: string; start: number; end: number };
@@ -39,13 +43,13 @@ function fromEleven(id: SceneId, j: ElAlign): Align {
     if (!cur) cur = { w: "", start: -1, end: -1 };
     cur.w += c;
     if (/[\p{L}\p{N}]/u.test(c)) {
-      if (cur.start < 0) cur.start = st[i];
-      cur.end = en[i];
+      if (cur.start < 0) cur.start = st[i] / TEMPO;
+      cur.end = en[i] / TEMPO;
     }
   });
   if (cur) words.push(cur);
   const ok = words.filter((w) => w.start >= 0);
-  return { words: ok, duration: en[en.length - 1] ?? 0, audio: `audio/narration/${id}.mp3` };
+  return { words: ok, duration: (en[en.length - 1] ?? 0) / TEMPO, audio: `audio/narration/${id}.wav` };
 }
 
 export function align(id: SceneId): Align {

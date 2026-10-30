@@ -22,6 +22,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition id="ColdOpen" component={ColdOpen} durationInFrames={S(13.5)} fps={FPS} width={W} height={H} />
       <Composition id="Sacks" component={Sacks} durationInFrames={S(17.5)} fps={FPS} width={W} height={H} />
       <Composition id="Twins" component={Twins} durationInFrames={S(15.5)} fps={FPS} width={W} height={H} />
+      <Composition id="TwinsDebug" component={Twins} durationInFrames={S(15.5)} fps={FPS} width={W} height={H} defaultProps={{ debug: true }} />
       <Composition id="Proof" component={Proof} durationInFrames={S(14)} fps={FPS} width={W} height={H} />
       <Composition id="Golden" component={Golden} durationInFrames={S(23.5)} fps={FPS} width={W} height={H} />
       <Composition id="Hood" component={Hood} durationInFrames={S(20)} fps={FPS} width={W} height={H} />

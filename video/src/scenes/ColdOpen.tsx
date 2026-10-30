@@ -44,7 +44,10 @@ export const CO = {
 
 const pieces = scene.pieces as SP[];
 const seams = scene.seams as SS[];
-const order = scene.order.map((o) => o.piece);
+// the product's order (a spanning tree from the strongest clue), with the two pieces whose seam reads "hope" first
+const byIdx = (id: string) => (scene.pieces as SP[]).findIndex((p) => p.id === id);
+const FIRST = [byIdx("p1"), byIdx("p0")];
+const order = [...FIRST, ...scene.order.map((o) => o.piece).filter((p) => !FIRST.includes(p))];
 const orderIdx: Record<number, number> = {};
 order.forEach((p, i) => (orderIdx[p] = i));
 const LAST = order[order.length - 1];
@@ -233,6 +236,20 @@ export const ColdOpen: React.FC<{ warp?: [number, number][] }> = ({ warp }) => {
       if (photoA > 0.002) {
         g.globalAlpha = photoA;
         g.drawImage(imgs[`${KIT}/photo.jpg`], 0, 0, scene.photo.width, scene.photo.height);
+        const PW = scene.photo.width;
+        const PH = scene.photo.height;
+        const fe = 150;
+        const edge = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number, rw: number, rh: number) => {
+          const gr = g.createLinearGradient(x0, y0, x1, y1);
+          gr.addColorStop(0, "rgba(51,44,39,1)");
+          gr.addColorStop(1, "rgba(51,44,39,0)");
+          g.fillStyle = gr;
+          g.fillRect(rx, ry, rw, rh);
+        };
+        edge(0, 0, fe, 0, -2, -2, fe + 2, PH + 4);
+        edge(PW, 0, PW - fe, 0, PW - fe, -2, fe + 2, PH + 4);
+        edge(0, 0, 0, fe, -2, -2, PW + 4, fe + 2);
+        edge(0, PH, 0, PH - fe, -2, PH - fe, PW + 4, fe + 2);
         g.globalAlpha = 1;
       }
       const z = pieces.map((_, i) => i).sort((a, b) => poses[a].lift - poses[b].lift || (orderIdx[a] ?? 0) - (orderIdx[b] ?? 0));
@@ -257,11 +274,11 @@ export const ColdOpen: React.FC<{ warp?: [number, number][] }> = ({ warp }) => {
           g.lineJoin = "round";
           g.lineCap = "round";
           g.setLineDash(pr < 1 ? [outlineLen[i] * pr, outlineLen[i]] : []);
-          g.strokeStyle = "rgba(250,246,238,0.9)";
-          g.lineWidth = 4.2 / c.s;
+          g.strokeStyle = "rgba(250,246,238,0.92)";
+          g.lineWidth = 6.5 / c.s;
           g.stroke(outlinePaths[i]);
           g.strokeStyle = C.ink;
-          g.lineWidth = 1.7 / c.s;
+          g.lineWidth = 2.6 / c.s;
           g.stroke(outlinePaths[i]);
           g.restore();
         });
@@ -310,21 +327,21 @@ export const ColdOpen: React.FC<{ warp?: [number, number][] }> = ({ warp }) => {
         g.lineWidth = 1.3;
         g.beginPath();
         g.moveTo(sx, sy);
-        g.lineTo(bx - dx * 14, by - dy * 14);
+        g.lineTo(bx - dx * 19, by - dy * 19);
         g.stroke();
         g.fillStyle = C.ink;
         g.beginPath();
         g.arc(sx, sy, 3, 0, Math.PI * 2);
         g.fill();
         g.beginPath();
-        g.arc(bx, by, 14 * pop, 0, Math.PI * 2);
+        g.arc(bx, by, 19 * pop, 0, Math.PI * 2);
         g.fillStyle = C.filmHi;
         g.fill();
         g.lineWidth = 1.4;
         g.strokeStyle = C.ink;
         g.stroke();
         g.fillStyle = C.ink;
-        g.font = `600 15px ${F.sans}`;
+        g.font = `600 19px ${F.sans}`;
         g.textAlign = "center";
         g.textBaseline = "middle";
         g.fillText(String(p.k), bx, by + 0.5);
@@ -346,7 +363,7 @@ export const ColdOpen: React.FC<{ warp?: [number, number][] }> = ({ warp }) => {
   const c = camAt(t);
   // the read word sits just off the seam, in the paper's own space
   const [wx, wy] = w2s(c, HOPE.mid[0], HOPE.mid[1]);
-  const wordA = smooth(CO.word, CO.word + 0.35, t) * (1 - smooth(CO.title0 + 0.9, CO.title0 + 1.5, t)) * exitA;
+  const wordA = smooth(CO.word, CO.word + 0.35, t) * (1 - smooth(CO.word + 1.7, CO.word + 2.15, t)) * exitA;
   const lastSeat = stepT(order.length - 1) + CO.fly * 0.62;
   return (
     <AbsoluteFill>

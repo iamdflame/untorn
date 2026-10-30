@@ -1,5 +1,5 @@
 {
-  "note": "The narration, scene by scene. Each chunk is [spoken, shown]: the narrator reads `spoken` (numbers as words); the captions show `shown` (figures), timed by the voice's own character timestamps for that chunk. scripts/voice/narrate.mjs generates one file per scene; a changed scene re-generates alone.",
+  "note": "The narration, scene by scene. Each chunk is [spoken, shown]: the narrator reads `spoken` (numbers as words); the captions show `shown` (figures), timed by the voice's own character timestamps for that chunk. scripts/voice/narrate.mjs generates one file per scene; a changed scene re-generates alone. Heteronyms: \"tear\" (a rip) is spoken as \"tare\" so the voice never reads it as a teardrop; the captions keep \"tear\".",
   "scenes": [
     {
       "id": "cold",
@@ -13,7 +13,7 @@
           "Meta's SAM 3.1 cuts out every piece,"
         ],
         [
-          "and Muse reads the half-words across each tear, like a crossword.",
+          "and Muse reads the half-words across each tare, like a crossword.",
           "and Muse reads the half-words across each tear, like a crossword."
         ]
       ]
@@ -89,7 +89,7 @@
           "and the laptop runs the real pipeline, live."
         ],
         [
-          "SAM three point one finds the pieces, Muse reads across the tears,",
+          "SAM three point one finds the pieces, Muse reads across the tares,",
           "SAM 3.1 finds the pieces, Muse reads across the tears,"
         ],
         [
@@ -110,7 +110,7 @@
           "Under the hood, the solver traces SAM's masks to a fraction of a pixel"
         ],
         [
-          "and proposes joins from the shape of each tear.",
+          "and proposes joins from the shape of each tare.",
           "and proposes joins from the shape of each tear."
         ],
         [
@@ -143,7 +143,7 @@
           "About 15,400 sacks are still waiting."
         ],
         [
-          "Untorn reads across the tears.",
+          "Untorn reads across the tares.",
           "Untorn reads across the tears."
         ]
       ]

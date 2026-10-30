@@ -26,11 +26,12 @@ export const Peak: React.FC<{ cues?: PeakCues }> = ({ cues = PEAK_CUES }) => {
   // the page: from whole in frame to the quoted line, slowly
   const push = smoother(0.0, cues.quote1 + 0.6, t);
   const s0 = (H - 120) / PAGE_H;
-  const s1 = 1.05;
+  const s1 = 0.6;
   const s = s0 * Math.pow(s1 / s0, push);
-  const fx = lerp(PAGE_W / 2, 900, push);
+  const fx = lerp(PAGE_W / 2, 880, push);
   const fy = lerp(PAGE_H / 2, 1250, push);
-  const sx = W / 2 + 120 * push + noise1(t * 0.3, 2) * 2;
+  // the page stays right of the transcript column (which ends at x = 680)
+  const sx = lerp(W / 2 + 230, 1262, push) + noise1(t * 0.3, 2) * 2;
   const sy = H / 2 + noise1(t * 0.27, 3) * 1.5;
   const pageA = 1 - smooth(cues.sacks - 0.2, cues.sacks + 0.5, t);
   const ul = (k: number) => clamp((t - cues.quote0 - k * 1.9) / 1.6);

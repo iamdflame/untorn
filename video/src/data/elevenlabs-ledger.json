@@ -107,5 +107,327 @@
     "accountUsedAfter": 29770,
     "accountDelta": 220,
     "requestId": "aHcYzsWmPGOR0qs2wX6K"
+  },
+  {
+    "at": "2026-10-30T12:54:21.098Z",
+    "purpose": "tuning",
+    "id": "s50-v100",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 93,
+    "billed": 37,
+    "header": 37,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29770,
+    "accountUsedAfter": 29770,
+    "accountDelta": 0,
+    "requestId": "DTu5dfbQqHlmkLDwJMPv"
+  },
+  {
+    "at": "2026-10-30T12:54:27.251Z",
+    "purpose": "tuning",
+    "id": "s65-v094",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.65,
+      "similarity_boost": 0.75,
+      "speed": 0.94
+    },
+    "format": "mp3_44100_128",
+    "chars": 93,
+    "billed": 37,
+    "header": 37,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29770,
+    "accountUsedAfter": 29770,
+    "accountDelta": 0,
+    "requestId": "YyKBAplZB6q4lzafrWSG"
+  },
+  {
+    "at": "2026-10-30T12:54:32.894Z",
+    "purpose": "tuning",
+    "id": "s35-v094",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.35,
+      "similarity_boost": 0.75,
+      "speed": 0.94
+    },
+    "format": "mp3_44100_128",
+    "chars": 93,
+    "billed": 37,
+    "header": 37,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29770,
+    "accountUsedAfter": 29770,
+    "accountDelta": 0,
+    "requestId": "Dilb3QJKzlPEx4QctU9p"
+  },
+  {
+    "at": "2026-10-30T12:55:53.987Z",
+    "purpose": "narration",
+    "id": "cold",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 176,
+    "billed": 70,
+    "header": 70,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29881,
+    "accountUsedAfter": 29881,
+    "accountDelta": 0,
+    "requestId": "6sssH092KGxKyWQZVZfW"
+  },
+  {
+    "at": "2026-10-30T12:56:03.288Z",
+    "purpose": "narration",
+    "id": "sacks",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 251,
+    "billed": 100,
+    "header": 100,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29881,
+    "accountUsedAfter": 29881,
+    "accountDelta": 0,
+    "requestId": "TrMFT4Dw5Qf5mB1gsA47"
+  },
+  {
+    "at": "2026-10-30T12:56:10.526Z",
+    "purpose": "narration",
+    "id": "twins",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 155,
+    "billed": 62,
+    "header": 62,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29881,
+    "accountUsedAfter": 29881,
+    "accountDelta": 0,
+    "requestId": "uRjRJ0lJ7RHNd2yArPsp"
+  },
+  {
+    "at": "2026-10-30T12:56:17.527Z",
+    "purpose": "narration",
+    "id": "proof",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 181,
+    "billed": 72,
+    "header": 72,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29881,
+    "accountUsedAfter": 29881,
+    "accountDelta": 0,
+    "requestId": "cDDEem500QDtUEwrx3oP"
+  },
+  {
+    "at": "2026-10-30T12:56:25.076Z",
+    "purpose": "narration",
+    "id": "golden",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 210,
+    "billed": 84,
+    "header": 84,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29881,
+    "accountUsedAfter": 29881,
+    "accountDelta": 0,
+    "requestId": "wQBdxWXjWCAzAmD4eNJQ"
+  },
+  {
+    "at": "2026-10-30T12:56:33.297Z",
+    "purpose": "narration",
+    "id": "hood",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 240,
+    "billed": 96,
+    "header": 96,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29881,
+    "accountUsedAfter": 29881,
+    "accountDelta": 0,
+    "requestId": "JEMHnJXTVVTWHJAbJTX1"
+  },
+  {
+    "at": "2026-10-30T12:56:41.297Z",
+    "purpose": "narration",
+    "id": "peak",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 192,
+    "billed": 77,
+    "header": 77,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 29881,
+    "accountUsedAfter": 30365,
+    "accountDelta": 484,
+    "requestId": "Zzz7N7iHnAD6TPkw36um"
+  },
+  {
+    "at": "2026-10-30T12:58:17.436Z",
+    "purpose": "narration",
+    "id": "cold",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 176,
+    "billed": 70,
+    "header": 70,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 30442,
+    "accountUsedAfter": 30442,
+    "accountDelta": 0,
+    "requestId": "GRbuMePGqvPFNe7fH2dV"
+  },
+  {
+    "at": "2026-10-30T12:58:25.808Z",
+    "purpose": "narration",
+    "id": "golden",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 210,
+    "billed": 84,
+    "header": 84,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 30442,
+    "accountUsedAfter": 30442,
+    "accountDelta": 0,
+    "requestId": "zGpfebffSIzJr5vYVB5X"
+  },
+  {
+    "at": "2026-10-30T12:58:40.897Z",
+    "purpose": "narration",
+    "id": "hood",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 240,
+    "billed": 96,
+    "header": 96,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 30442,
+    "accountUsedAfter": 30442,
+    "accountDelta": 0,
+    "requestId": "K8ezu2IWNMYlFdSfVC5O"
+  },
+  {
+    "at": "2026-10-30T12:58:49.676Z",
+    "purpose": "narration",
+    "id": "peak",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 192,
+    "billed": 77,
+    "header": 77,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 30692,
+    "accountUsedAfter": 30692,
+    "accountDelta": 0,
+    "requestId": "GTC7D9LTzXzdZitrpMia"
   }
 ]

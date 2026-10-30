@@ -33,6 +33,13 @@ export function buildTimeline(): Timeline {
     const local: { start: number; end: number }[] & { word?: (word: string, nth?: number) => number } = [];
     ch.forEach((c, i) => {
       shift += beats[i] ?? 0;
+      // a tight edit: the voice's own pause between chunks is capped (0.5 s after a comma or colon, 0.7 s after a
+      // full stop); the beats asked for above are added on top
+      if (i > 0) {
+        const gap = c.start - ch[i - 1].end;
+        const cap = /[.!?”]$/.test(ch[i - 1].spoken.trim()) ? 0.7 : 0.5;
+        if (gap > cap) shift -= gap - cap;
+      }
       const at = sceneStart + lead + shift + c.start - ch[0].start;
       // play from a little before the chunk's first word to a little after its last
       clips.push({ scene: id, from: Math.max(0, c.start - 0.06), to: c.end + 0.12, at: at - 0.06, shown: c.shown });
@@ -50,7 +57,7 @@ export function buildTimeline(): Timeline {
 
   // 1 · cold open
   const cold = place("cold", 0, 0.45);
-  const coldEnd = cold[2].end + 1.25;
+  const coldEnd = cold[2].end + 0.95;
   // the cold open's own beats (trace 3.75, lift 5.75, title 9.7, end 12.0) moved onto the narration
   const coldWarp: [number, number][] = [
     [0, 0],
@@ -70,7 +77,7 @@ export function buildTimeline(): Timeline {
     fifteen: sacks.word("fifteen") - 0.05,
     dim: sacks[2].end + 0.15,
     years: sacks.word("eight") - 0.05,
-    end: sacks[4].end + 1.05,
+    end: sacks[4].end + 0.95,
   };
   scenes.push({ id: "sacks", start: sS, dur: sacksCues.end + 0.9 });
 
@@ -80,10 +87,10 @@ export function buildTimeline(): Timeline {
   const lead3 = 0.7;
   // chunks 0-2 natural, then the tries, a beat, and the verdict line when C seats
   const t2end = lead3 + twinsLocal[2].end - twinsLocal[0].start;
-  const tryA = t2end + 0.25;
-  const tryB = tryA + 1.3;
-  const tryC = tryB + 1.95;
-  const verdictAt = tryC + 0.62;
+  const tryA = t2end + 0.2;
+  const tryB = tryA + 1.2;
+  const tryC = tryB + 1.8;
+  const verdictAt = tryC + 0.58;
   const beat4 = verdictAt - (lead3 + twinsLocal[3].start - twinsLocal[0].start);
   const twins = place("twins", tS, lead3, { 3: Math.max(0, beat4) });
   const twinsCues: TwinsCues = {
@@ -94,7 +101,7 @@ export function buildTimeline(): Timeline {
     tryB,
     tryC,
     verdict: verdictAt,
-    end: twins[3].end + 1.35,
+    end: twins[3].end + 1.15,
   };
   scenes.push({ id: "twins", start: tS, dur: twinsCues.end + 0.6 });
 
@@ -106,7 +113,7 @@ export function buildTimeline(): Timeline {
     untorn: proof[1].start - 0.1,
     scores: proof.word("five") - 1.6,
     tiles: proof.word("five") + 0.2,
-    end: proof[1].end + 1.3,
+    end: proof[1].end + 0.9,
   };
   scenes.push({ id: "proof", start: pS, dur: proofCues.end + 0.2 });
 
@@ -125,7 +132,7 @@ export function buildTimeline(): Timeline {
     climax: gClimax,
     transcript: gTranscript,
     result: gTranscript + 1.9,
-    end: gTranscript + 3.5,
+    end: gTranscript + 2.85,
   };
   scenes.push({ id: "golden", start: gS, dur: goldenCues.end + 0.2 });
 
@@ -138,7 +145,7 @@ export function buildTimeline(): Timeline {
     s3: hood[2].start - 0.2,
     s4: hood[3].start - 0.2,
     s5: hood[4].start - 0.5,
-    end: hood[4].end + 1.4,
+    end: hood[4].end + 1.1,
   };
   scenes.push({ id: "hood", start: hS, dur: hoodCues.end + 0.2 });
 
@@ -151,7 +158,7 @@ export function buildTimeline(): Timeline {
     sacks: Math.max(peak[1].end + 0.45, peak[2].start - 0.7),
     card: peak[3].start - 0.6,
     seat: peak[3].start + 0.35,
-    end: peak[3].end + 2.2,
+    end: peak[3].end + 2.0,
   };
   scenes.push({ id: "peak", start: kS, dur: peakCues.end });
 

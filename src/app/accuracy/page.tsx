@@ -208,12 +208,12 @@ export default function AccuracyPage() {
             caption="A printed report page, torn by hand into 10 pieces: the same photo, four live runs"
             head={["Run", "Placed correctly", "Misplaced", "Page upright", "Transcript errors", "Photo to page"]}
             rows={[
-              [1, "8 of 10", 0, "yes", "12.0%", "74.7 s"],
-              [2, "6 of 10", "1 (a true neighbour, 2.3° off)", "yes", "24.8%", "55.0 s"],
-              [3, "8 of 10", 0, "yes", "11.7%", "89.9 s"],
-              ["4, on the live site from the phone's original photo", "7 of 10", 0, "yes", "25.5%", "80.3 s"],
+              [1, "9 of 10", 0, "yes", "7.3%", "63.4 s"],
+              [2, "7 of 10", 0, "yes", "25.4%", "68.8 s"],
+              [3, "9 of 10", 0, "yes", "7.9%", "85.4 s"],
+              ["4, on the live site from the phone's original photo", "9 of 10", 0, "yes", "7.1%", "81.5 s"],
             ]}
-            note="Run on 30 Oct 2026 with the deployed version. Pieces that aren't placed are set aside, never forced; the transcript errors count the text of set-aside pieces as missing. Results vary between runs because Muse's reads vary. The version before (a read could override the shape and the lines) placed 6, 7 and 6 of 10, with three wrong joins in one run; before the real-paper work, this photo had 0 of 10 placed correctly. The page's text is not shown here."
+            note="Run on 30 Oct 2026 with the deployed version. Pieces that aren't placed are set aside, never forced; the transcript errors count the text of set-aside pieces as missing. Results vary between runs because Muse's reads vary. Earlier versions on this photo: 8, 6, 8 and 7 of 10 (one near miss); 6, 7 and 6 of 10 with three wrong joins in one run; and, before the real-paper work, 0 of 10. The page's text is not shown here."
           />
         </Section>
 
@@ -232,8 +232,8 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl and a tilted camera, 6 to 8 of 10 pieces land in the right place on the one real page measured so far; the rest are set aside.</li>
-            <li>A piece can join its true neighbour a few pixels off its place (run 2 above).</li>
+            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl and a tilted camera, 7 to 9 of 10 pieces land in the right place on the one real page measured so far; the rest are set aside.</li>
+            <li>A live run on a real photo takes 60–90 s; most of it is Muse reading across the tears and reading the page.</li>
           </ul>
         </Section>
       </div>

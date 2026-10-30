@@ -36,7 +36,7 @@ Every number was measured, and each row says what kind of test it is: a real tea
 
 | What | Result | Kind |
 |---|---|---|
-| A printed page torn by hand into 10 pieces, 4 live runs (one on the live site from the phone's original photo) | 6–8 of 10 placed correctly, the rest set aside; one piece 2.3° off in one run; the page upright every time; 12–26% transcript errors (set-aside pieces count as missing) | real tear |
+| A printed page torn by hand into 10 pieces, 4 live runs (one on the live site from the phone's original photo) | 9, 7, 9 and 9 of 10 placed correctly, the rest set aside, none misplaced; the page upright every time; 7–25% transcript errors (set-aside pieces count as missing) | real tear |
 | Shredded documents, 64 documents × 8 pieces (news, Chinese news, code, tables) | text errors (NED) **0.050**; Muse Spark alone on the same photos **0.404** | ShredBench protocol, our replica |
 | ShredBench's own images with published answers | NED 0.002; Muse Spark alone 0.528 | ShredBench, 3 official images |
 | A 1927 letter, 10 pieces, the full live pipeline | 10/10 placed, 13/13 joins, 0 misplaced, transcript CER 0.0%, 41 s, $0.15 | simulated tear |
@@ -68,7 +68,7 @@ pnpm dev
 ## What's live, and known limits
 - **Live:** the full pipeline on uploads and phone photos, recorded-run replay, the join map, per-run links, a health check that rebuilds a known sample every 3 hours, a daily spend cap.
 - **Limits:**
-  - Real hand-torn paper is harder than simulations: on the one real page measured, 6–8 of 10 pieces land and the rest are set aside, and a live run takes 55–90 s.
+  - Real hand-torn paper is harder than simulations: on the one real page measured, 7–9 of 10 pieces land and the rest are set aside, and a live run takes 60–90 s.
   - Very large stacks can end with some twins unplaced, because reading is capped per run.
   - Straight cuts (scissors, shredder strips) are weaker than hand tears in the live app; the straight-edge tiling runs in the benchmark runner only.
   - Tilted photos, glare and overlapping pieces aren't detected yet.

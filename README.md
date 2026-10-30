@@ -2,6 +2,8 @@
 
 **Untorn is a project that puts torn documents back together from one photo, for archivists facing millions of hand-torn pages.** Meta's Segment Anything Model (SAM 3.1) cuts out every fragment to the pixel. Muse reads the half-letters across each tear, like a crossword, to decide which pieces belong together. When pages were torn as a stack, the pieces have identical outlines, so shape can't decide; reading does.
 
+![Untorn rebuilding a torn 1927 letter: the pieces lift and come together, and Muse reads the words hope and go across a tear (a simulated tear, recorded run)](docs/media/untorn-hero.gif)
+
 **Live:** https://untorn.vercel.app · **Demo video:** _(link added at submission)_ · **Verify it yourself:** [below](#verify-it-yourself)
 
 Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026).

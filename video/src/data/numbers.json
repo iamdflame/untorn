@@ -1,5 +1,5 @@
 {
-  "note": "Every number the film shows or says. Each entry names its source (a path relative to the repo root, or to the main checkout for .apex reports). The proof scene renders the entries in `proof` whose `enabled` is true, in order; set `enabled` and fill `stats` for the real-tear (S7) and ShredBench (S5) entries when their reports are final, update the scene's `narration`, re-generate that scene's voice (scripts/voice/narrate.mjs proof) and re-render.",
+  "note": "Every number the film shows or says. Each entry names its source (a path relative to the repo root, or to the main checkout for .apex reports). The proof scene renders the entries in `proof` whose `enabled` is true, in order (the benchmark comparison first, then the recorded-run tiles); set `enabled` and fill `stats` for the real-tear (S7) and ShredBench (S5) entries when their reports are final, update the scene's `narration`, re-generate that scene's voice (scripts/voice/narrate.mjs proof) and re-render.",
   "facts": {
     "sacks": {
       "display": "16,000",
@@ -37,16 +37,78 @@
   },
   "proof": [
     {
+      "id": "shredbench",
+      "enabled": true,
+      "kind": "benchmark",
+      "title": "The same shredded photos, read two ways",
+      "subtitle": "ShredBench (2026): 3 official images; a 64-document replica of its protocol, our re-implementation",
+      "headline": {
+        "value": "0.404 → 0.050",
+        "label": "NED, 64 replica documents"
+      },
+      "stats": [],
+      "image": "kit/shredbench/news_041.jpg",
+      "source": ".apex/build/S5-SHREDBENCH.md (headline, NED table, \"Across sizes\"; SAM 3.1 pieces found: 2,592/2,592 over all 216 replica images). Example: runs/baseline and runs/v2 official-8/news_041 against official/my_dataset/news_041.md (src/data/shredbench-example.json).",
+      "metric": "NED: normalised edit distance against the true text, lower is better",
+      "replica": {
+        "n": 64,
+        "pieces": 8,
+        "museAlone": 0.404,
+        "untorn": 0.05
+      },
+      "official": {
+        "n": 3,
+        "pieces": 8,
+        "museAlone": 0.528,
+        "untorn": 0.002
+      },
+      "bySize": [
+        {
+          "pieces": 12,
+          "n": 32,
+          "museAlone": 0.436,
+          "untorn": 0.05
+        },
+        {
+          "pieces": 16,
+          "n": 32,
+          "museAlone": 0.469,
+          "untorn": 0.077
+        }
+      ],
+      "sam": {
+        "found": 2592,
+        "of": 2592,
+        "images": 216
+      },
+      "plain": "Given the same shredded photos, Muse Spark alone gets about 40% of the text wrong. Untorn, the same Muse Spark with SAM 3.1 and the geometry solver, gets about 5% wrong.",
+      "never": "Never shown beside the paper's Gemini or GPT rows: different images.",
+      "venueNote": "The repository (github.com/ythere-y/ShredBench @ 41bca03, its latest commit) says \"submitted to ACL 2026\"; the venue is not printed on screen until it can be verified.",
+      "imageCredit": "ShredBench official image news_041 (github.com/ythere-y/ShredBench, Apache-2.0)"
+    },
+    {
       "id": "stack",
       "enabled": true,
       "kind": "simulated stack tear · recorded run",
       "title": "Three letters torn as one stack",
       "subtitle": "24 pieces, outlines repeated three times",
-      "headline": { "value": "22 / 22", "label": "reads picked the true neighbour" },
+      "headline": {
+        "value": "22 / 22",
+        "label": "reads picked the true neighbour"
+      },
       "stats": [
-        { "value": "0", "label": "misplaced" },
-        { "value": "18 / 24", "label": "placed" },
-        { "value": "6", "label": "set aside, never forced" }
+        {
+          "value": "0",
+          "label": "misplaced"
+        },
+        {
+          "value": "18 / 24",
+          "label": "placed"
+        },
+        {
+          "value": "6",
+          "label": "set aside, never forced"
+        }
       ],
       "image": "kit/proof/stack-pages.png",
       "source": ".apex/build/S6B-SAMPLES.md (recorded run rec-stack-3-letters-5cc28e: 22 k-way reads, all 22 right; 18/24 placed correctly, 0 misplaced, 6 unplaced; 112 s, $0.32)"
@@ -57,12 +119,27 @@
       "kind": "simulated tear · recorded run",
       "title": "One letter, torn into ten",
       "subtitle": "F. D. Roosevelt to Julian Goldman, 1927",
-      "headline": { "value": "10 / 10", "label": "pieces placed" },
+      "headline": {
+        "value": "10 / 10",
+        "label": "pieces placed"
+      },
       "stats": [
-        { "value": "13 / 13", "label": "joins right" },
-        { "value": "0", "label": "misplaced" },
-        { "value": "0.0 %", "label": "transcript errors (CER)" },
-        { "value": "40.7 s", "label": "photo to page" }
+        {
+          "value": "13 / 13",
+          "label": "joins right"
+        },
+        {
+          "value": "0",
+          "label": "misplaced"
+        },
+        {
+          "value": "0.0 %",
+          "label": "transcript errors (CER)"
+        },
+        {
+          "value": "40.7 s",
+          "label": "photo to page"
+        }
       ],
       "image": "kit/proof/fdr-page.png",
       "source": ".apex/build/S6B-SAMPLES.md (recorded run rec-fdr-1927-9e9139: 10/10 placed correctly, 13/13 joins right, 0 misplaced, CER 0.0 %, 40.7 s, $0.15)"
@@ -73,31 +150,27 @@
       "kind": "real tear",
       "title": "A page torn by hand",
       "subtitle": "photographed on a phone",
-      "headline": { "value": "", "label": "" },
+      "headline": {
+        "value": "",
+        "label": ""
+      },
       "stats": [],
       "image": null,
       "source": ".apex/build/S7-REAL.md (pending: fill from the final report)"
-    },
-    {
-      "id": "shredbench",
-      "enabled": false,
-      "kind": "benchmark",
-      "title": "ShredBench, against frontier models",
-      "subtitle": "",
-      "headline": { "value": "", "label": "" },
-      "stats": [],
-      "image": null,
-      "source": ".apex/build/S5-SHREDBENCH.md (pending: fill from the final report)"
     }
   ],
   "narration": {
-    "proof": "On a simulated stack of three letters, Muse picked the right neighbour twenty-two times out of twenty-two, and no piece was misplaced. On a single letter, all ten pieces came home."
+    "proof": "On the same shredded photos, Muse Spark alone gets about forty percent of the text wrong. With SAM three point one and Untorn's solver, the same model gets about five percent wrong.",
+    "proofShown": "On the same shredded photos, Muse Spark alone gets about 40% of the text wrong. With SAM 3.1 and Untorn's solver, the same model gets about 5% wrong."
   },
   "twins": {
     "kind": "simulated stack tear of three real letters · recorded run",
     "choice": "C",
     "confidence": 0.97,
-    "words": ["a|m", "witne|ss"],
+    "words": [
+      "a|m",
+      "witne|ss"
+    ],
     "reason": "Left endings I a-, tract, witne-, th join C beginnings m, which, ss,, an to form am, contract, witness, than with aligned baselines.",
     "model": "Muse Spark 1.3, low effort",
     "source": "public/samples/manifest.json stacks.stack-3-letters (read choice:twin-p3-65 of run rec-stack-3-letters-5cc28e)"

@@ -27,10 +27,11 @@ Label: *Simulated stack tear of three real letters, recorded run. Muse Spark pic
 > When pages are torn together, as a stack, their pieces share the very same edge. Shape alone can't tell them apart.
 > So Untorn reads. Only the true neighbour completes the words.
 
-## 4 · Proof (0:43–0:56)
-Evidence cards on the light table, every number labelled.
+## 4 · Proof (0:43–0:57)
+The same shredded photo, read two ways. On ShredBench's own image news_041, Muse Spark alone (given the scattered photo and ShredBench's prompt) drops whole phrases; Untorn, the same Muse Spark with SAM 3.1 and the solver, returns the text word for word. Then the measured scores, labelled as a benchmark, and tiles for the recorded runs (each labelled "simulated tear, recorded run").
+Label: *ShredBench (2026): 3 official images; a 64-document replica of its protocol, our re-implementation. NED, lower is better.*
 
-> On a simulated stack of three letters, Muse picked the right neighbour twenty-two times out of twenty-two, and no piece was misplaced. On a single letter, all ten pieces came home.
+> Given the same shredded photos, Muse Spark alone gets about forty percent of the text wrong. Untorn, the same Muse Spark with SAM 3.1 and the geometry solver, gets about five percent wrong.
 
 ## 5 · Tear your own (0:56–1:21)
 The real app, run live from this repository's production build: "Tear your own" and the QR code, the phone's capture page, the laptop picking the photo up, the live stages, the rebuilt page and the transcript. The waits are cut, and a clock in the corner shows the real elapsed time.
@@ -58,8 +59,10 @@ End card: **Untorn** · Reads across the tears. · https://untorn.vercel.app · 
 | About 16,000 sacks; about 15,400 not yet reconstructed ("still in pieces") | `docs/FACTS.md`: Drucksache 21/6550 (17 Jun 2026): "rund 16.000 Behältnisse (meist Säcke)" … "circa 15.400 Behältnissen (Säcken) noch nicht rekonstruierter Unterlagen" |
 | At this pace, about 847 years | `docs/FACTS.md`: Bundesrechnungshof, Drucksache 20/6530: "Bei diesem Arbeitstempo wären die Unterlagen erst in rund 847 Jahren wiederhergestellt." |
 | Pages torn as a stack share the same edge; shape alone can't separate them | `docs/FACTS.md`: Diem, TU Wien, 2014 ("snippets have the same rupture edges"); `docs/SOLVER.md`: geometry alone places 0 % of stack pieces and leaves every twin for reading |
-| 22 of 22 reads right, 0 misplaced, on a simulated three-letter stack | `.apex/build/S6B-SAMPLES.md`, recorded run `rec-stack-3-letters-5cc28e` (24 pieces; 18 placed, 6 set aside) |
-| All ten pieces placed on a single letter | `.apex/build/S6B-SAMPLES.md`, recorded run `rec-fdr-1927-9e9139` (10/10 placed, 13/13 joins, 0 misplaced) |
+| Same shredded photos: Muse Spark alone about 40 % of the text wrong, Untorn about 5 % | `.apex/build/S5-SHREDBENCH.md`: NED 0.404 (Muse Spark alone) vs 0.050 (Untorn) on the 64-document replica at 8 pieces; 0.528 vs 0.002 on the 3 official images with ground truth; NED = Levenshtein / longer length, so 0.40 is about 40 % of the text |
+| On screen: news_041, Muse alone drops "was connected to the grid and started" and "…day, with the remaining capacity to be connected in May," | S5 run files `runs/baseline` and `runs/v2` for official-8/news_041 against `official/my_dataset/news_041.md` (`src/data/shredbench-example.json`) |
+| On screen (twins): 22 of 22 stack reads right, chance 1 in 3 | `public/samples/manifest.json` stacks.stack-3-letters summary; `.apex/build/S6B-SAMPLES.md` (run rec-stack-3-letters-5cc28e) |
+| On screen (proof tiles): 10/10 placed, 13/13 joins on the 1927 letter; 18 placed, 0 misplaced, 6 set aside on the stack | `.apex/build/S6B-SAMPLES.md` |
 | The live run: SAM finds the pieces, Muse reads across the tears, then reads the page | `src/lib/server/pipeline.ts`; the run shown on screen |
 | Outlines traced to a fraction of a pixel | `docs/SOLVER.md` (marching squares at iso-level 0.5, subpixel outline); `docs/MODELS.md` (median boundary error 0.36–0.52 px on simulated photos) |
 | Where shape can't decide, the reading must agree, or the piece is set aside; never forced | `docs/SOLVER.md` (two-clue acceptance; twins need two concordant reads; "Nothing is forced") |

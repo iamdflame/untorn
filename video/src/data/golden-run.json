@@ -1,0 +1,25 @@
+{
+ "note": "The live run filmed for the golden path (local production build of this repo, phone to laptop). Summary of its done event; the full event log stays in capture/golden/run-events.json (gitignored).",
+ "runId": "q2c2hsq3civnjvh4",
+ "source": "phone",
+ "createdAt": "2026-10-30T06:37:59.002Z",
+ "photo": "data/samples/chouteau-1903/photo.jpg (simulated tear of a real 1903 letter), sent from an emulated iPhone 15 Pro",
+ "timings": {
+  "total": 51137,
+  "segment": 3101,
+  "match": 611,
+  "read": 38208,
+  "assemble": 262,
+  "transcribe": 8909
+ },
+ "cost": {
+  "usd": 0.1298,
+  "samCalls": 1,
+  "museCalls": 17
+ },
+ "pieces": 10,
+ "joins": 17,
+ "unplaced": 0,
+ "reads": 16,
+ "pages": 1
+}

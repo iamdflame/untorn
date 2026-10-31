@@ -16,15 +16,25 @@ const FILM_DIAGONAL = 43.27;
 
 type V3 = [number, number, number];
 
+/** A 35 mm-equivalent focal length in pixels of a width × height photo. */
+export const focalPx = (width: number, height: number, f35: number) => (f35 / FILM_DIAGONAL) * Math.hypot(width, height);
+
 /** The rotation that turns the camera to look straight down, and the maps between the photo and the straight view. */
 export function tiltMap(width: number, height: number, tilt: CameraTilt) {
   const up = upDegFor(tilt.orientation);
   if (up === null) return null;
-  const f = (tilt.f35 / FILM_DIAGONAL) * Math.hypot(width, height);
   const phi = (up * Math.PI) / 180;
   // the camera's axes in the phone's: x across the photo, y down it, z out of the lens (the phone's back)
   const [gx, gy, gz] = tilt.gravity;
   const g: V3 = [gx * Math.sin(phi) - gy * Math.cos(phi), -gx * Math.cos(phi) - gy * Math.sin(phi), -gz];
+  return { ...rotationMap(width, height, focalPx(width, height, tilt.f35), g), tiltDeg: tiltDegrees(tilt) };
+}
+
+/**
+ * The maps between a photo and the straight-down view, for gravity `g` in the camera's axes (x across the photo, y
+ * down it, z out of the lens; any length) and the focal length `f` (px).
+ */
+export function rotationMap(width: number, height: number, f: number, g: V3) {
   const n = Math.hypot(...g);
   const u: V3 = [g[0] / n, g[1] / n, g[2] / n];
   // rotate gravity onto the lens axis: about u × z, by the angle between them
@@ -51,8 +61,9 @@ export function tiltMap(width: number, height: number, tilt: CameraTilt) {
     const r = [0, 1, 2].map((k) => R[0][k] * d[0] + R[1][k] * d[1] + R[2][k] * d[2]);
     return [width / 2 + (f * r[0]) / r[2], height / 2 + (f * r[1]) / r[2]];
   };
-  return { f, tiltDeg: tiltDegrees(tilt), fwd, inv };
+  return { f, tiltDeg: (th * 180) / Math.PI, fwd, inv };
 }
+export type RotationMap = ReturnType<typeof rotationMap>;
 
 /**
  * The photo straightened, or null when it needs no straightening (under MIN_TILT_DEG) or can't be (over MAX_TILT_DEG,
@@ -61,10 +72,15 @@ export function tiltMap(width: number, height: number, tilt: CameraTilt) {
  * added for SAM to find.
  */
 export function rectifyRgb(rgb: Rgb, tilt: CameraTilt, maxPixels = 1.3 * rgb.width * rgb.height): { rgb: Rgb; tiltDeg: number } | null {
+  const m = tiltMap(rgb.width, rgb.height, tilt);
+  if (!m || m.tiltDeg < MIN_TILT_DEG || m.tiltDeg > MAX_TILT_DEG) return null;
+  return { rgb: rectifyWith(rgb, m, maxPixels), tiltDeg: m.tiltDeg };
+}
+
+/** The photo seen straight down through `m`, framed and filled as in rectifyRgb. */
+export function rectifyWith(rgb: Rgb, m: RotationMap, maxPixels = 1.3 * rgb.width * rgb.height): Rgb {
   const W = rgb.width;
   const H = rgb.height;
-  const m = tiltMap(W, H, tilt);
-  if (!m || m.tiltDeg < MIN_TILT_DEG || m.tiltDeg > MAX_TILT_DEG) return null;
   const cs = [m.fwd(0, 0), m.fwd(W, 0), m.fwd(0, H), m.fwd(W, H)];
   const x0 = Math.min(...cs.map((p) => p[0]));
   const y0 = Math.min(...cs.map((p) => p[1]));
@@ -116,5 +132,5 @@ export function rectifyRgb(rgb: Rgb, tilt: CameraTilt, maxPixels = 1.3 * rgb.wid
       }
     }
   }
-  return { rgb: { width: OW, height: OH, data: out }, tiltDeg: m.tiltDeg };
+  return { width: OW, height: OH, data: out };
 }

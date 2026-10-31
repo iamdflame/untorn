@@ -166,7 +166,22 @@ export type RunResult = {
   timings: Partial<Record<Stage, number>> & { total: number };
   cost: { usd: number; samCalls: number; museCalls: number };
   /** How the seams were read (optional: recordings made before S6b lack it). */
-  stats?: { twinStrategy: "all" | "tree"; choiceSheet?: "stacked" | "joined"; sheetWindow?: [number, number]; readRounds: number; twinGroups: number; twinClasses: number; pairReads: number; choiceReads: number; skippedBlank?: number };
+  stats?: {
+    twinStrategy: "all" | "tree";
+    choiceSheet?: "stacked" | "joined";
+    sheetWindow?: [number, number];
+    readRounds: number;
+    twinGroups: number;
+    twinClasses: number;
+    pairReads: number;
+    choiceReads: number;
+    skippedBlank?: number;
+    /**
+     * The tilt judged from the text lines, on photos without the phone's reading: degrees, the line-spacing spread as
+     * photographed and once straightened (%), pieces agreeing of those measured, and whether it straightened.
+     */
+    lineTilt?: { deg: number; before: number; after: number; agree: number; measured: number; straightened: boolean };
+  };
   /** The event order and timing (ms from the start), for replay. */
   timeline: TimelineEntry[];
 };

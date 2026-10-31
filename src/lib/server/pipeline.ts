@@ -32,9 +32,10 @@ import {
   type Warning,
   type WarningCode,
 } from "@/lib/run/types";
-import { decodePhoto, resizeJpeg, rotate180Jpeg, type DecodedPhoto } from "./images";
+import { decodePhoto, resizeJpeg, rotate180Jpeg, type DecodedPhoto, type Rgb } from "./images";
 import { simplifyClosed, touchingPairs } from "./mask-geometry";
-import { rectifyRgb } from "./rectify";
+import { focalPx, rectifyRgb, rectifyWith, rotationMap } from "./rectify";
+import { DEFAULT_F35, lineSamples, tiltFromLines } from "./tilt-lines";
 import type { CameraTilt } from "@/lib/run/tilt";
 import type { chooseContinuation, MuseOutcome, pageOrientation, readPage, translate, verifySeam } from "./muse";
 import { DEFAULT_PROMPT, type SeamPromptVersion } from "./prompts";
@@ -85,6 +86,8 @@ export type PipelineOptions = {
   minLinesLogLR?: number;
   /** The camera's tilt when the photo recorded it: a tilted photo is straightened first (src/lib/server/rectify.ts). */
   cameraTilt?: CameraTilt | null;
+  /** Without the phone's reading, judge a tilt from the pieces' text lines and straighten (default on). */
+  lineTilt?: boolean;
   /** Experiments: any other assembly setting (src/lib/rejoin/assemble.ts AssembleOptions). */
   assemble?: Partial<AssembleOptions>;
   /** Transcription: reasoning effort and the page image's long side (px). */
@@ -188,23 +191,30 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   } catch {
     throw new RunError("unreadable");
   }
+  const straightened = async (rgb: Rgb): Promise<DecodedPhoto> => {
+    const jpeg = await sharp(Buffer.from(rgb.data.buffer, rgb.data.byteOffset, rgb.data.length), { raw: { width: rgb.width, height: rgb.height, channels: 3 } }).jpeg({ quality: 92 }).toBuffer();
+    return { width: rgb.width, height: rgb.height, rgb, jpeg: new Uint8Array(jpeg) };
+  };
   // a photo taken at an angle makes far pieces smaller, and their edges stop fitting: undo the tilt the phone recorded
   if (opts.cameraTilt) {
     const r = rectifyRgb(photo.rgb, opts.cameraTilt);
     if (r) {
-      const jpeg = await sharp(Buffer.from(r.rgb.data.buffer, r.rgb.data.byteOffset, r.rgb.data.length), { raw: { width: r.rgb.width, height: r.rgb.height, channels: 3 } }).jpeg({ quality: 92 }).toBuffer();
-      photo = { width: r.rgb.width, height: r.rgb.height, rgb: r.rgb, jpeg: new Uint8Array(jpeg) };
+      photo = await straightened(r.rgb);
       warn("tilted", `The photo was taken ${Math.round(r.tiltDeg)}° off straight down, so the far pieces looked smaller. Untorn straightened it with the tilt the phone recorded in the photo.`);
     }
   }
   const photoInfo: RunResult["photo"] = { url: null, width: photo.width, height: photo.height };
-  const displayPhoto = resizeJpeg(photo.rgb, 2000, 84)
-    .then((d) => deps.putAsset("photo.jpg", d.jpeg, "image/jpeg"))
-    .then((url) => {
-      photoInfo.url = url;
-      send({ type: "photo", url, width: photo.width, height: photo.height });
-    })
-    .catch(() => send({ type: "photo", url: null, width: photo.width, height: photo.height }));
+  const showPhoto = (p: DecodedPhoto) => {
+    Object.assign(photoInfo, { url: null, width: p.width, height: p.height });
+    return resizeJpeg(p.rgb, 2000, 84)
+      .then((d) => deps.putAsset("photo.jpg", d.jpeg, "image/jpeg"))
+      .then((url) => {
+        photoInfo.url = url;
+        send({ type: "photo", url, width: p.width, height: p.height });
+      })
+      .catch(() => send({ type: "photo", url: null, width: p.width, height: p.height }));
+  };
+  let displayPhoto = showPhoto(photo);
   if (Math.max(photo.width, photo.height) < 1600) warn("small-photo");
   const blur = sharpness(photo.rgb)
     .then((v) => {
@@ -214,38 +224,37 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
 
   // ── segment: SAM 3.1 outlines every piece ─────────────────────────────────────────────────────────────────
   stage("segment", "active");
-  let seg: Awaited<ReturnType<PipelineDeps["segment"]>>;
-  try {
-    seg = await deps.segment(photo.jpeg, { signal });
-  } catch (e) {
-    checkAbort();
-    throw new RunError("model-error", `SAM 3.1 didn't answer: ${short(e)}`);
-  }
-  spend(seg.costUsd);
-  cost.samCalls += seg.samCalls;
-  if (!seg.fragments.length) throw new RunError("no-pieces");
-  if (seg.fragments.length > MAX_PIECES) throw new RunError("too-many");
-  if (seg.fragments.length > 60) warn("many-pieces");
-  // pieces laid against or on one another: where they meet, SAM has to guess the boundary and the torn edges are lost
-  // (on the real torn page the pieces touching the middle one were the ones left out); said if pieces are left out
-  const touching = new Set(touchingPairs(seg.fragments.map((f) => f.mask)).flat());
-  const pieces: PieceOut[] = seg.fragments.map((f) => ({
-    id: pieceId(f.id),
-    polygon: simplifyClosed(f.polygon, 1.2).map(([x, y]) => [round1(x), round1(y)] as [number, number]),
-    box: f.box,
-    area: Math.round(f.area),
-    confidence: f.confidence === null ? null : round3(f.confidence),
-    text: true,
-  }));
-  send({ type: "segment", pieces });
+  const outline = async () => {
+    let s: Awaited<ReturnType<PipelineDeps["segment"]>>;
+    try {
+      s = await deps.segment(photo.jpeg, { signal });
+    } catch (e) {
+      checkAbort();
+      throw new RunError("model-error", `SAM 3.1 didn't answer: ${short(e)}`);
+    }
+    spend(s.costUsd);
+    cost.samCalls += s.samCalls;
+    if (!s.fragments.length) throw new RunError("no-pieces");
+    if (s.fragments.length > MAX_PIECES) throw new RunError("too-many");
+    if (s.fragments.length > 60) warn("many-pieces");
+    const out: PieceOut[] = s.fragments.map((f) => ({
+      id: pieceId(f.id),
+      polygon: simplifyClosed(f.polygon, 1.2).map(([x, y]) => [round1(x), round1(y)] as [number, number]),
+      box: f.box,
+      area: Math.round(f.area),
+      confidence: f.confidence === null ? null : round3(f.confidence),
+      text: true,
+    }));
+    send({ type: "segment", pieces: out });
+    return { seg: s, pieces: out };
+  };
+  let { seg, pieces } = await outline();
   stage("segment", "done");
   await blur;
   checkAbort();
 
   // ── match: geometry proposes joins where torn edges fit ───────────────────────────────────────────────────
   stage("match", "active");
-  const rgba = rgbToRgba(photo.rgb);
-  const inputs = fragmentsFromSegments(rgba, seg.fragments.map((f) => ({ id: pieceId(f.id), mask: f.mask })));
   const strategy = opts.twinStrategy ?? DEFAULT_TWIN_STRATEGY;
   const sheet = opts.choiceSheet ?? DEFAULT_CHOICE_SHEET;
   const win = opts.sheetWindow ?? DEFAULT_SHEET_WINDOW;
@@ -256,12 +265,38 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   // between two lines that Muse rightly called no clue, set a piece one text line too low, and text lines can't see a
   // whole-line shift. Bench-S with simulated reads: unchanged at 100 and 150. The tear line is drawn thin, so the
   // letters it cuts stay readable (seam v3).
-  const prep: Prepared = prepare(inputs, {
-    maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length),
-    twinStrategy: strategy,
-    assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0, minGeomScore: 100, ...opts.assemble },
-    render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1], seamLine: (opts.seamPrompt ?? DEFAULT_PROMPT.seam) === "v3" ? "thin" : true },
-  });
+  const analyse = () => {
+    const inputs = fragmentsFromSegments(rgbToRgba(photo.rgb), seg.fragments.map((f) => ({ id: pieceId(f.id), mask: f.mask })));
+    return prepare(inputs, {
+      maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length),
+      twinStrategy: strategy,
+      assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0, minGeomScore: 100, ...opts.assemble },
+      render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1], seamLine: (opts.seamPrompt ?? DEFAULT_PROMPT.seam) === "v3" ? "thin" : true },
+    });
+  };
+  let prep: Prepared = analyse();
+  // A tilted photo the phone didn't measure (most Android phones; any copy a messaging app re-encoded): the pieces' own
+  // text lines give the tilt (src/lib/server/tilt-lines.ts). Straighten, outline the pieces again on the straight photo
+  // (as for a phone's reading), and start over from there.
+  let lineTilt: NonNullable<RunResult["stats"]>["lineTilt"];
+  if (!opts.cameraTilt && opts.lineTilt !== false) {
+    const lt = tiltFromLines(lineSamples(prep.fragments, prep.scale), photo.width, photo.height);
+    if (lt) lineTilt = { deg: round1(lt.tiltDeg), before: round1(100 * lt.spreadBefore), after: round1(100 * lt.spreadAfter), agree: lt.pieces, measured: lt.measured, straightened: lt.straighten };
+    if (lt?.straighten) {
+      stage("segment", "active");
+      photo = await straightened(rectifyWith(photo.rgb, rotationMap(photo.width, photo.height, focalPx(photo.width, photo.height, DEFAULT_F35), lt.gravity)));
+      const shown = photo;
+      displayPhoto = displayPhoto.then(() => showPhoto(shown));
+      ({ seg, pieces } = await outline());
+      stage("segment", "done");
+      prep = analyse();
+      warn("tilted", `The photo was taken about ${Math.round(lt.tiltDeg)}° off straight down, so the far pieces looked smaller. Untorn straightened it, judging the tilt from the spacing of the text lines.`);
+      checkAbort();
+    }
+  }
+  // pieces laid against or on one another: where they meet, SAM has to guess the boundary and the torn edges are lost
+  // (on the real torn page the pieces touching the middle one were the ones left out); said if pieces are left out
+  const touching = new Set(touchingPairs(seg.fragments.map((f) => f.mask)).flat());
   // the writing's size says how much edge detail a camera photo holds: on the real torn page, text lines 98 px apart
   // placed 9 of 10 pieces, the same photo shrunk to 44 px placed 5 (2 of them wrongly). A crisp image with small type
   // can still rebuild whole (the first screen's letter, 2000 × 1500), so this too is said only if pieces are left out.
@@ -498,6 +533,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
       pairReads: reads.filter((r) => r.kind === "pair").length,
       choiceReads: reads.filter((r) => r.kind === "choice").length,
       skippedBlank: skipped,
+      ...(lineTilt ? { lineTilt } : {}),
     },
     timeline,
   };

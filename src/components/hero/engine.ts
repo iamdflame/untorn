@@ -9,6 +9,7 @@
 // the table (showing each read as Muse makes it) until the solver's poses arrive, and holds the whole page until the
 // transcript arrives. Motion is transform and opacity on one canvas, plus a few DOM transforms.
 
+import { languageName } from "@/lib/client/language";
 import { buildScene, splitWords, statedSplit, type Scene, type SceneSeam } from "@/lib/run/scene";
 import type { StackTrial } from "@/lib/run/samples";
 import type { JoinOut, PageOut, PieceOut, ReadOut } from "@/lib/run/types";
@@ -68,15 +69,6 @@ export type HeroApi = {
   setReduced: (r: boolean) => void;
   destroy: () => void;
 };
-
-/** "de" → "German", in English (the browser's own names); the code itself where it has none. */
-function languageName(code: string): string {
-  try {
-    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
-  } catch {
-    return code;
-  }
-}
 
 type P = Scene["pieces"][number] & {
   path: Path2D;

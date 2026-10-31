@@ -2,7 +2,7 @@
 //
 //   pnpm tsx scripts/record-run.ts [sample=chouteau-1903] [--photo FILE] [--out DIR] [--events FILE]
 //                                  [--strategy all|tree] [--sheet stacked|joined] [--window WxH] [--read-deadline MS] [--concurrency N]
-//                                  [--seam-prompt v2|v3] [--lines-floor N|off] [--assemble JSON] [--no-straighten]
+//                                  [--seam-prompt v2|v3] [--lines-floor N|off] [--assemble JSON] [--no-straighten] [--no-line-tilt]
 //
 // Runs the same pipeline as POST /api/runs with the real models (about $0.10 for a 10-piece page), and writes DIR
 // (default public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
@@ -79,6 +79,8 @@ async function main() {
       assemble: opt("--assemble") ? JSON.parse(opt("--assemble")!) : undefined,
       // as the upload routes do: a tilt the photo recorded is straightened (--no-straighten to compare)
       cameraTilt: argv.includes("--no-straighten") ? null : photo.tilt,
+      // and without one, a tilt judged from the pieces' text lines (--no-line-tilt to compare)
+      lineTilt: !argv.includes("--no-line-tilt"),
     },
     log,
   );

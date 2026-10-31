@@ -11,6 +11,7 @@ import { fragmentsFromSegments } from "@/lib/rejoin/adapters";
 import { renderPage } from "@/lib/rejoin/render";
 import { poseCompose } from "@/lib/rejoin/geom";
 import { renderedInk } from "@/lib/rejoin/seam";
+import type { AssembleOptions } from "@/lib/rejoin/assemble";
 import type { ContentRequest, ContentVerdict, Rgba, SolveResult } from "@/lib/rejoin/types";
 import { RunError } from "@/lib/run/errors";
 import { WARNINGS } from "@/lib/run/errors";
@@ -80,6 +81,8 @@ export type PipelineOptions = {
    *  its shape alone needs (default 0; -Infinity is the solver's own default). */
   seamPrompt?: SeamPromptVersion;
   minLinesLogLR?: number;
+  /** Experiments: any other assembly setting (src/lib/rejoin/assemble.ts AssembleOptions). */
+  assemble?: Partial<AssembleOptions>;
   /** Transcription: reasoning effort and the page image's long side (px). */
   transcribeEffort?: "minimal" | "low";
   transcribeLongSide?: number;
@@ -240,7 +243,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const prep: Prepared = prepare(inputs, {
     maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length),
     twinStrategy: strategy,
-    assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0 },
+    assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0, ...opts.assemble },
     render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1], seamLine: (opts.seamPrompt ?? DEFAULT_PROMPT.seam) === "v3" ? "thin" : true },
   });
   // the writing's size says how much edge detail a camera photo holds: on the real torn page, text lines 98 px apart

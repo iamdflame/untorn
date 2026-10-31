@@ -1,8 +1,8 @@
 // Straighten a tilted photo: the image a camera looking straight down at the table would have taken from the same
 // spot. The phone's gravity reading gives the tilt exactly (src/lib/run/tilt.ts), so this is one rotation about the
 // camera centre (H = K R K⁻¹, K from the 35 mm-equivalent focal length), nothing estimated. On the user's 11.6° photo
-// the pieces' line spacing went from 63–90 px across the table to 80–87 px, and the page came back as one sheet of 9
-// pieces instead of three fragments; the intact page's keystone (top edge 20% narrower) became a rectangle.
+// the pieces' line spacing went from 63–90 px across the table to 80–87 px, and the intact page's keystone (top edge
+// 20% narrower) became a rectangle. Run results on that photo: .apex/build/REAL-SET.md.
 
 import { tiltDegrees, upDegFor, type CameraTilt } from "@/lib/run/tilt";
 import type { Rgb } from "./images";

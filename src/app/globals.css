@@ -1277,7 +1277,6 @@ h2 {
 .way .way-other {
   margin: 14px 0 0;
   font-size: 14px;
-  color: var(--ink-2);
 }
 .way .way-other a {
   color: inherit;

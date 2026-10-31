@@ -36,7 +36,7 @@ Every number was measured, and each row says what kind of test it is: a real tea
 
 | What | Result | Kind |
 |---|---|---|
-| A printed page torn by hand into 10 pieces and photographed with several pieces touching; 5 live runs of the deployed version (3 on the live site) | 8, 8, 8, 6 and 6 of 10 placed correctly. The two local runs set 1 or 2 more pieces 40–50 px off, just past the tolerance; the rest were set aside. The page was upright every time; 12–26% transcript errors (set-aside pieces count as missing) | real tear |
+| Two printed pages torn by hand into 10 pieces each, 3 live runs each on the live site (deployed version) | Page 1 (several pieces touching): 6, 9 and 6 of 10 placed correctly; two runs set one true neighbour 50 px off, just past the tolerance; transcript errors 8–26% (set-aside pieces count as missing). Page 2 (photographed 11.6° off straight down, straightened from the phone's own tilt reading): 3, 3 and 4 of 10; 1–2 misplaced, a true neighbour turned 6–7° on a short seam. The rest set aside | real tear |
 | Shredded documents, 64 documents × 8 pieces (news, Chinese news, code, tables) | text errors (NED) **0.050**; Muse Spark alone on the same photos **0.404** | ShredBench protocol, our replica |
 | ShredBench's own images with published answers | NED 0.002; Muse Spark alone 0.528 | ShredBench, 3 official images |
 | A 1927 letter, 10 pieces, the full live pipeline | 10/10 placed, 13/13 joins, 0 misplaced, transcript CER 0.0%, 41 s, $0.15 | simulated tear |
@@ -76,7 +76,7 @@ pnpm dev
   - advice when pieces are left out (pieces touching, writing too small for the photo);
   - a health check that rebuilds a known sample every 3 hours, and a daily spend cap.
 - **Limits:**
-  - Real hand-torn paper is harder than simulations. On the one real page measured (several of its pieces touching in the photo), 6–8 of 10 pieces land, some runs set a piece just past the tolerance, and the rest are set aside. A live run takes 35–55 s. Pieces that touch, and photos shrunk by a messaging app, lose the edge detail the fits need, and the run says which applies.
+  - Real hand-torn paper is harder than simulations. On the two real pages measured, 6–9 and 3–4 of 10 pieces land. Some runs set a piece just past the tolerance or turned on a short seam, and the rest are set aside. A live run takes 45–65 s. Pieces that touch, curled pieces, and photos shrunk by a messaging app lose the edge detail the fits need. The run says which applies, and it straightens a tilted iPhone photo from the tilt the phone recorded.
   - Very large stacks can end with some twins unplaced, because reading is capped per run.
   - Straight cuts (scissors, shredder strips) are weaker than hand tears in the live app; the straight-edge tiling runs in the benchmark runner only.
   - Tilted photos, glare and overlapping pieces aren't detected yet.

@@ -15,8 +15,14 @@ export class PhotoError extends Error {
 }
 
 const IMAGE_NAME = /\.(jpe?g|png|heic|heif|webp|avif)$/i;
-/** Long side sent to the server: enough for sub-pixel edges on a phone photo of a desk. */
-export const SEND_LONG_SIDE = 3200;
+/**
+ * Longest side ever sent (a 48 MP phone photo is 8064 px). Detail is what tells a true torn-edge fit from a chance
+ * one: the real torn page placed 9 of 10 pieces at its full 4284×5712, but 5 of 10 (2 misplaced) shrunk to 1920×2560.
+ * So a photo goes up at full size, and only its JPEG quality steps down to fit the request limit.
+ */
+export const SEND_LONG_SIDE = 8064;
+/** JPEG qualities tried in order before the photo is shrunk at all (a 24 MP desk photo is ~3.6 MB at 0.8). */
+const QUALITIES = [0.92, 0.88, 0.84, 0.8, 0.75];
 
 export function looksLikePhoto(file: File): boolean {
   return file.type.startsWith("image/") || IMAGE_NAME.test(file.name);
@@ -41,21 +47,27 @@ export async function preparePhoto(file: File): Promise<Blob> {
     bitmap.close();
     return file;
   }
-  const s = Math.min(1, SEND_LONG_SIDE / long);
-  const w = Math.round(bitmap.width * s);
-  const h = Math.round(bitmap.height * s);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new PhotoError("unreadable");
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  bitmap.close();
-  for (const q of [0.92, 0.85, 0.75]) {
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
-    if (blob && blob.size <= MAX_REQUEST_BYTES) return blob;
+  // full size first, stepping the quality down; only then shrink, 15% at a time
+  for (let s = Math.min(1, SEND_LONG_SIDE / long); s >= 0.35; s *= 0.85) {
+    const w = Math.round(bitmap.width * s);
+    const h = Math.round(bitmap.height * s);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    // a phone browser may refuse a canvas this large (iOS caps canvas area): then try smaller
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    for (const q of QUALITIES) {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
+      if (blob && blob.size <= MAX_REQUEST_BYTES) {
+        bitmap.close();
+        return blob;
+      }
+    }
   }
+  bitmap.close();
   throw new PhotoError("too-large");
 }
 

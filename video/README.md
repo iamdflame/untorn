@@ -5,7 +5,7 @@ own `package.json` and is excluded from the app's typecheck, lint, tests, instal
 
 | Output (in `out/`, gitignored) | Composition | What |
 |---|---|---|
-| `untorn-demo.mp4` | `UntornDemo` | The film: 1920x1080, 30 fps, 2:02.7, H.264 + AAC 320k, about -14 LUFS |
+| `untorn-demo.mp4` | `UntornDemo` | The film: 1920x1080, 30 fps, 2:07.6, H.264 + AAC 320k, about -14 LUFS |
 | `untorn-demo.srt` | | Captions (the narration, timed from the voice's own alignment) |
 | `thumbnail.png` | `Thumbnail` | 1280x720 still: the letter whole again, a read in the loupe, the wordmark |
 | `untorn-backup.mp4` | `Backup` | The insurance cut: a plain captioned walkthrough from the same captures, 1:17, quiet score |

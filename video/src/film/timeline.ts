@@ -155,14 +155,16 @@ export function buildTimeline(): Timeline {
 
   // 7 · read whole again, the sacks, the end card
   const kS = hS + hoodCues.end;
-  const peak = place("peak", kS, 0.5, { 2: 0.4, 3: 0.3 });
+  // the quote, then the German letter read and translated ("the language of the Stasi's files"), the sacks, the card
+  const peak = place("peak", kS, 0.5, { 2: 0.4, 3: 0.4, 4: 0.3 });
   const peakCues: PeakCues = {
     quote0: peak[1].start,
     quote1: peak[1].end,
-    sacks: Math.max(peak[1].end + 0.45, peak[2].start - 0.7),
-    card: peak[3].start - 0.6,
-    seat: peak[3].start + 0.35,
-    end: peak[3].end + 2.0,
+    german: Math.max(peak[1].end + 0.3, peak[2].start - 0.45),
+    sacks: Math.max(peak[2].end + 0.45, peak[3].start - 0.7),
+    card: peak[4].start - 0.6,
+    seat: peak[4].start + 0.35,
+    end: peak[4].end + 2.0,
   };
   scenes.push({ id: "peak", start: kS, dur: peakCues.end });
 

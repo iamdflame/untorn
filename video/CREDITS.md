@@ -27,6 +27,8 @@
   Museum, via Wikimedia Commons.
 - Ho Chi Minh to the US Secretary of State, 22 October 1945, page 2. Wikimedia Commons:
   https://commons.wikimedia.org/wiki/File:1945_Oct_22_Ho_Chi_Minh_letter_to_US_Secretary_of_State_p2.jpg
+- Gustav Stresemann to Gustav Reimann, 11 May 1922 (German). Wikimedia Commons, "Stresemann, Brief.jpg":
+  https://commons.wikimedia.org/wiki/File:Stresemann,_Brief.jpg
 
 ## Benchmark
 - ShredBench official image `news_041` and its reference text, from https://github.com/ythere-y/ShredBench

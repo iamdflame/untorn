@@ -5,7 +5,8 @@
 //   aside/        the stack scrap the run set aside (p4)
 //   twins-sheet/  the app's own twin-A/B/C/L stills (public/samples/stack-3-letters)
 //   shredbench/   ShredBench's official image news_041 (Apache-2.0), from the S5 benchmark workspace
-//   node scripts/assets/kit.mjs [part ...]      (parts: fdr twins aside sheet shredbench; default all)
+//   stresemann/   the German letter's rebuilt page (the first screen's German sample, its recorded run)
+//   node scripts/assets/kit.mjs [part ...]      (parts: fdr twins aside sheet shredbench german; default all)
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +14,7 @@ import path from "node:path";
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const APP = path.resolve(ROOT, "..");
 const KIT = path.join(ROOT, "public/kit");
-const want = new Set(process.argv.slice(2).length ? process.argv.slice(2) : ["fdr", "twins", "aside", "sheet", "shredbench"]);
+const want = new Set(process.argv.slice(2).length ? process.argv.slice(2) : ["fdr", "twins", "aside", "sheet", "shredbench", "german"]);
 const mk = (d) => fs.mkdirSync(d, { recursive: true });
 const cutouts = (scene, photo, out, only) =>
   execFileSync(process.execPath, [path.join(ROOT, "scripts/assets/cutouts.mjs"), scene, photo, out, "1", ...(only ? [only] : [])], { cwd: ROOT, stdio: "inherit" });
@@ -54,5 +55,10 @@ if (want.has("shredbench")) {
   const src = process.env.SHREDBENCH_IMAGE ?? path.resolve(APP, "../../rr/.apex/build/S5-shredbench/official/data_8/news_041.jpg");
   if (!fs.existsSync(src)) throw new Error(`news_041.jpg not found at ${src}: set SHREDBENCH_IMAGE to ShredBench's official data_8/news_041.jpg`);
   fs.copyFileSync(src, path.join(out, "news_041.jpg"));
+}
+if (want.has("german")) {
+  const out = path.join(KIT, "stresemann");
+  mk(out);
+  fs.copyFileSync(path.join(APP, "public/samples/stresemann-1922/page-0.png"), path.join(out, "page-0.png"));
 }
 console.log(`kit rebuilt: ${[...want].join(", ")}`);

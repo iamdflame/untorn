@@ -170,7 +170,7 @@ export function buildPdf(input: PdfInput): Uint8Array {
   const xref = length;
   push(enc(`xref\n0 ${n}\n0000000000 65535 f \n`));
   for (let i = 1; i < n; i++) push(enc(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`));
-  push(enc(`trailer\n<< /Size ${n} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`));
+  push(enc(`trailer\n<< /Size ${n} /Root 1 0 R /Info 4 0 R >>\nstartxref\n${xref}\n%%EOF\n`));
 
   const out = new Uint8Array(length);
   let p = 0;

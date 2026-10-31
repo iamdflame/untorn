@@ -9,6 +9,8 @@ import { usePrefersReducedMotion } from "../hooks";
 import { WARNINGS } from "@/lib/run/errors";
 import { buildScene, splitWords, statedSplit, type Scene, type SceneSeam } from "@/lib/run/scene";
 import type { RunResult } from "@/lib/run/types";
+import { languageName } from "@/lib/client/language";
+import { pagesPdf } from "@/lib/client/pdf";
 import { cutoutKey, makeCutouts, readPoint, sharedCutouts, type Cutout } from "../hero/cutouts";
 import { COL, TAU, balloon, drawFrame, drawPiece, drawShadow, easeIO, fit, lerpCam, lightTable, linePath, readFonts, setCam, strokeAt, w2s, type Cam, type Pose } from "../hero/draw";
 
@@ -285,6 +287,38 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
   const txUrl = useMemo(() => (transcript?.ok ? URL.createObjectURL(new Blob([transcript.text + "\n"], { type: "text/plain" })) : null), [transcript]);
   useEffect(() => () => (txUrl ? URL.revokeObjectURL(txUrl) : undefined), [txUrl]);
   const json = result.source === "sample" && result.photo.url?.startsWith("/samples/") ? result.photo.url.replace(/photo[^/]*$/, "result.json") : `/api/runs/${result.runId}?download=1`;
+  // the archive copy: the rebuilt pages with Muse's transcript as searchable text, and how they were rebuilt
+  const [pdf, setPdf] = useState<"idle" | "making" | "failed">("idle");
+  const savePdf = async () => {
+    setPdf("making");
+    try {
+      const pages = result.pages.flatMap((p) => {
+        if (!p.image) return [];
+        const tr = result.transcripts.find((t) => t.page === p.id && t.ok);
+        const translation = tr?.translation && tr.language !== tr.translation.to ? { text: tr.translation.text, from: languageName(tr.language) } : null;
+        return [{ image: p.image, transcript: tr?.text ?? "", translation }];
+      });
+      const setAside = result.unplaced.length;
+      const confirmed = result.joins.filter((j) => j.decidedBy !== "geometry").length;
+      const day = result.createdAt ? result.createdAt.slice(0, 10) : "";
+      const summary = [
+        `${result.source === "sample" ? "A simulated tear of a sample letter, rebuilt" : "Rebuilt"} by Untorn from one photo${day ? ` on ${day}` : ""}.`,
+        `${result.pieces.length - setAside} pieces placed on ${pages.length === 1 ? "one page" : `${pages.length} pages`}${setAside ? `; ${setAside} set aside, never forced` : ""}.`,
+        `${result.joins.length} joins: ${confirmed} confirmed by Muse reading across the tear, the rest by the shape of the torn edges.`,
+        ...(result.source === "sample" ? [] : [`The run, with every seam and its clues: ${location.origin}/r/${result.runId}`]),
+      ];
+      const blob = await pagesPdf(pages, { title: "A page rebuilt by Untorn", summary });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `untorn-${result.runId}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setPdf("idle");
+    } catch {
+      setPdf("failed");
+    }
+  };
 
   const placed = scene.pieces.filter((p) => p.placed).length;
   const nPages = scene.pages.length;
@@ -393,6 +427,12 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
                   Rebuilt page{result.pages.length > 1 ? ` ${i + 1}` : ""} <small>PNG</small>
                 </a>
               ),
+          )}
+          {result.pages.some((p) => p.image) && (
+            <button type="button" className="btn" onClick={savePdf} disabled={pdf === "making"}>
+              <DlIcon />
+              {pdf === "making" ? "Making the PDF…" : pdf === "failed" ? "PDF failed: try again" : "Searchable page"} <small>PDF</small>
+            </button>
           )}
           {txUrl && (
             <a className="btn" href={txUrl} download="untorn-transcript.txt">

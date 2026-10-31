@@ -23,6 +23,10 @@ describe("buildPdf", () => {
     });
     // two pages: the image page and the transcript page
     expect(/\/Count (\d+)/.exec(s)![1]).toBe("2");
+    // the trailer's /Info is the object that holds the title
+    const info = Number(/\/Info (\d+) 0 R/.exec(s)![1]);
+    const infoAt = s.indexOf(`\n${info} 0 obj\n`);
+    expect(s.slice(infoAt, s.indexOf("endobj", infoAt))).toContain("/Title (Untorn: a rebuilt page)");
     // the image stream holds the JPEG byte for byte
     const at = s.indexOf("/Filter /DCTDecode");
     const len = Number(/\/Length (\d+)/.exec(s.slice(at))![1]);

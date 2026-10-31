@@ -122,12 +122,14 @@ export const DEFAULT_SHEET_WINDOW: [number, number] = [640, 280];
  * 11, 9) at half the latency, but live it said "same" to the chance fit p5–p8 in two runs of three (low effort reads
  * it "not the same"): the reads stay at low effort. Hedged after 9 s; up to 16 questions at once (at 24, with hedges
  * about 40 connections, most requests failed to connect within 10 s). A read still out after the deadline is dropped
- * and its seam rests on shape.
+ * and its seam rests on shape. The deadline only costs time when Muse is slow, and then the reads are worth it: on 31
+ * Oct single reads took 5–24 s, and at 30 s the real torn page placed 6 of 10 with seams unread (8–9 when reads were
+ * quick; 9, 7, 9, 9 with a 70 s deadline).
  */
 export const DEFAULT_READ_EFFORT = "low" as const;
 export const DEFAULT_READ_HEDGE_MS = 9_000;
 export const DEFAULT_READ_CONCURRENCY = 16;
-export const DEFAULT_READ_DEADLINE_MS = 30_000;
+export const DEFAULT_READ_DEADLINE_MS = 45_000;
 /**
  * Transcription (S7, two rebuilt pages of the real tear): minimal effort on a 1600 px page read with 6.7–8.0% character
  * errors in 7–11 s, against 7.5% in 18–21 s at low effort on 2200 px.

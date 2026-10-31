@@ -74,12 +74,14 @@ pnpm dev
   - a searchable PDF of the rebuilt pages: each page image with Muse's transcript as a text layer, then the transcript and how the page was rebuilt;
   - pages in other languages: Muse reads them and translates them into English (the German sample: `/?sample=stresemann-1922`);
   - advice when pieces are left out (pieces touching, writing too small for the photo);
+  - a tilted photo straightened before the pieces are fitted: from the tilt an iPhone records, or, when the photo has no such reading, from the spacing of the pieces' text lines (it acts only when one tilt explains nearly every piece; it left all 4 samples, 5 flat real photos and 56 benchmark photos untouched, and straightened both tilted real photos);
   - a health check that rebuilds a known sample every 3 hours, and a daily spend cap.
 - **Limits:**
-  - Real hand-torn paper is harder than simulations. On the two real pages measured, 6–9 and 3–4 of 10 pieces land. Some runs set a piece just past the tolerance or turned on a short seam, and the rest are set aside. A live run takes 45–65 s. Pieces that touch, curled pieces, and photos shrunk by a messaging app lose the edge detail the fits need. The run says which applies, and it straightens a tilted iPhone photo from the tilt the phone recorded.
+  - Real hand-torn paper is harder than simulations. On the two real pages measured, 6–9 and 3–4 of 10 pieces land. Some runs set a piece just past the tolerance or turned on a short seam, and the rest are set aside. A live run takes 45–65 s. Pieces that touch, curled pieces, and photos shrunk by a messaging app lose the edge detail the fits need. The run says which applies.
   - Very large stacks can end with some twins unplaced, because reading is capped per run.
   - Straight cuts (scissors, shredder strips) are weaker than hand tears in the live app; the straight-edge tiling runs in the benchmark runner only.
-  - Tilted photos, glare and overlapping pieces aren't detected yet.
+  - Glare isn't detected yet, and pieces lying on one another are only flagged: their hidden edges can't be recovered.
+  - Straightening from the text lines needs 6 or more pieces with regular lines; with fewer, or on a borderline photo, the run goes ahead unstraightened.
   - Double-sided pieces use only the visible side.
 
 ## Pre-existing vs new this event

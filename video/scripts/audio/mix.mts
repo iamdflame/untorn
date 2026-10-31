@@ -8,6 +8,7 @@ import { buildTimeline } from "../../src/film/timeline";
 import { sfxCues } from "../../src/film/sfx";
 import { lufs, readWav, truePeak, writeWav } from "../lib/audio.mjs";
 import { SR, Stereo, biquad, lift, padChord, pulse, reseed, reverb, settleSound, strike, swell, tear, tick } from "./synth.mjs";
+import { voiceTrack } from "./voice.mts";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const tl = buildTimeline();
@@ -26,18 +27,9 @@ const load = (scene: string) => {
   }
   return cache.get(scene)!;
 };
-for (const c of tl.clips) {
-  const src = load(c.scene);
-  const a = Math.max(0, Math.round(c.from * SR));
-  const b = Math.min(src.length, Math.round(c.to * SR));
-  const seg = src.slice(a, b);
-  const fade = Math.round(0.012 * SR);
-  for (let i = 0; i < fade && i < seg.length; i++) {
-    seg[i] *= i / fade;
-    seg[seg.length - 1 - i] *= i / fade;
-  }
-  voice.add(seg, c.at, 1, 0);
-}
+// every join cut on the audio's own silence (scripts/audio/voice.mts)
+const { track, joins } = voiceTrack(tl.clips, load, SR, voice.n);
+voice.add(track, 0, 1, 0);
 // a touch of presence and a gentle low cut on the voice
 for (const side of [voice.L, voice.R]) {
   const hp = biquad("hp", 75, 0.7);
@@ -184,7 +176,13 @@ const vL = lufs([voice.L, voice.R], SR);
 const mm = new Float32Array(voice.n);
 for (let i = 0; i < voice.n; i++) mm[i] = (music.L[i] + music.R[i]) * 0.5 * duck[i] * gainAt[i];
 const mL = lufs([mm], SR);
-const report = { seconds: +(L.length / SR).toFixed(2), targetLufs: TARGET, integratedBefore: +before.toFixed(2), integratedAfter: +after.toFixed(2), truePeakDbtp: +tp.toFixed(2), voiceStemLufs: +vL.toFixed(2), musicStemDuckedLufs: +mL.toFixed(2), cues: cues.length, sections: sections.length, silences };
+const kinds: Record<string, number> = {};
+for (const j of joins) kinds[j.kind] = (kinds[j.kind] ?? 0) + 1;
+const cuts = joins.filter((j) => j.kind !== "seamless");
+const loudestCut = cuts.reduce((m, j) => (j.db > m.db ? j : m), cuts[0]);
+fs.mkdirSync(path.join(ROOT, "out"), { recursive: true });
+fs.writeFileSync(path.join(ROOT, "out/voice-joins.json"), JSON.stringify(joins, null, 1));
+const report = { seconds: +(L.length / SR).toFixed(2), joins: kinds, loudestCutDb: +loudestCut.db.toFixed(1), loudestCutAt: `${loudestCut.scene} ${loudestCut.kind} ${loudestCut.src.toFixed(3)}`, targetLufs: TARGET, integratedBefore: +before.toFixed(2), integratedAfter: +after.toFixed(2), truePeakDbtp: +tp.toFixed(2), voiceStemLufs: +vL.toFixed(2), musicStemDuckedLufs: +mL.toFixed(2), cues: cues.length, sections: sections.length, silences };
 fs.mkdirSync(path.join(ROOT, "out"), { recursive: true });
 fs.writeFileSync(path.join(ROOT, "out/mix-report.json"), JSON.stringify(report, null, 1));
 console.log(JSON.stringify(report));

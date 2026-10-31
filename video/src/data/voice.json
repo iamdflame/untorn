@@ -18,6 +18,6 @@
     "similarity_boost": 0.75,
     "speed": 1
   },
-  "tempo": 1.035,
-  "tempoNote": "The narration plays 3.5% faster than generated (ffmpeg atempo, pitch kept) so the film fits 2:00; about 152 -> 157 wpm, inside the documentary range."
+  "tempo": 1,
+  "tempoNote": "The narration plays at the speed it was generated. A 3.5% ffmpeg atempo speed-up was tried and dropped: natural takes only, so the voice carries no time-stretch artefacts. The edit tightens the pauses instead (src/film/timeline.ts)."
 }

@@ -8,7 +8,9 @@ import type { GoldenCues } from "../scenes/Golden";
 import type { HoodCues } from "../scenes/Hood";
 import type { PeakCues } from "../scenes/Peak";
 
-export type Clip = { scene: SceneId; from: number; to: number; at: number; shown: string };
+/** A stretch of a scene's narration: source seconds [from, to] played from output second `at`; start and end are
+ * the chunk's first and last word in the alignment (the mix moves each edge onto the audio's own silence). */
+export type Clip = { scene: SceneId; from: number; to: number; at: number; start: number; end: number; shown: string };
 export type Placed = { id: SceneId; start: number; dur: number };
 export type Timeline = {
   scenes: Placed[];
@@ -41,8 +43,10 @@ export function buildTimeline(): Timeline {
         if (gap > cap) shift -= gap - cap;
       }
       const at = sceneStart + lead + shift + c.start - ch[0].start;
-      // play from a little before the chunk's first word to a little after its last
-      clips.push({ scene: id, from: Math.max(0, c.start - 0.06), to: c.end + 0.12, at: at - 0.06, shown: c.shown });
+      // play from a little before the chunk's first word to a little after its last (`at` follows `from` when the
+      // file starts sooner than 60 ms before the word, so the clip still plays in time)
+      const from = Math.max(0, c.start - 0.06);
+      clips.push({ scene: id, from, to: c.end + 0.12, at: at - (c.start - from), start: c.start, end: c.end, shown: c.shown });
       local.push({ start: lead + shift + c.start - ch[0].start, end: lead + shift + c.end - ch[0].start });
     });
     // scene-local time of a word, beats included

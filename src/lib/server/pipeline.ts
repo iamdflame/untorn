@@ -252,11 +252,14 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const sheetArea = (win[0] * win[1]) / (420 * 150);
   // reads are always asked here, so a join on its shape alone also needs the pieces' text lines not to disagree
   // (minLinesLogLR 0): on the real photo a chance fit with lines 5° apart took a page apart; a read still confirms such
-  // a join. The tear line is drawn thin, so the letters it cuts stay readable (seam v3).
+  // a join. And it needs a strong fit (score 100, not 60): on the user's retake a weak one (68), on a tear running
+  // between two lines that Muse rightly called no clue, set a piece one text line too low, and text lines can't see a
+  // whole-line shift. Bench-S with simulated reads: unchanged at 100 and 150. The tear line is drawn thin, so the
+  // letters it cuts stay readable (seam v3).
   const prep: Prepared = prepare(inputs, {
     maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length),
     twinStrategy: strategy,
-    assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0, ...opts.assemble },
+    assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0, minGeomScore: 100, ...opts.assemble },
     render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1], seamLine: (opts.seamPrompt ?? DEFAULT_PROMPT.seam) === "v3" ? "thin" : true },
   });
   // the writing's size says how much edge detail a camera photo holds: on the real torn page, text lines 98 px apart

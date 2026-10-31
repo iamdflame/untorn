@@ -21,6 +21,7 @@ import {
   PROMPTS_VERSION,
   READ_SCHEMA,
   SEAM_SCHEMA,
+  SEAM_SCHEMA_V3,
   SORT_SCHEMA,
   TRANSLATE_SCHEMA,
   type ChoicePromptVersion,
@@ -477,7 +478,8 @@ const clamp01 = (v: unknown): number | null => (typeof v === "number" && Number.
 // ---------------------------------------------------------------------------------------------------------------
 // Untorn's functions
 
-export type SeamVerdict = { same_place: boolean; confidence: number; words_across: string[]; reason: string };
+/** `text_crosses` (seam v3): whether any letters or words cross the tear; false makes the verdict no clue. */
+export type SeamVerdict = { same_place: boolean; confidence: number; words_across: string[]; reason: string; text_crosses?: boolean };
 
 export type ReadingOptions = MuseOptions & {
   /** Also send the image turned by 180°, for pieces whose upright direction is unknown. */
@@ -496,7 +498,7 @@ export async function verifySeam(
     {
       fn: "verifySeam",
       schemaName: "seam_verdict",
-      schema: SEAM_SCHEMA,
+      schema: version === "v3" ? SEAM_SCHEMA_V3 : SEAM_SCHEMA,
       content,
       promptVersion: `${PROMPTS_VERSION}/seam.${version}${opts.rotated ? "+rot" : ""}`,
       defaults: { model: "muse-spark-1.3", effort: "low", maxOutputTokens: 4000, timeoutMs: 45_000, deadlineMs: 90_000, hedgeAfterMs: 20_000 },
@@ -506,6 +508,10 @@ export async function verifySeam(
         const words_across = strArr(j.words_across);
         const reason = str(j.reason);
         if (confidence === null || !words_across || reason === null) return null;
+        if (version === "v3") {
+          if (typeof j.text_crosses !== "boolean") return null;
+          return { same_place: j.same_place, confidence, words_across, reason, text_crosses: j.text_crosses };
+        }
         return { same_place: j.same_place, confidence, words_across, reason };
       },
     },

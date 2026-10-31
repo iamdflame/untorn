@@ -138,7 +138,30 @@ That run also turned up a problem with box-only SAM crops. On thin rotated shred
 The new client answered every one of its 120 Spark bench calls. Its retries took care of the 2 empty attempts, both at medium effort.
 
 **Trying to raise accuracy honestly.** Spark, low effort, 12-item subsets of freshly generated items (same generator, letter page at 1500 px):
-- **Prompt wording:** v2 (read each crossing line, one broken line rejects) took binary from 79% to **96%** on the same 24 items. It is the default now.
+- **Prompt wording:** v2 (read each crossing line, one broken line rejects) took binary from 79% to **96%** on the same 24 items. It was the default until seam v3 (below).
+- **Seam v3, on the real hand-torn photo (2026-10-31).** These are the pair questions the live pipeline asks of IMG_5138 and of the same photo at 1920 px. Each is labelled from the registered truth: 13 correct seams (the true neighbours near their true pose) and 12 wrong ones. Each was asked twice per variant, at Spark low effort. Counts are confirm / veto / no clue:
+
+  | Variant | Correct seams (26) | Wrong seams (24) |
+  |---|---|---|
+  | v2, working px, 3 px tear line (the old default) | 18 / **6** / 2 | 2 / 20 / 2 |
+  | v2, photo px (2× detail) | 19 / 5 / 2 | 0 / 23 / 1 |
+  | v3 first wording, photo px, thin line | 14 / 3 / 9 | 0 / 10 / 14 |
+  | v3 first wording, working px, thin line | 17 / 1 / 8 | 1 / 17 / 6 |
+  | **v3 as shipped, working px, thin line (the default)** | 16 / **2** / 8 | 2 / 19 / 3 |
+
+  v2 vetoed true joins for two reasons:
+  - a tear running along the lines (through a paragraph gap) left nothing to read across, and Muse answered "not the same" at 0.85, four times out of four;
+  - the 3 px tear line hid the half-letters.
+
+  v3 first asks whether the words can judge the join (`text_crosses`); where they can't, the read is no clue, and the join rests on its shape and lines. It draws the tear 1 px at 55%.
+
+  Two fixes came from live runs of the first wording:
+  - a partner whose text is upside down now counts as a broken line (the first wording answered "no clue" there);
+  - a tear that crosses the lines between two words still has a sentence to read. The first wording let Muse call such a false join (p5–p8) blank, geometry took it, and a page split.
+
+  As shipped, v3 vetoes a third as many true joins as v2, at the same number of false confirmations. Photo-pixel renders helped v2 a little, but they made v3 answer "no clue" more often, so the working-scale render stays.
+
+  In live runs on IMG_5138, four each (v2 against the first v3 wording with the lines floor), the old setup placed 7, 7, 7 and 8 of 10, and the new one 4, 8, 7 and 8. Both misplaced a piece in some runs: true neighbours set 40–50 px off, past the scorer's 1.5% tolerance. Four runs cannot separate the two, so the change rests on the paired read measurement above.
 - **Crop window:** 640×220 instead of 420×150 scored 11/12 against 10/12 for the 420×150 baseline. These were different items, so read it as a direction, not a result.
 - **Seam with a gap vs flush:** on the same 12 items, flush (no dark tear line) scored 9/12 against 10/12 with the line. It didn't help, so the dark line stays.
 - **Both orientations:** each image was sent upside down together with its upright copy. That scored 10/12, against 8/12 for the upright-only v1 baseline on the same items, so the extra copy does no harm. Use `rotated` when "up" is unknown.

@@ -2,6 +2,7 @@
 //
 //   pnpm tsx scripts/record-run.ts [sample=chouteau-1903] [--photo FILE] [--out DIR] [--events FILE]
 //                                  [--strategy all|tree] [--sheet stacked|joined] [--window WxH] [--read-deadline MS] [--concurrency N]
+//                                  [--seam-prompt v2|v3] [--lines-floor N|off]
 //
 // Runs the same pipeline as POST /api/runs with the real models (about $0.10 for a 10-piece page), and writes DIR
 // (default public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
@@ -73,6 +74,8 @@ async function main() {
       sheetWindow: opt("--window") ? (opt("--window")!.split("x").map(Number) as [number, number]) : undefined,
       readDeadlineMs: opt("--read-deadline") ? Number(opt("--read-deadline")) : undefined,
       concurrency: opt("--concurrency") ? Number(opt("--concurrency")) : undefined,
+      seamPrompt: opt("--seam-prompt") as "v2" | "v3" | undefined,
+      minLinesLogLR: opt("--lines-floor") === "off" ? -Infinity : opt("--lines-floor") ? Number(opt("--lines-floor")) : undefined,
     },
     log,
   );

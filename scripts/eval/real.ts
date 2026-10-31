@@ -774,6 +774,14 @@ export function experimentFactors(gt: RealGt, mode: string | undefined): Map<str
     const co = solveSPD(A, y, 3);
     return new Map(gt.pieces.map((p) => [p.id, (co[0] + (co[1] * p.centroid[0]) / 1000 + (co[2] * p.centroid[1]) / 1000) / gt.scale] as const));
   }
+  // stability: every piece rescaled by its own random factor in [1 − a, 1 + a] (seeded), far below any real tilt
+  const jitter = /^jitter:([0-9.]+)(?::([0-9]+))?$/.exec(mode);
+  if (jitter) {
+    const amp = Number(jitter[1]);
+    let seed = Number(jitter[2] ?? 1) * 7919 + 12345;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    return new Map(gt.pieces.map((p) => [p.id, 1 + amp * (2 * rnd() - 1)] as const));
+  }
   // a camera tilted along the photo's y axis: pieces lower in the photo are larger by g over the photo's height
   const tilt = /^tilt:(-?[0-9.]+)$/.exec(mode);
   if (tilt) {

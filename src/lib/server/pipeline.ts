@@ -68,8 +68,16 @@ export type PipelineOptions = {
   choiceSheet?: "stacked" | "joined";
   /** k-way sheet strip size (px): 640 x 280 shows more lines across the tear than the pair image's 420 x 150. */
   sheetWindow?: [number, number];
-  /** Start a duplicate Muse request when a seam read hasn't answered after this long (median 7–9 s, p90 ~13 s). */
+  /**
+   * Start a duplicate Muse request when a seam read hasn't answered after this long. At minimal effort a read takes
+   * 7 s median, 10–12 s p90 on the real tear (S7); at low effort it took 14 s, p90 26 s.
+   */
   readHedgeMs?: number;
+  /** Reasoning effort of the pair reads (k-way sheets keep the model's default, low). */
+  readEffort?: "minimal" | "low";
+  /** Transcription: reasoning effort and the page image's long side (px). */
+  transcribeEffort?: "minimal" | "low";
+  transcribeLongSide?: number;
   /** Translate transcripts that are not in this language. */
   translateTo?: string;
   /** Most pages to transcribe. */
@@ -92,7 +100,26 @@ export const DEFAULT_TWIN_STRATEGY: TwinStrategy = "tree";
 /** The k-way sheet layout for live runs (S6b measured both on the real stack sample). */
 export const DEFAULT_CHOICE_SHEET: "stacked" | "joined" = "stacked";
 export const DEFAULT_SHEET_WINDOW: [number, number] = [640, 280];
+/**
+ * Read stage speed (S7, the real tear). Minimal effort was as right as low on a test of 15 seams (10, 11, 11 against
+ * 11, 9) at half the latency, but live it said "same" to the chance fit p5–p8 in two runs of three (low effort reads
+ * it "not the same"): the reads stay at low effort. Hedged after 9 s; up to 16 questions at once (at 24, with hedges
+ * about 40 connections, most requests failed to connect within 10 s). A read still out after the deadline is dropped
+ * and its seam rests on shape.
+ */
+export const DEFAULT_READ_EFFORT = "low" as const;
+export const DEFAULT_READ_HEDGE_MS = 9_000;
+export const DEFAULT_READ_CONCURRENCY = 16;
+export const DEFAULT_READ_DEADLINE_MS = 30_000;
+/**
+ * Transcription (S7, two rebuilt pages of the real tear): minimal effort on a 1600 px page read with 6.7–8.0% character
+ * errors in 7–11 s, against 7.5% in 18–21 s at low effort on 2200 px.
+ */
+export const DEFAULT_TRANSCRIBE_EFFORT = "minimal" as const;
+export const DEFAULT_TRANSCRIBE_LONG_SIDE = 1600;
 const PAGE_MARGIN = 8;
+/** Long side of the rebuilt page's image (px): the download and the transcription's source. */
+const PAGE_LONG_SIDE = 3000;
 
 /** Run the whole pipeline on one photo. Emits events as it goes; returns the stored result. Throws RunError. */
 export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, opts: PipelineOptions, emit: (e: RunEvent) => void): Promise<RunResult> {
@@ -224,7 +251,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const deadline = setTimeout(() => {
     deadlineHit = true;
     readAbort.abort(new Error("read deadline"));
-  }, opts.readDeadlineMs ?? 70_000);
+  }, opts.readDeadlineMs ?? DEFAULT_READ_DEADLINE_MS);
   const check = async (req: ContentRequest): Promise<ContentVerdict | null> => {
     if (readAbort.signal.aborted) return null;
     const started = now();
@@ -243,12 +270,12 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     const rotated = req.uprightKnown ? undefined : { data: await rotate180Jpeg(jpeg), mime: "image/jpeg" as const };
     // the deadline may have passed while the image was encoded: don't start a call that is already cancelled
     if (readAbort.signal.aborted) return null;
-    const callOpts = { rotated, signal: readAbort.signal, onLog: quietLog, hedgeAfterMs: opts.readHedgeMs ?? 12_000 };
+    const callOpts = { rotated, signal: readAbort.signal, onLog: quietLog, hedgeAfterMs: opts.readHedgeMs ?? DEFAULT_READ_HEDGE_MS };
     const base = { id: req.id, image: `data:image/jpeg;base64,${Buffer.from(jpeg).toString("base64")}` };
     let read: ReadOut;
     let verdict: ContentVerdict | null = null;
     if (req.kind === "pair") {
-      const out = await deps.verifySeam(image, callOpts);
+      const out = await deps.verifySeam(image, { ...callOpts, effort: opts.readEffort ?? DEFAULT_READ_EFFORT });
       museCost(out);
       read = { ...base, kind: "pair", pieces: [req.a, req.b], candidates: [req.candidate], ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started };
       if (out.ok) {
@@ -286,7 +313,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
         asks.push(...round.map((r) => askOut(r, prep)));
         send({ type: "match", candidates, asks: [...asks] });
       }
-      const vs = await askAll(round, check, opts.concurrency ?? 16);
+      const vs = await askAll(round, check, opts.concurrency ?? DEFAULT_READ_CONCURRENCY);
       round.forEach((r, i) => {
         reqs.push(r);
         verdicts.push(vs[i]);
@@ -325,15 +352,22 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     );
   }
   const joins = res.joins.map((j) => joinOut(j, reqs, verdicts));
+  const transcribeSide = opts.transcribeLongSide ?? DEFAULT_TRANSCRIBE_LONG_SIDE;
   const pages: PageOut[] = [];
   const pageJpegs = new Map<string, Uint8Array>();
   await Promise.all(
     res.pages.map(async (p, k) => {
-      const img = renderPage(p, prep.photo, { margin: PAGE_MARGIN });
+      // the download needs no more than 3000 px a side, and half the pixels render in half the time (S7: 2.2 s → 1 s)
+      const img = renderPage(p, prep.photo, { margin: PAGE_MARGIN, scale: Math.min(1, PAGE_LONG_SIDE / (Math.max(p.width, p.height) + 2 * PAGE_MARGIN)) });
       const raw = sharp(Buffer.from(img.data.buffer, img.data.byteOffset, img.data.length), { raw: { width: img.width, height: img.height, channels: 4 } });
       const [png, jpeg] = await Promise.all([
-        raw.clone().png({ compressionLevel: 6 }).toBuffer(),
-        raw.clone().flatten({ background: "#ffffff" }).resize({ width: 2200, height: 2200, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer(),
+        raw.clone().png({ compressionLevel: 3 }).toBuffer(),
+        raw
+          .clone()
+          .flatten({ background: "#ffffff" })
+          .resize({ width: transcribeSide, height: transcribeSide, fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 90 })
+          .toBuffer(),
       ]);
       pageJpegs.set(p.id, new Uint8Array(jpeg));
       const url = await deps.putAsset(`page-${k}.png`, new Uint8Array(png), "image/png").catch(() => null);
@@ -363,7 +397,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   await Promise.all(
     toRead.map(async (p) => {
       const jpeg = pageJpegs.get(p.id)!;
-      const out = await deps.readPage({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog, hedgeAfterMs: 25_000 });
+      const out = await deps.readPage({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog, effort: opts.transcribeEffort ?? DEFAULT_TRANSCRIBE_EFFORT, hedgeAfterMs: 15_000 });
       museCost(out);
       let tr: TranscriptOut;
       if (!out.ok) tr = { page: p.id, ok: false, text: "", language: "und", uncertain: [], translation: null, error: out.error.code };

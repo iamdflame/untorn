@@ -5,7 +5,7 @@ own `package.json` and is excluded from the app's typecheck, lint, tests, instal
 
 | Output (in `out/`, gitignored) | Composition | What |
 |---|---|---|
-| `untorn-demo.mp4` | `UntornDemo` | The film: 1920x1080, 30 fps, 1:59.6, H.264 + AAC 320k, about -14 LUFS |
+| `untorn-demo.mp4` | `UntornDemo` | The film: 1920x1080, 30 fps, 2:02.7, H.264 + AAC 320k, about -14 LUFS |
 | `untorn-demo.srt` | | Captions (the narration, timed from the voice's own alignment) |
 | `thumbnail.png` | `Thumbnail` | 1280x720 still: the letter whole again, a read in the loupe, the wordmark |
 | `untorn-backup.mp4` | `Backup` | The insurance cut: a plain captioned walkthrough from the same captures, 1:17, quiet score |
@@ -17,7 +17,7 @@ own `package.json` and is excluded from the app's typecheck, lint, tests, instal
 cd video
 pnpm install                         # Remotion 4.0.539, Playwright (drives the installed Chrome), sharp, tsx
 node scripts/assets/kit.mjs          # rebuilds public/kit/ (cut-outs, seam images, the ShredBench image)
-node scripts/audio/tempo.mjs         # narration MP3s -> the film's tempo, 48 kHz WAV
+node scripts/audio/tempo.mjs         # narration MP3s -> 48 kHz WAV (natural speed: no stretch)
 node_modules/.bin/tsx scripts/audio/mix.mts           # public/audio/mix.wav (+ out/mix-report.json)
 node_modules/.bin/tsx scripts/audio/backup-score.mts  # public/audio/backup.wav
 ```
@@ -64,13 +64,14 @@ Every number the film shows or says is in `src/data/numbers.json`, each with its
 1. Edit the entry (for a benchmark, `proof[...]`: `replica`, `official`, `bySize`, `sam`, `imageCredit`).
 2. If the spoken line changes, edit that scene in `src/data/narration.json` (`[spoken, shown]` pairs: the spoken
    text is respelled for the voice where needed, e.g. "tare" for the rip; the shown text is the caption) and
-   re-take only that scene: `node scripts/voice/narrate.mjs --force proof` (ElevenLabs, about 0.4 credits per
-   character; logged in `src/data/elevenlabs-ledger.json`). Then `node scripts/audio/tempo.mjs`.
+   re-take only that scene: `node scripts/voice/retake.mjs proof 2` writes two auditioned takes to
+   `out/retakes/proof/` (each checked for starting and ending in silence), `--use <n>` installs one (ElevenLabs,
+   about 0.4 credits per character; logged in `src/data/elevenlabs-ledger.json`). Then `node scripts/audio/tempo.mjs`.
 3. Re-run the mix and the render. The timeline is computed from the voice's alignment, so cuts and sound cues follow.
 
 ## Swap the real-tear beat
 
-The "Tear your own" beat (1:04-1:24) has a swap flag in `src/data/golden.json`: `use: "sim"` (built and rendered:
+The "Tear your own" beat (1:06-1:26) has a swap flag in `src/data/golden.json`: `use: "sim"` (built and rendered:
 a simulated tear of a real 1903 letter, run live on untorn.vercel.app) or `use: "real"` (the user's own hand-torn
 page). **Use `real` only after the main loop confirms the page may be shown publicly.** Its photos stay out of git
 and go nowhere except through the app's own run.
@@ -89,7 +90,13 @@ The film throws a clear error if `real` is selected before it has a capture and 
 
 - Narrator: **Peter** (ElevenLabs library voice `ZthjuvLPty3kTMaNKVKb`) on **eleven_v4**, stability 0.5, similarity
   0.75, speed 1.0, chosen by evidence (auditions, scores and the top three takes in `out/voice-auditions/`). The
-  scripts refuse the user's own cloned voice. Played 3.5 % faster (pitch kept) for timing.
+  scripts refuse the user's own cloned voice. Played at the speed it was spoken: no time-stretch (an earlier 3.5 %
+  ffmpeg atempo speed-up was dropped). The proof scene is a re-take (the first take started mid-sound).
+- Joins: the mix cuts the narration into caption clips and joins them on the audio's own silence
+  (`scripts/audio/voice.mts`): where the edit keeps the voice's timing the clips meet at one sample (the original
+  audio), a beat fades out and in at the quietest point of the pause, a shortened pause loses its quietest stretch
+  under an equal-power crossfade. The mix throws if any audio would play twice; `out/voice-joins.json` lists every
+  cut with its level (all at -64 dBFS or quieter).
 - Score and sound: original synthesis (`scripts/audio/synth.mjs`), placed on the picture's own cue times
   (`src/film/sfx.ts`), ducked 10 dB under the voice, mastered to about -14 LUFS with a true peak under -1 dBTP.
 - Captions: burned in from the alignment (Schibsted Grotesk on a calm band) and written to the SRT.

@@ -1,6 +1,6 @@
 # YouTube upload
 
-**File:** `out/untorn-demo.mp4` (1:59.6, 1920x1080, 30 fps). **Captions:** upload `out/untorn-demo.srt` as English
+**File:** `out/untorn-demo.mp4` (2:02.7, 1920x1080, 30 fps). **Captions:** upload `out/untorn-demo.srt` as English
 subtitles (the film also has them burned in). **Thumbnail:** `out/thumbnail.png`.
 
 ## Title
@@ -25,12 +25,12 @@ What you see: the letters are simulated tears of real public-domain letters; eve
 
 Chapters
 0:00 One photo, put back together
-0:13 The Stasi's torn files
-0:33 Twins: pages torn as a stack
-0:51 Proof: the same shredded photos, read two ways
-1:04 Tear your own, live
-1:24 Under the hood
-1:43 Read whole again
+0:14 The Stasi's torn files
+0:34 Twins: pages torn as a stack
+0:53 Proof: the same shredded photos, read two ways
+1:06 Tear your own, live
+1:26 Under the hood
+1:46 Read whole again
 
 Credits
 Narration: ElevenLabs library voice "Peter".

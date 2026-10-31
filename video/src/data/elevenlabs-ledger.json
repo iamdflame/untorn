@@ -429,5 +429,51 @@
     "accountUsedAfter": 30692,
     "accountDelta": 0,
     "requestId": "GTC7D9LTzXzdZitrpMia"
+  },
+  {
+    "at": "2026-10-31T03:49:46.189Z",
+    "purpose": "retake proof",
+    "id": "1",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 181,
+    "billed": 72,
+    "header": 72,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 30769,
+    "accountUsedAfter": 30769,
+    "accountDelta": 0,
+    "requestId": "V7rTFQ7KXDFyVqfSnjvx"
+  },
+  {
+    "at": "2026-10-31T03:50:10.624Z",
+    "purpose": "retake proof",
+    "id": "2",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 181,
+    "billed": 72,
+    "header": 72,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 30769,
+    "accountUsedAfter": 30769,
+    "accountDelta": 0,
+    "requestId": "GhycrkIa2ls9nXsxhnLM"
   }
 ]

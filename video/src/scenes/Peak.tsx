@@ -133,9 +133,9 @@ export const Peak: React.FC<{ cues?: PeakCues }> = ({ cues = PEAK_CUES }) => {
           <div style={{ position: "absolute", left: 0, right: 0, top: 560, textAlign: "center", fontFamily: F.serif, fontWeight: 500, fontSize: 54, color: C.chalk2, opacity: easeOut(clamp((t - cues.seat - 0.15) / 0.6)), transform: `translateY(${(1 - easeOut(clamp((t - cues.seat - 0.15) / 0.6))) * 10}px)` }}>Reads across the tears.</div>
           <div style={{ position: "absolute", left: 0, right: 0, top: 668, textAlign: "center", fontFamily: F.sans, fontWeight: 600, fontSize: 36, color: C.chalk, letterSpacing: "0.01em", opacity: easeOut(clamp((t - cues.seat - 0.5) / 0.6)) }}>untorn.vercel.app</div>
           <div style={{ position: "absolute", left: 200, right: 200, top: 900, textAlign: "center", fontFamily: F.sans, fontSize: 17, lineHeight: 1.6, color: C.chalk3, opacity: easeOut(clamp((t - cues.seat - 0.8) / 0.6)) }}>
-            Built with Meta SAM 3.1 and Muse Spark. Archive photos: Maximilian Schönherr, Wikimedia Commons, CC BY-SA 4.0, reprojected and cropped.
+            Built with Meta SAM 3.1 and Muse Spark. Narration: ElevenLabs. Archive photos: Maximilian Schönherr, Wikimedia Commons, CC BY-SA 4.0, reprojected and cropped.
             <br />
-            Letters: public domain (Science History Institute; Missouri History Museum; Missouri Historical Society; Wikimedia Commons). Benchmark image: ShredBench, Apache-2.0. Narration: ElevenLabs.
+            Letters: public domain (Science History Institute; Missouri History Museum; Missouri Historical Society; Wikimedia Commons). Benchmark image: ShredBench, Apache-2.0.
           </div>
         </AbsoluteFill>
       )}

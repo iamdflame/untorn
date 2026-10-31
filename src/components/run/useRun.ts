@@ -4,7 +4,7 @@
 // Both fold events through the same reducer, so the screens can't tell them apart except by `state.mode`.
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { PhotoError, preparePhoto, responseError } from "@/lib/client/photo";
+import { PhotoError, preparePhoto, readTilt, responseError } from "@/lib/client/photo";
 import { ERRORS } from "@/lib/run/errors";
 import { eventsFromResult, playEvents } from "@/lib/run/replay";
 import { initialRunState, reduceRun } from "@/lib/run/state";
@@ -57,9 +57,10 @@ export function useRun() {
       try {
         let res: Response;
         if ("file" in input) {
-          const blob = await preparePhoto(input.file);
+          const [blob, tilt] = await Promise.all([preparePhoto(input.file), readTilt(input.file)]);
           const form = new FormData();
           form.set("photo", blob, "photo");
+          if (tilt) form.set("tilt", JSON.stringify(tilt));
           res = await fetch("/api/runs", { method: "POST", body: form, signal: ctrl.signal });
         } else {
           res = await fetch("/api/runs", { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json" }, signal: ctrl.signal });

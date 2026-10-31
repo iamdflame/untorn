@@ -1,6 +1,7 @@
 // Photo intake for uploads and phone captures: type-check by content (never by name or the client's MIME type),
 // cap the size, convert HEIC, decode upright, and measure blur. Server-only.
 
+import { readCameraTilt, type CameraTilt } from "@/lib/run/tilt";
 import sharp, { type Metadata } from "sharp";
 import { RunError } from "@/lib/run/errors";
 import { MAX_UPLOAD_BYTES } from "@/lib/run/types";
@@ -70,7 +71,7 @@ export async function heicToJpeg(bytes: Uint8Array): Promise<Uint8Array> {
  * Check an uploaded photo and return JPEG or PNG bytes sharp can decode (HEIC converted to JPEG).
  * Throws RunError with a designed code for every rejection.
  */
-export async function normalisePhoto(bytes: Uint8Array): Promise<{ bytes: Uint8Array; kind: PhotoKind; width: number; height: number }> {
+export async function normalisePhoto(bytes: Uint8Array): Promise<{ bytes: Uint8Array; kind: PhotoKind; width: number; height: number; tilt: CameraTilt | null }> {
   if (bytes.length > MAX_UPLOAD_BYTES) throw new RunError("too-large");
   const kind = sniffImage(bytes);
   if (!kind) throw new RunError("bad-type");
@@ -87,7 +88,8 @@ export async function normalisePhoto(bytes: Uint8Array): Promise<{ bytes: Uint8A
   const width = turned ? meta.height : meta.width;
   const height = turned ? meta.width : meta.height;
   if (Math.min(width, height) < MIN_SHORT_SIDE) throw new RunError("too-small");
-  return { bytes: data, kind, width, height };
+  // the camera's tilt, from the original's EXIF: a HEIC loses it when it is converted
+  return { bytes: data, kind, width, height, tilt: readCameraTilt(bytes) };
 }
 
 /**

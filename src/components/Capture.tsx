@@ -4,7 +4,7 @@
 // Phone-first; works with any browser that can pick a photo.
 
 import { useEffect, useRef, useState } from "react";
-import { PhotoError, preparePhoto, responseError } from "@/lib/client/photo";
+import { PhotoError, preparePhoto, readTilt, responseError } from "@/lib/client/photo";
 import { ERRORS } from "@/lib/run/errors";
 import type { ErrorCode } from "@/lib/run/types";
 
@@ -54,9 +54,10 @@ export function Capture({ code }: { code: string }) {
   const send = async (file: File) => {
     setStep({ kind: "sending" });
     try {
-      const blob = await preparePhoto(file);
+      const [blob, tilt] = await Promise.all([preparePhoto(file), readTilt(file)]);
       const form = new FormData();
       form.set("photo", blob, "photo");
+      if (tilt) form.set("tilt", JSON.stringify(tilt));
       const res = await fetch(`/api/sessions/${code}/photo`, { method: "POST", body: form });
       if (!res.ok) throw await responseError(res);
       setStep({ kind: "sent" });

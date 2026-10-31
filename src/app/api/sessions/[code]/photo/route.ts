@@ -5,6 +5,8 @@ import { ERRORS, errorBody, RunError } from "@/lib/run/errors";
 import { MAX_UPLOAD_BYTES } from "@/lib/run/types";
 import { isSessionCode } from "@/lib/server/ids";
 import { attachPhoto } from "@/lib/server/sessions";
+import { jsonOrNull } from "@/lib/server/runs";
+import { parseTilt, type CameraTilt } from "@/lib/run/tilt";
 import { getStore } from "@/lib/server/store";
 
 export const maxDuration = 60;
@@ -15,12 +17,15 @@ export async function POST(request: Request, ctx: RouteContext<"/api/sessions/[c
     if (!isSessionCode(code)) throw new RunError("not-found");
     if (Number(request.headers.get("content-length") ?? 0) > MAX_UPLOAD_BYTES + 256 * 1024) throw new RunError("too-large");
     let bytes: Uint8Array;
+    let tilt: CameraTilt | null = null;
     if ((request.headers.get("content-type") ?? "").includes("multipart/form-data")) {
-      const file = (await request.formData()).get("photo");
+      const form = await request.formData();
+      const file = form.get("photo");
       if (!file || typeof file === "string") throw new RunError("bad-type", "No photo in the upload.");
       bytes = new Uint8Array(await file.arrayBuffer());
+      tilt = parseTilt(jsonOrNull(form.get("tilt")));
     } else bytes = new Uint8Array(await request.arrayBuffer());
-    await attachPhoto(getStore(), code, bytes);
+    await attachPhoto(getStore(), code, bytes, tilt);
     return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     if (e instanceof RunError) return Response.json(errorBody(e.code, e.message), { status: ERRORS[e.code].status });

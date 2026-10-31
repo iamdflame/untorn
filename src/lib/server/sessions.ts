@@ -1,6 +1,7 @@
 // The phone handoff: the laptop makes a short code and shows it as a QR code; the phone opens /c/<code>, takes one
 // photo and posts it; the laptop polls the code and starts the run when the photo lands.
 
+import type { CameraTilt } from "@/lib/run/tilt";
 import { RunError } from "@/lib/run/errors";
 import { normalisePhoto } from "./intake";
 import { isSessionCode, randomId, sessionCode } from "./ids";
@@ -54,12 +55,15 @@ export async function getSession(store: Store, code: string): Promise<SessionSta
 }
 
 /** Check and store the phone's photo, and mark the session. Returns the photo id the laptop runs on. */
-export async function attachPhoto(store: Store, code: string, bytes: Uint8Array): Promise<{ photoId: string }> {
+export async function attachPhoto(store: Store, code: string, bytes: Uint8Array, browserTilt: CameraTilt | null = null): Promise<{ photoId: string }> {
   const state = await getSession(store, code);
   if (state.status === "expired") throw new RunError("expired");
   const photo = await normalisePhoto(bytes);
   const photoId = randomId();
   await store.put(`photos/${photoId}`, photo.bytes, photo.kind === "png" ? "image/png" : "image/jpeg");
+  // the camera's tilt (the photo's own EXIF first, else what the phone's browser read before re-encoding it)
+  const tilt = photo.tilt ?? browserTilt;
+  if (tilt) await store.put(`photos/${photoId}.tilt.json`, JSON.stringify(tilt), "application/json");
   const rec: PhotoRecord = { photoId, at: new Date().toISOString(), width: photo.width, height: photo.height };
   await store.put(`sessions/${code}/photo.json`, JSON.stringify(rec), "application/json");
   memory.set(code, { createdAt: memory.get(code)?.createdAt ?? Date.now(), photoId });

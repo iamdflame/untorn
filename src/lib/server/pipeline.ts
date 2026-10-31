@@ -34,6 +34,8 @@ import {
 } from "@/lib/run/types";
 import { decodePhoto, resizeJpeg, rotate180Jpeg, type DecodedPhoto } from "./images";
 import { simplifyClosed, touchingPairs } from "./mask-geometry";
+import { rectifyRgb } from "./rectify";
+import type { CameraTilt } from "@/lib/run/tilt";
 import type { chooseContinuation, MuseOutcome, pageOrientation, readPage, translate, verifySeam } from "./muse";
 import { DEFAULT_PROMPT, type SeamPromptVersion } from "./prompts";
 import type { SegmentResult } from "./segment";
@@ -81,6 +83,8 @@ export type PipelineOptions = {
    *  its shape alone needs (default 0; -Infinity is the solver's own default). */
   seamPrompt?: SeamPromptVersion;
   minLinesLogLR?: number;
+  /** The camera's tilt when the photo recorded it: a tilted photo is straightened first (src/lib/server/rectify.ts). */
+  cameraTilt?: CameraTilt | null;
   /** Experiments: any other assembly setting (src/lib/rejoin/assemble.ts AssembleOptions). */
   assemble?: Partial<AssembleOptions>;
   /** Transcription: reasoning effort and the page image's long side (px). */
@@ -183,6 +187,15 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     photo = await decodePhoto(photoBytes);
   } catch {
     throw new RunError("unreadable");
+  }
+  // a photo taken at an angle makes far pieces smaller, and their edges stop fitting: undo the tilt the phone recorded
+  if (opts.cameraTilt) {
+    const r = rectifyRgb(photo.rgb, opts.cameraTilt);
+    if (r) {
+      const jpeg = await sharp(Buffer.from(r.rgb.data.buffer, r.rgb.data.byteOffset, r.rgb.data.length), { raw: { width: r.rgb.width, height: r.rgb.height, channels: 3 } }).jpeg({ quality: 92 }).toBuffer();
+      photo = { width: r.rgb.width, height: r.rgb.height, rgb: r.rgb, jpeg: new Uint8Array(jpeg) };
+      warn("tilted", `The photo was taken ${Math.round(r.tiltDeg)}° off straight down, so the far pieces looked smaller. Untorn straightened it with the tilt the phone recorded in the photo.`);
+    }
   }
   const photoInfo: RunResult["photo"] = { url: null, width: photo.width, height: photo.height };
   const displayPhoto = resizeJpeg(photo.rgb, 2000, 84)

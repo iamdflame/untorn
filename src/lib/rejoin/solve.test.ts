@@ -3,9 +3,9 @@ import { museContentCheck, fragmentsFromSegments, type ChooseContinuation, type 
 import { poseApply, poseCompose, poseInvert, type Pose } from "./geom";
 import { renderChoiceSheet, renderSeam } from "./seam";
 import { renderPage } from "./render";
-import { askPlanned, contentRequests, finish, prepare, solve } from "./solve";
+import { askPlanned, contentRequests, finish, prepare, questionPlan, SECOND_LOOK, solve } from "./solve";
 import { gridTear, scatterPage, scatterPiece } from "./__tests__/synth";
-import type { ContentCheck, FragmentInput, SolveResult } from "./types";
+import type { ContentCheck, ContentVerdict, FragmentInput, SolveResult } from "./types";
 
 /** Every placed fragment agrees with the truth up to one rigid transform per page (3 px, 1°). */
 function placedCorrectly(res: SolveResult, inputs: FragmentInput[], truth: Map<string, Pose>) {
@@ -67,6 +67,35 @@ describe("solve on one torn page (geometry only)", async () => {
     let painted = 0;
     for (let i = 3; i < img.data.length; i += 4) painted += img.data[i] ? 1 : 0;
     expect(painted / (img.width * img.height)).toBeGreaterThan(0.6);
+  });
+
+  it("takes a second, taller look at a strong seam whose read found no text crossing it, once", () => {
+    const prep = prepare(inputs);
+    const plan = questionPlan(prep);
+    const pairs = plan.first.filter((r) => r.kind === "pair");
+    expect(pairs.length).toBeGreaterThan(0);
+    const blank = pairs.find((r) => (prep.match.candidates.find((c) => r.kind === "pair" && c.id === r.candidate)?.score ?? 0) >= SECOND_LOOK.minScore)!;
+    const answers = new Map<string, ContentVerdict | null>(plan.first.map((r) => [r.id, r === blank ? { kind: "pair", id: r.id, same: null, confidence: 0.5 } : null] as const));
+    const looks = plan.next(answers);
+    expect(looks.map((r) => r.id)).toEqual([`${blank.id}:tall`]);
+    const img = looks[0].render();
+    expect(img.height).toBe(SECOND_LOOK.height);
+    // a second look that also finds nothing is not looked at again
+    answers.set(looks[0].id, { kind: "pair", id: looks[0].id, same: null, confidence: 0.5 });
+    expect(plan.next(answers)).toEqual([]);
+    expect(questionPlan(prepare(inputs, { secondLook: false })).next(answers)).toEqual([]);
+  });
+
+  it("takes a second look at a strong fit that one read doubted without conviction, not at a sure 'no'", () => {
+    const prep = prepare(inputs);
+    const strong = prep.match.candidates.filter((c) => c.score >= SECOND_LOOK.doubtScore && c.margin >= SECOND_LOOK.doubtMargin);
+    expect(strong.length).toBeGreaterThan(0);
+    const plan = questionPlan(prep);
+    const req = plan.first.find((r) => r.kind === "pair" && strong.some((c) => c.id === r.candidate));
+    if (!req) return; // geometry alone settles this page: nothing strong is asked
+    const said = (confidence: number) => new Map<string, ContentVerdict | null>(plan.first.map((r) => [r.id, r === req ? { kind: "pair", id: r.id, same: false, confidence } : null] as const));
+    expect(plan.next(said(0.68)).map((r) => r.id)).toEqual([`${req.id}:tall`]);
+    expect(questionPlan(prep).next(said(0.95))).toEqual([]);
   });
 });
 

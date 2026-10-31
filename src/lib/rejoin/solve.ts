@@ -39,6 +39,8 @@ export type SolveOptions = {
   match?: Partial<MatchOptions>;
   assemble?: Partial<AssembleOptions>;
   render?: SeamRenderOptions;
+  /** A taller second read of a strong seam whose first read found no text crossing it (SECOND_LOOK; default on). */
+  secondLook?: boolean;
   /**
    * Working scale of the geometry (photo px × scale, never above 1). "auto" (default): text lines about
    * `scaleOptions.targetPitch` px apart, measured on the pieces; without text, by the pieces' size. Poses, lengths and
@@ -227,13 +229,48 @@ export async function askAll(reqs: ContentRequest[], check: ContentCheck, concur
   return out;
 }
 
-/** The questions to ask, round by round (see plan.ts). */
+/**
+ * A second, taller look at a strong seam whose read found no text crossing it. The seam window shows about 4–5 text
+ * lines; a tear running at a shallow angle to the lines can leave few of them crossing it, and Muse then answers "no
+ * clue": on the user's retake it said so of a true 599 px seam (score 224, the join between two halves of the page)
+ * while "…ordering o│f work." crossed the tear at the window's edge. Twice the height shows about nine lines.
+ * Also a fit strong enough for the outline alone (score ≥ doubtScore, margin ≥ doubtMargin) that one read doubted
+ * without conviction (below doubtRead): on the health sample a 0.68 "not the same" on its strongest seam (score 510,
+ * 2.7 times its rival) split the page in two; the second read either repeats the doubt or outweighs it.
+ */
+export const SECOND_LOOK = { minScore: 100, height: 300, doubtScore: 300, doubtMargin: 1.4, doubtRead: 0.9 };
+
+/** The questions to ask, round by round (see plan.ts), then the second looks. */
 export function questionPlan(prep: Prepared): QuestionPlan {
   const trial = (reqs: ContentRequest[], verdicts: (ContentVerdict | null)[]) => {
     const quiet = { ...prep, options: { ...prep.options, onProgress: undefined, assemble: { ...prep.options.assemble, trace: undefined } } };
     return new Set(finish(quiet, reqs, verdicts).joins.map((j) => (j.a < j.b ? `${j.a}|${j.b}` : `${j.b}|${j.a}`)));
   };
-  return planQuestions({ candidates: prep.match.candidates, twinClass: prep.match.twinClass, trial }, contentRequests(prep), prep.options.twinStrategy ?? "all");
+  const plan = planQuestions({ candidates: prep.match.candidates, twinClass: prep.match.twinClass, trial }, contentRequests(prep), prep.options.twinStrategy ?? "all");
+  if (prep.options.secondLook === false) return plan;
+  const byCand = new Map(prep.match.candidates.map((c) => [c.id, c] as const));
+  const render = { pitchHint: medianPitch(prep.fragments), ...prep.options.render, height: SECOND_LOOK.height };
+  let looked = false;
+  return {
+    ...plan,
+    next: (answers) => {
+      const more = plan.next(answers);
+      if (more.length || looked) return more;
+      looked = true;
+      const out: ContentRequest[] = [];
+      for (const [id, v] of answers) {
+        if (!v || v.kind !== "pair" || !id.startsWith("pair:") || id.endsWith(":tall")) continue;
+        const c = byCand.get(id.slice("pair:".length));
+        if (!c || c.twinGroup) continue;
+        const blank = v.same === null && c.score >= SECOND_LOOK.minScore;
+        const doubted = v.same === false && v.confidence < SECOND_LOOK.doubtRead && c.score >= SECOND_LOOK.doubtScore && c.margin >= SECOND_LOOK.doubtMargin;
+        if (!blank && !doubted) continue;
+        const up = prep.byId.get(c.a)?.text;
+        out.push({ kind: "pair", id: `${id}:tall`, candidate: c.id, a: c.a, b: c.b, uprightKnown: !!up && up.confidence >= 0.4 && up.up !== 0, render: () => renderSeam(prep.byId, c, render) });
+      }
+      return out;
+    },
+  };
 }
 
 /** Ask the planned questions round by round; returns every question asked and its verdict. */

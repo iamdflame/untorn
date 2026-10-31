@@ -838,11 +838,11 @@ async function diagnose(c: RealCase, out: string, k: number | "auto", pieceScale
   console.log(`truth: scale ${gt.scale.toFixed(4)} (pieces ${gt.scaleRange.map((v) => v.toFixed(4)).join("–")}), page width ${gt.pageWidth.toFixed(0)} px`);
   for (const f of prep.fragments) {
     const t = f.text;
-    const g = gt.pieces.find((p) => p.id === f.id)!;
+    const g = gt.pieces.find((p) => p.id === f.id);
     console.log(
       `  ${f.id}: area ${(f.area / 1e6).toFixed(2)} Mpx², outline ${f.outline.length / 2} pts, ${f.segments.filter((s) => s.kind === "straight").length} straight / ${f.segments.filter((s) => s.kind === "torn").length} torn segments, ` +
         `corners ${f.pageCorners.length}; text ${t ? `${((t.angle * 180) / Math.PI).toFixed(1)}° conf ${t.confidence.toFixed(2)} pitch ${t.pitch} period ${t.grid ? t.grid.period.toFixed(2) : "–"} (reg ${t.grid ? t.grid.regularity.toFixed(2) : "–"}) up ${t.up} (${t.upConfidence.toFixed(2)})` : "none"}; ` +
-        `truth θ ${((g.sim.theta * 180) / Math.PI).toFixed(1)}° s ${g.sim.s.toFixed(4)} ncc ${g.ncc.toFixed(2)}`,
+        (g ? `truth θ ${((g.sim.theta * 180) / Math.PI).toFixed(1)}° s ${g.sim.s.toFixed(4)} ncc ${g.ncc.toFixed(2)}` : "no truth (left out)"),
     );
   }
   const cands = [...prep.match.candidates].sort((x, y) => y.score - x.score);

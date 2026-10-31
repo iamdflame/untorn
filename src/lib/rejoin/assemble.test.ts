@@ -76,6 +76,23 @@ describe("decide: a read confirms a join only where the geometry agrees", () => 
     expect(decide([old], reads(old.id, true, 0.95), o)).toHaveLength(0);
   });
 
+  it("lets a sure 'same' past a rival partner only when Muse has surely ruled that rival out (the retake's curl)", () => {
+    // p4–p9 (true, score 278) against p5–p9 (false, score 328) on the same edge of p9
+    const c = cand({ id: "p4~p9#1", a: "p4", b: "p9", score: 278, margin: 0.85, marginOther: 0.85 });
+    const rival = cand({ id: "p5~p9#4", a: "p5", b: "p9", score: 328, margin: 1.18, marginOther: 1.18 });
+    const rivals = new Map([[c.id, [rival]], [rival.id, [c]]]);
+    const ev = (same: number, other: number): ContentEvidence =>
+      new Map([...reads(c.id, true, same), ...reads(rival.id, false, other)]);
+    expect(decide([c, rival], ev(0.9, 0.85), o, rivals).map((d) => d.c.id)).toEqual([c.id]);
+    // the rival only doubtfully ruled out, or the read for this join not sure enough: refused as before
+    expect(decide([c, rival], ev(0.9, 0.7), o, rivals)).toHaveLength(0);
+    expect(decide([c, rival], ev(0.8, 0.95), o, rivals)).toHaveLength(0);
+    // the rival not read at all: refused
+    expect(decide([c, rival], reads(c.id, true, 0.95), o, rivals)).toHaveLength(0);
+    // and off
+    expect(decide([c, rival], ev(0.9, 0.95), { ...o, ruledOutRead: 0 }, rivals)).toHaveLength(0);
+  });
+
   it("does not let a 'same' join pieces whose text lines do not continue", () => {
     for (const t of [lines({ angle: (25 * Math.PI) / 180 }), lines({ phase: 0.45 }), lines({ flipped: true })]) {
       const c = cand({ text: t });

@@ -50,6 +50,14 @@ export type AssembleOptions = {
    * edge three other partners fitted better.)
    */
   minContentMargin: number;
+  /**
+   * ...except rivals Muse has ruled out: when this join's reads say "same" at least this sure, a rival they say "not
+   * the same" about at least this sure no longer counts against it (0: off). On the user's retake (curled pieces)
+   * false fits outscored true ones on the same edge, and Muse sorted all four right: two true seams at "same" 0.90 and
+   * 0.97 were refused for rivals it had rejected at 0.85 and 0.96, and they were the joins between the page's three
+   * groups.
+   */
+  ruledOutRead: number;
   /** A read-confirmed join needs the fused reads at least this sure (a hesitant "same" is no clue). */
   minReadConfidence: number;
   /** The final check of every page also takes off pieces whose clear text lines run off the page's (linesAstray). */
@@ -133,6 +141,7 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   linesAnyGrid: false,
   rimMax: MATCH_DEFAULTS.rimMax,
   minContentMargin: 1,
+  ruledOutRead: 0.85,
   minReadConfidence: 0.7,
   pageLines: true,
   astrayAlong: 0.15,
@@ -196,8 +205,23 @@ export function linesContinue(c: Candidate, o: AssembleOptions): boolean {
 }
 
 /** Which candidates may be accepted, how confidently, and which clue decides. */
-export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: AssembleOptions): Decision[] {
+export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: AssembleOptions, rivals?: Map<string, Candidate[]>): Decision[] {
   const out: Decision[] = [];
+  // the margin over rivals with another partner that the reads have not ruled out (see ruledOutRead)
+  const marginAfterReads = (c: Candidate, sure: number): number => {
+    const margin = c.marginOther ?? c.margin;
+    // (Muse answers in round numbers: an exact 0.85 must count after the round trip through log-odds)
+    const bar = o.ruledOutRead - 1e-6;
+    if (!rivals || !o.ruledOutRead || sure < bar || margin >= o.minContentMargin) return margin;
+    let m = Infinity;
+    for (const d of rivals.get(c.id) ?? []) {
+      if (d.edge !== c.edge || (d.a === c.a && d.b === c.b) || (d.a === c.b && d.b === c.a)) continue;
+      const dv = evidence?.get(d.id);
+      if (dv && dv.votes > 0 && dv.logOdds < 0 && sigmoid(-dv.logOdds) >= bar) continue;
+      m = Math.min(m, c.score / Math.max(d.score, 1e-9));
+    }
+    return m;
+  };
   for (const c of cands) {
     const ev = evidence?.get(c.id);
     const g = Math.min(0.995, Math.max(0.005, c.confidence));
@@ -232,7 +256,7 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
       // inside a twin group geometry is tied: content decides, and only when confirmed; elsewhere both clues agree
       const twin = c.twinGroup !== null;
       // a read's "same" does not override the outline fit preferring another partner, nor lines that do not continue
-      if (!twin && c.edge !== "cut" && ((c.marginOther ?? c.margin) < o.minContentMargin || !linesContinue(c, o))) continue;
+      if (!twin && c.edge !== "cut" && (marginAfterReads(c, content.confidence) < o.minContentMargin || !linesContinue(c, o))) continue;
       // and a clear one: a hesitant "same" (Muse at 0.55–0.62 on the real photo's chance fits) is no second clue
       if (!twin && content.confidence < o.minReadConfidence) continue;
       // concordant: that many reads picked this very join (one pick plus one read against it is not two votes)
@@ -335,7 +359,7 @@ export function assemble(
   const acceptedIds = new Set<string>();
   // pieces placed by the second chance against a finished page
   const completed = new Set<string>();
-  for (const dcs of decide(cands, evidence, o)) tryAccept(dcs);
+  for (const dcs of decide(cands, evidence, o, o.ruledOutRead ? competitors(cands, data) : undefined)) tryAccept(dcs);
 
   // Relaxation: a join is only ambiguous while its rivals are possible. Once the pages grow, rivals whose seams are
   // taken, whose pair is already joined, or that contradict the layout drop out; re-check the margins against the

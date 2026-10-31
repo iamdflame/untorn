@@ -82,6 +82,19 @@ export type MatchOptions = {
    */
   textSeeds: boolean;
   textSeedsPerPair: number;
+  /**
+   * Seed a pair also when only one of its line grids is trusted and the other piece still shows a line direction
+   * (weight ≥ textSeedsLooseWeight): the rotation from the two directions, searched a little wider, without phase. On
+   * the user's retake a curled piece's lines were too unsure to trust (weight 0.13) though their direction was right to
+   * about 1°, and its longest seam (495 px, a better fit from the truth than most true candidates) was never proposed.
+   * Off: with it (and textSeedTau 8) that seam became the top candidate, but whole solves on fixed masks and cached
+   * reads did not improve (the retake 8 pieces right in 3 draws against 10; the other real page 19 against 19): on
+   * curled pieces false fits score as high as true ones, and more candidates only add competition.
+   */
+  textSeedsLoose: boolean;
+  textSeedsLooseWeight: number;
+  /** The one-pass screen's inlier distance for line seeds (px): they sit on a 3 px vote grid and 1.5° rotation steps. */
+  textSeedTau: number;
 };
 
 export const MATCH_DEFAULTS: MatchOptions = {
@@ -115,6 +128,9 @@ export const MATCH_DEFAULTS: MatchOptions = {
   textUpConfidence: UP_CONFIDENCE,
   textSeeds: true,
   textSeedsPerPair: 4,
+  textSeedsLoose: false,
+  textSeedsLooseWeight: 0.1,
+  textSeedTau: 4,
 };
 
 /** Matching data for one fragment. */
@@ -655,7 +671,7 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
   const data = frags.map((f) => matchData(f, o));
   const consensus = lineConsensus(frags);
   // Starting poses: turning-function seeds (shape), then rotation-fixed Hough seeds from the text lines.
-  type Start = { a: number; b: number; pose: Pose; minRun: number; q: number };
+  type Start = { a: number; b: number; pose: Pose; minRun: number; q: number; tau?: number };
   const starts: Start[] = [];
   const pairSeeds: Seed[] = [];
   let seedCount = 0;
@@ -694,7 +710,7 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
       spaces.set(B.f.index, w);
     }
     // one-pass screen: the seam must hold beyond noise at the seed pose
-    correspond(A, B, s.pose, 4, w);
+    correspond(A, B, s.pose, s.tau ?? 4, w);
     const pre = bestRun(w.inl, B.brk, 15);
     screened++;
     if (!pre || pre[2] < s.minRun) return;
@@ -756,8 +772,11 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
     for (let i = 0; i < data.length; i++) {
       for (let j = i + 1; j < data.length; j++) {
         if (twins.has(data[i].f.id) || twins.has(data[j].f.id)) continue;
-        if (!gridTrusted(data[i].f, consensus) || !gridTrusted(data[j].f, consensus)) continue;
-        for (const h of textSeeds(data[i], data[j], o)) fromText.push({ a: data[i].f.index, b: data[j].f.index, pose: h.pose, minRun: o.minOverlap / o.step, q: -h.votes });
+        const ti = gridTrusted(data[i].f, consensus);
+        const tj = gridTrusted(data[j].f, consensus);
+        if (!(ti && tj) && !(o.textSeedsLoose && (ti || tj))) continue;
+        for (const h of textSeeds(data[i], data[j], o, !(ti && tj)))
+          fromText.push({ a: data[i].f.index, b: data[j].f.index, pose: h.pose, minRun: o.minOverlap / o.step, q: -h.votes, tau: o.textSeedTau });
       }
     }
     seedCount += fromText.length;
@@ -798,10 +817,13 @@ export function matchFragments(frags: Fragment[], options: Partial<MatchOptions>
  * translation that brings them together, weighted by how well the text lines would then be in phase. A true seam
  * piles its votes into one place; the best peaks become starting poses for ICP.
  */
-export function textSeeds(A: MatchData, B: MatchData, o: MatchOptions): { pose: Pose; votes: number }[] {
+export function textSeeds(A: MatchData, B: MatchData, o: MatchOptions, loose = false): { pose: Pose; votes: number }[] {
   const ga = photoGrid(A.f);
   const gb = photoGrid(B.f);
-  if (!ga || !gb || ga.weight < o.textPruneWeight || gb.weight < o.textPruneWeight) return [];
+  if (!ga || !gb) return [];
+  // loose: one grid trusted, the other only a direction (its rotation searched wider, no phase weighting)
+  const weak = Math.min(ga.weight, gb.weight);
+  if (Math.max(ga.weight, gb.weight) < o.textPruneWeight || weak < (loose ? o.textSeedsLooseWeight : o.textPruneWeight)) return [];
   const ta = A.f.text!;
   const tb = B.f.text!;
   const base = ga.angle - gb.angle;
@@ -816,14 +838,14 @@ export function textSeeds(A: MatchData, B: MatchData, o: MatchOptions): { pose: 
   const ib = pick(B);
   if (ia.length < 8 || ib.length < 8) return [];
   const pitch = 0.5 * (ga.period + gb.period);
-  // a grid locked onto a harmonic: no phase weighting
-  const phaseOk = ga.period / gb.period > 0.87 && ga.period / gb.period < 1.15;
+  // a grid locked onto a harmonic, or one not trusted: no phase weighting
+  const phaseOk = !loose && ga.period / gb.period > 0.87 && ga.period / gb.period < 1.15;
   const nax = -Math.sin(ga.angle);
   const nay = Math.cos(ga.angle);
   const BIN = 3;
   const out: { pose: Pose; votes: number }[] = [];
   for (const turn of turns) {
-    for (const dth of [-1.5, 0, 1.5]) {
+    for (const dth of loose ? [-3, -1.5, 0, 1.5, 3] : [-1.5, 0, 1.5]) {
       const th = turn + (dth * Math.PI) / 180;
       const c = Math.cos(th);
       const s = Math.sin(th);

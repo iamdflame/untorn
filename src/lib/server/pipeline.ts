@@ -211,10 +211,8 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   if (seg.fragments.length > MAX_PIECES) throw new RunError("too-many");
   if (seg.fragments.length > 60) warn("many-pieces");
   // pieces laid against or on one another: where they meet, SAM has to guess the boundary and the torn edges are lost
-  // (on the real torn page the pieces touching the middle one were the ones left out)
+  // (on the real torn page the pieces touching the middle one were the ones left out); said if pieces are left out
   const touching = new Set(touchingPairs(seg.fragments.map((f) => f.mask)).flat());
-  if (touching.size)
-    warn("overlap", `${touching.size} pieces touch or lie on one another; where they meet, their torn edges can't be seen whole. Spread them apart and take another photo: more pieces will join.`);
   const pieces: PieceOut[] = seg.fragments.map((f) => ({
     id: pieceId(f.id),
     polygon: simplifyClosed(f.polygon, 1.2).map(([x, y]) => [round1(x), round1(y)] as [number, number]),
@@ -245,10 +243,10 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0 },
     render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1], seamLine: (opts.seamPrompt ?? DEFAULT_PROMPT.seam) === "v3" ? "thin" : true },
   });
-  // the writing's size says how much edge detail the photo holds: on the real torn page, text lines 98 px apart placed
-  // 9 of 10 pieces, the same photo at 44 px placed 5 (2 of them wrongly)
-  if (prep.pitch && prep.pitch < SMALL_PITCH)
-    warn("small-photo", `The writing is small in this photo (text lines ${Math.round(prep.pitch)} px apart), so the torn edges are coarse. Move closer, or send the full-size original: more pieces will join.`);
+  // the writing's size says how much edge detail a camera photo holds: on the real torn page, text lines 98 px apart
+  // placed 9 of 10 pieces, the same photo shrunk to 44 px placed 5 (2 of them wrongly). A crisp image with small type
+  // can still rebuild whole (the first screen's letter, 2000 × 1500), so this too is said only if pieces are left out.
+  const smallWriting = prep.pitch && prep.pitch < SMALL_PITCH ? Math.round(prep.pitch) : null;
   const textOf = new Map(prep.fragments.map((f) => [f.id, !!f.text && f.text.confidence >= 0.3] as const));
   for (const p of pieces) p.text = textOf.get(p.id) ?? false;
   const blank = pieces.filter((p) => !p.text).length;
@@ -412,7 +410,14 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   );
   const unplaced = res.unplaced.map((u) => ({ id: u.id, reason: u.reason }));
   send({ type: "assemble", pages, joins, unplaced });
-  if (unplaced.length) warn("partial");
+  // what to change, said when pieces are left out (a whole page needs no advice), before the plain note
+  if (unplaced.length) {
+    if (touching.size)
+      warn("overlap", `${touching.size} pieces touch or lie on one another; where they meet, their torn edges can't be seen whole. Spread them apart and take another photo: more pieces will join.`);
+    if (smallWriting)
+      warn("small-photo", `The writing is small in this photo (text lines ${smallWriting} px apart), so the torn edges are coarse. Move closer, or send the full-size original: more pieces will join.`);
+    warn("partial");
+  }
   stage("assemble", "done");
   checkAbort();
 

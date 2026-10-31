@@ -160,6 +160,13 @@ The new client answered every one of its 120 Spark bench calls. Its retries took
 | sortFragments | 4 | 60 s | 90 s | 150 s |
 
 - **Retried:** network errors, timeouts, 429 (with Retry-After), 5xx, empty output, unparseable output, and output cut off by the token budget.
+- **In the live pipeline (S7):** seam reads run at low effort, hedged after 9 s, 16 at a time, and the read stage stops
+  at 30 s.
+  - **Effort:** on the real tear's 15 seams, minimal effort was right 10, 11 and 11 times in three trials, against 11
+    and 9 at low effort, in half the time. Live, though, it said "same" to a chance fit (p5–p8) in two runs of three,
+    and the piece was misplaced; low effort reads that seam "not the same".
+  - **Concurrency:** at 24 at a time (about 40 connections with hedges), most requests failed to connect within 10 s. Transcription runs at minimal effort on a 1600 px page: 6.7–8.0% character errors in 7–11 s,
+  against 7.5% in 18–21 s at low effort on 2200 px.
 - **Not retried:** 400/401/402/403/404/413.
 - **Logging:** every attempt logs its latency, tokens and estimated cost. Requests use a generic `User-Agent: rejoin/0.1` and `store: false`.
 - **Network from this machine:** `UND_ERR_CONNECT_TIMEOUT`/`fetch failed` errors came in bursts during the Wonder runs. The retry and hedge recovered most of them. For a live demo, run the server on a well-connected host.

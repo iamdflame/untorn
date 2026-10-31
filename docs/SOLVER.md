@@ -162,8 +162,9 @@ where b's lines land in a's frame under a candidate pose.
     a piece 154° against its neighbours.
   - A "not the same" vetoes a join, except against two clues of their own:
     - an overwhelming fit (margin ≥ 5, score ≥ 300);
-    - a fit geometry alone would take whose text lines continue clearly: direction and phase both measured,
-      logLR ≥ 3, against one read at most 0.9 sure.
+    - a fit geometry alone would take, at a margin of 2 or more, whose text lines continue clearly (direction and
+      phase both measured, logLR ≥ 3), against one read at most 0.9 sure. At the bare geometry-alone margin (1.4), a
+      chance fit (p1–p4, margin 1.54) outvoted Muse's correct "no" in two live runs of three.
 
     Replaying the 13 stored runs with their own reads, this placed 7 more pieces and misplaced none more. Muse said
     "not the same" at 0.75–0.9 to true joins of the real photo in about one run in three.

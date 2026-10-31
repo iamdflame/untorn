@@ -15,6 +15,7 @@ import { randomBytes } from "node:crypto";
 import { loadEnv } from "./lib/env";
 import { liveDeps } from "../src/lib/server/live";
 import { runPipeline } from "../src/lib/server/pipeline";
+import { normalisePhoto } from "../src/lib/server/intake";
 import { SAMPLES } from "../src/lib/run/samples";
 import type { RunEvent } from "../src/lib/run/types";
 
@@ -55,8 +56,12 @@ async function main() {
   };
   const strategy = opt("--strategy");
   if (strategy && strategy !== "all" && strategy !== "tree") throw new Error("--strategy all|tree");
+  // as the upload route does: sniff, cap and normalise (HEIC → JPEG) before the pipeline
+  const tIntake = Date.now();
+  const photo = await normalisePhoto(new Uint8Array(readFileSync(photoFile)));
+  console.log(`intake ${photo.kind} ${photo.width}×${photo.height} in ${Date.now() - tIntake} ms`);
   const result = await runPipeline(
-    new Uint8Array(readFileSync(photoFile)),
+    photo.bytes,
     deps,
     {
       runId,

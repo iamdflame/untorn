@@ -48,7 +48,8 @@ import {
 
 // ── config and loading ─────────────────────────────────────────────────────────────────────────────────────────
 
-export type RealCase = { name: string; photo: string; intact?: string; labels?: string; segments?: string; gt: string };
+/** A real case. `intact` lists every page torn into the photo: a mixed bag gives one intact photo per page. */
+export type RealCase = { name: string; photo: string; intact?: string | string[]; labels?: string; segments?: string; gt: string };
 
 const CONFIG = process.env.REAL_CONFIG ?? path.join(process.cwd(), "scripts/eval/real.local.json");
 
@@ -125,17 +126,30 @@ export function loadSegments(c: RealCase): SegmentedFragment[] {
 
 // ── ground truth ───────────────────────────────────────────────────────────────────────────────────────────────
 
-export type GtPiece = { id: string; sim: Similarity; ncc: number; runnerUp: number; pose: Pose; centroid: [number, number] };
+/** `page`: which intact page the piece registered on (index into the case's intact list; 0 for single-page cases). */
+export type GtPiece = { id: string; sim: Similarity; ncc: number; runnerUp: number; pose: Pose; centroid: [number, number]; page?: number };
 export type GtAdjacency = { a: string; b: string; length: number; rel: Pose };
 export type RealGt = {
   name: string;
-  /** Median scale intact px per torn px, and its spread over the pieces (perspective and curl). */
+  /** Median scale intact px per torn px, and its spread over the pieces (perspective and curl): of the main page. */
   scale: number;
   scaleRange: [number, number];
-  /** Page width in torn-photo px (from the intact page's extent ÷ scale). */
+  /** Page width in torn-photo px (from the intact page's extent ÷ scale): of the main page. */
   pageWidth: number;
   pieces: GtPiece[];
   adjacency: GtAdjacency[];
+  /** Mixed bags: each intact page with its own scale and width; the main page (most pieces) also fills the fields above. */
+  pages?: { intact: string; scale: number; pageWidth: number; pieces: string[] }[];
+};
+
+/** An intact page prepared for registering pieces on it. */
+type IntactModel = {
+  file: string;
+  I: Record<number, Gray>;
+  Ib: Record<number, Gray>;
+  pageText: NonNullable<ReturnType<typeof textOrientation>>;
+  pageWidthIntact: number;
+  ncc8: NccSearch;
 };
 
 /** Mean luminance over L×L blocks: level pixel j covers full-res [L·j, L·(j+1)). */
@@ -251,31 +265,25 @@ function textAngle(lum: Gray, x0: number, y0: number, w: number, h: number, mask
   return textOrientation({ width: w, height: h, data: rgba }, { width: w, height: h, data: mask }, depthMap({ width: w, height: h, data: mask }), { margin: 3 });
 }
 
-async function register(c: RealCase, out: string) {
-  if (!c.intact) throw new Error(`case ${c.name} has no intact photo`);
-  const t0 = performance.now();
-  const torn = await loadRgb(c.photo);
-  const intact = await loadRgb(c.intact);
-  const segs = loadSegments(c);
-  console.log(`${c.name}: torn ${torn.width}×${torn.height}, intact ${intact.width}×${intact.height}, ${segs.length} pieces`);
-  const levels = [8, 4, 2] as const;
-  const T: Record<number, Gray> = {};
+/**
+ * Prepare one intact page: luminance pyramids at the search levels (coarse first) and at 4 for the text, the page's
+ * paper, its text angle, pitch and width, and the NCC search at the coarse level.
+ */
+async function intactModel(file: string, levels: number[]): Promise<IntactModel> {
+  const intact = await loadRgb(file);
   const I: Record<number, Gray> = {};
-  const Tb: Record<number, Gray> = {};
   const Ib: Record<number, Gray> = {};
-  for (const L of levels) {
-    T[L] = lumLevel(torn, L);
+  for (const L of new Set([...levels, 4])) {
     I[L] = lumLevel(intact, L);
-    Tb[L] = bandpass(T[L], 0.7, L === 8 ? 2.5 : 3);
-    Ib[L] = bandpass(I[L], 0.7, L === 8 ? 2.5 : 3);
+    Ib[L] = bandpass(I[L], 0.7, L === levels[0] ? 2.5 : 3);
   }
-  const P8 = pageMask(I[8]);
+  const P8 = pageMask(I[levels[0]]);
   const P4 = pageMask(I[4]);
   // the intact page's text angle and pitch (level 4, the page minus a margin)
   const pm = new Uint8Array(P4.length);
   for (let i = 0; i < pm.length; i++) pm[i] = P4[i] ? 1 : 0;
   const pageText = textAngle(I[4], 0, 0, I[4].width, I[4].height, pm);
-  if (!pageText) throw new Error("no text found on the intact page");
+  if (!pageText) throw new Error(`no text found on the intact page ${file}`);
   // page extent along its text direction (for the tolerance unit)
   let minU = Infinity;
   let maxU = -Infinity;
@@ -290,12 +298,23 @@ async function register(c: RealCase, out: string) {
     }
   }
   const pageWidthIntact = 4 * (maxU - minU);
-  console.log(`intact: text angle ${((pageText.angle * 180) / Math.PI).toFixed(2)}°, pitch ${pageText.pitch} (level 4), page width ≈ ${pageWidthIntact.toFixed(0)} px`);
+  console.log(`intact ${path.basename(file)} ${intact.width}×${intact.height}: text angle ${((pageText.angle * 180) / Math.PI).toFixed(2)}°, pitch ${pageText.pitch} (level 4), page width ≈ ${pageWidthIntact.toFixed(0)} px`);
   const valid8 = new Float32Array(P8.length);
   for (let i = 0; i < P8.length; i++) valid8[i] = P8[i];
-  const ncc8 = new NccSearch(Ib[8], valid8, 420);
-  const pieces: GtPiece[] = [];
-  // each piece's own text angle and pitch (level 4); the global scale from the confident pitches
+  return { file, I, Ib, pageText, pageWidthIntact, ncc8: new NccSearch(Ib[levels[0]], valid8, 420) };
+}
+
+/** Pieces registering below this NCC on every intact page belong to none of them (a stray from another page). */
+const MIN_REGISTER_NCC = 0.12;
+
+async function register(c: RealCase, out: string) {
+  if (!c.intact || !c.intact.length) throw new Error(`case ${c.name} has no intact photo`);
+  const files = Array.isArray(c.intact) ? c.intact : [c.intact];
+  const t0 = performance.now();
+  const torn = await loadRgb(c.photo);
+  const segs = loadSegments(c);
+  const T: Record<number, Gray> = { 4: lumLevel(torn, 4) };
+  // each piece's own text angle and pitch (level 4); each page's scale guess from the confident pitches
   const texts = segs.map((seg) => {
     const ml = maskLevel(seg, 4);
     const bin = new Uint8Array(ml.w * ml.h);
@@ -303,81 +322,124 @@ async function register(c: RealCase, out: string) {
     return textAngle(T[4], ml.x0, ml.y0, ml.w, ml.h, bin);
   });
   const pitches = texts.filter((t) => t && t.confidence >= 0.8 && t.pitch).map((t) => t!.pitch!).sort((a, b) => a - b);
-  const s0 = pitches.length && pageText.pitch ? pageText.pitch / pitches[Math.floor(pitches.length / 2)] : 1;
-  console.log(`global scale guess ${s0.toFixed(3)} from ${pitches.length} pitches`);
+  const medianPitch = pitches.length ? pitches[Math.floor(pitches.length / 2)] : 0;
+  // search levels from the torn photo's line pitch: the coarse search needs lines at least ~8 px apart (a phone's full
+  // resolution photo has ~100 px lines and searches at 8; a 1920 px photo has ~36 px lines and searches at 4)
+  const tornPitch = 4 * medianPitch;
+  const coarse = tornPitch >= 32 || !tornPitch ? 8 : 4;
+  const levels = [coarse, Math.max(1, coarse / 2), Math.max(1, coarse / 4)];
+  const [Lc, Lm, Lf] = levels;
+  const models: IntactModel[] = [];
+  for (const f of files) models.push(await intactModel(f, levels));
+  console.log(`${c.name}: torn ${torn.width}×${torn.height}, line pitch ${tornPitch} px → search levels ${levels.join("/")}, ${files.length} intact page(s), ${segs.length} pieces`);
+  const Tb: Record<number, Gray> = {};
+  for (const L of levels) {
+    T[L] ??= lumLevel(torn, L);
+    Tb[L] = bandpass(T[L], 0.7, L === Lc ? 2.5 : 3);
+  }
+  const pieces: GtPiece[] = [];
   for (const [k, seg] of segs.entries()) {
     const tp = performance.now();
-    const p8 = pieceLevel(seg, Tb[8], 8, 16);
-    const p4 = pieceLevel(seg, Tb[4], 4, 16);
-    const p2 = pieceLevel(seg, Tb[2], 2, 16);
+    const p8 = pieceLevel(seg, Tb[Lc], Lc, 16);
+    const p4 = pieceLevel(seg, Tb[Lm], Lm, 16);
+    const p2 = pieceLevel(seg, Tb[Lf], Lf, 16);
     const pt = texts[k];
-    const thetas: number[] = [];
-    if (pt && pt.confidence >= 0.9) {
-      const base = pageText.angle - pt.angle;
-      for (const flip of [0, Math.PI]) for (let d = -4; d <= 4; d += 1) thetas.push(base + flip + (d * Math.PI) / 180);
-    } else for (let d = 0; d < 360; d += 3) thetas.push((d * Math.PI) / 180);
-    const scales = (thetas.length > 20 ? [0.97, 1, 1.03] : [0.94, 0.97, 1, 1.03, 1.06]).map((q) => q * s0);
-    const cands: { S: Similarity; ncc: number }[] = [];
-    for (const th of thetas) {
-      for (const s of scales) {
-        const tpl = warpTemplate(p8, th, s);
-        const { map, W, H } = ncc8.search(tpl.t, tpl.m, tpl.tw, tpl.th, 0.7);
-        for (const pk of peaks(map, W, H, 3, 4)) cands.push({ S: similarityFromPlacement(p8, th, s, tpl.ctx, tpl.cty, pk.u, pk.v, 8), ncc: pk.ncc });
-      }
-    }
-    cands.sort((a, b) => b.ncc - a.ncc);
-    // distinct placements only (centroid of the piece maps > 60 px apart, or > 4° apart)
     const cx = seg.mask.x + seg.mask.width / 2;
     const cy = seg.mask.y + seg.mask.height / 2;
-    const distinct: { S: Similarity; ncc: number }[] = [];
-    for (const k of cands) {
-      const [x, y] = simApply(k.S, cx, cy);
-      if (distinct.some((d) => {
-        const [x2, y2] = simApply(d.S, cx, cy);
-        return Math.hypot(x - x2, y - y2) < 60 && Math.abs(Math.atan2(Math.sin(d.S.theta - k.S.theta), Math.cos(d.S.theta - k.S.theta))) < (4 * Math.PI) / 180;
-      })) continue;
-      distinct.push(k);
-      if (distinct.length >= 10) break;
+    let best: { S: Similarity; ncc: number; coarse: number; page: number } | null = null;
+    let runnerNcc = 0;
+    for (const [pageNo, m] of models.entries()) {
+      const s0 = medianPitch && m.pageText.pitch ? m.pageText.pitch / medianPitch : 1;
+      const thetas: number[] = [];
+      if (pt && pt.confidence >= 0.9) {
+        const base = m.pageText.angle - pt.angle;
+        for (const flip of [0, Math.PI]) for (let d = -4; d <= 4; d += 1) thetas.push(base + flip + (d * Math.PI) / 180);
+      } else for (let d = 0; d < 360; d += 3) thetas.push((d * Math.PI) / 180);
+      const scales = (thetas.length > 20 ? [0.97, 1, 1.03] : [0.94, 0.97, 1, 1.03, 1.06]).map((q) => q * s0);
+      const cands: { S: Similarity; ncc: number }[] = [];
+      for (const th of thetas) {
+        for (const s of scales) {
+          const tpl = warpTemplate(p8, th, s);
+          const { map, W, H } = m.ncc8.search(tpl.t, tpl.m, tpl.tw, tpl.th, 0.7);
+          for (const pk of peaks(map, W, H, 3, 4)) cands.push({ S: similarityFromPlacement(p8, th, s, tpl.ctx, tpl.cty, pk.u, pk.v, Lc), ncc: pk.ncc });
+        }
+      }
+      cands.sort((a, b) => b.ncc - a.ncc);
+      // distinct placements only (centroid of the piece maps > 60 px apart, or > 4° apart)
+      const distinct: { S: Similarity; ncc: number }[] = [];
+      for (const q of cands) {
+        const [x, y] = simApply(q.S, cx, cy);
+        if (distinct.some((d) => {
+          const [x2, y2] = simApply(d.S, cx, cy);
+          return Math.hypot(x - x2, y - y2) < 60 && Math.abs(Math.atan2(Math.sin(d.S.theta - q.S.theta), Math.cos(d.S.theta - q.S.theta))) < (4 * Math.PI) / 180;
+        })) continue;
+        distinct.push(q);
+        if (distinct.length >= 10) break;
+      }
+      const refined = distinct.map((q) => {
+        const r4 = refine(p4.pts, p4.vals, m.Ib[Lm], q.S, Lm, { theta: (1 * Math.PI) / 180, s: 0.02, t: 4 * Lm });
+        const r2 = refine(p2.pts, p2.vals, m.Ib[Lf], r4.S, Lf, { theta: (0.3 * Math.PI) / 180, s: 0.006, t: 2 * Lf });
+        return { coarse: q.ncc, ...r2 };
+      });
+      refined.sort((a, b) => b.ncc - a.ncc);
+      const top = refined[0];
+      if (!top) continue;
+      const [bx, by] = simApply(top.S, cx, cy);
+      const runner = refined.find((r) => {
+        const [x, y] = simApply(r.S, cx, cy);
+        return Math.hypot(x - bx, y - by) > 60;
+      });
+      if (!best || top.ncc > best.ncc) {
+        runnerNcc = Math.max(best?.ncc ?? 0, runner?.ncc ?? 0);
+        best = { S: top.S, ncc: top.ncc, coarse: top.coarse, page: pageNo };
+      } else runnerNcc = Math.max(runnerNcc, top.ncc);
     }
-    const refined = distinct.map((k) => {
-      const r4 = refine(p4.pts, p4.vals, Ib[4], k.S, 4, { theta: (1 * Math.PI) / 180, s: 0.02, t: 16 });
-      const r2 = refine(p2.pts, p2.vals, Ib[2], r4.S, 2, { theta: (0.3 * Math.PI) / 180, s: 0.006, t: 4 });
-      return { coarse: k.ncc, ...r2 };
-    });
-    refined.sort((a, b) => b.ncc - a.ncc);
-    const best = refined[0];
-    if (!best) throw new Error(`${seg.id}: no placement found`);
-    const [bx, by] = simApply(best.S, cx, cy);
-    const runner = refined.find((r) => {
-      const [x, y] = simApply(r.S, cx, cy);
-      return Math.hypot(x - bx, y - by) > 60;
-    });
-    pieces.push({ id: seg.id, sim: best.S, ncc: best.ncc, runnerUp: runner?.ncc ?? 0, pose: { theta: 0, tx: 0, ty: 0 }, centroid: [0, 0] });
+    if (!best || best.ncc < MIN_REGISTER_NCC) {
+      console.log(`  ${seg.id}: on none of the intact pages (best ncc ${best?.ncc.toFixed(3) ?? "–"}): left out of the truth`);
+      continue;
+    }
+    pieces.push({ id: seg.id, sim: best.S, ncc: best.ncc, runnerUp: runnerNcc, pose: { theta: 0, tx: 0, ty: 0 }, centroid: [0, 0], page: best.page });
     console.log(
-      `  ${seg.id}: θ ${((best.S.theta * 180) / Math.PI).toFixed(2)}°, s ${best.S.s.toFixed(4)}, ncc ${best.ncc.toFixed(3)} (coarse ${best.coarse.toFixed(3)}), runner-up ${runner?.ncc.toFixed(3) ?? "–"}, ` +
+      `  ${seg.id}: page ${best.page} θ ${((best.S.theta * 180) / Math.PI).toFixed(2)}°, s ${best.S.s.toFixed(4)}, ncc ${best.ncc.toFixed(3)} (coarse ${best.coarse.toFixed(3)}), runner-up ${runnerNcc.toFixed(3)}, ` +
         `text ${pt ? `${((pt.angle * 180) / Math.PI).toFixed(1)}° conf ${pt.confidence.toFixed(2)} pitch ${pt.pitch}` : "none"}, ${((performance.now() - tp) / 1000).toFixed(1)} s`,
     );
   }
-  // rigid true poses in torn px: scale about each piece's centroid by its own s, then divide the frame by the median
-  const ss = pieces.map((p) => p.sim.s).sort((a, b) => a - b);
-  const scale = ss[Math.floor(ss.length / 2)];
+  // rigid true poses in torn px: scale about each piece's centroid by its own s, then divide the frame by its page's
+  // median scale (each intact page was photographed at its own distance)
+  const pageScale = models.map((_, k) => {
+    const ss = pieces.filter((p) => (p.page ?? 0) === k).map((p) => p.sim.s).sort((a, b) => a - b);
+    return ss.length ? { scale: ss[Math.floor(ss.length / 2)], range: [ss[0], ss[ss.length - 1]] as [number, number] } : null;
+  });
   const inputs = fragmentsFromSegments(rgbToRgba(torn), segs);
   const frags = inputs.map((inp, i) => analyzeFragment(inp, i)).filter((f): f is Fragment => !!f);
   for (const p of pieces) {
     const f = frags.find((x) => x.id === p.id)!;
+    const scale = pageScale[p.page ?? 0]!.scale;
     p.centroid = f.centroid;
     const [qx, qy] = simApply(p.sim, f.centroid[0], f.centroid[1]);
     const c = Math.cos(p.sim.theta);
     const s = Math.sin(p.sim.theta);
     p.pose = { theta: p.sim.theta, tx: qx / scale - (c * f.centroid[0] - s * f.centroid[1]), ty: qy / scale - (s * f.centroid[0] + c * f.centroid[1]) };
   }
-  const adjacency = adjacencyOf(pieces, frags);
-  const gt: RealGt = { name: c.name, scale, scaleRange: [ss[0], ss[ss.length - 1]], pageWidth: pageWidthIntact / scale, pieces, adjacency };
+  // pieces are adjacent only on the same page
+  const adjacency = models.flatMap((_, k) => adjacencyOf(pieces.filter((p) => (p.page ?? 0) === k), frags));
+  const pages = models.map((m, k) => ({
+    intact: m.file,
+    scale: pageScale[k]?.scale ?? 1,
+    pageWidth: m.pageWidthIntact / (pageScale[k]?.scale ?? 1),
+    pieces: pieces.filter((p) => (p.page ?? 0) === k).map((p) => p.id),
+  }));
+  const main = pages.reduce((a, b, k) => (b.pieces.length > pages[a].pieces.length ? k : a), 0);
+  const gt: RealGt = { name: c.name, scale: pages[main].scale, scaleRange: pageScale[main]!.range, pageWidth: pages[main].pageWidth, pieces, adjacency, pages };
   mkdirSync(path.dirname(c.gt), { recursive: true });
   writeFileSync(c.gt, JSON.stringify(gt, null, 1));
-  console.log(`scale ${scale.toFixed(4)} (range ${ss[0].toFixed(4)}–${ss[ss.length - 1].toFixed(4)}), page width ${gt.pageWidth.toFixed(0)} torn px, ${adjacency.length} adjacent pairs, ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+  for (const [k, pg] of pages.entries()) console.log(`page ${k} (${path.basename(pg.intact)}): ${pg.pieces.length} pieces, scale ${pg.scale.toFixed(4)}, page width ${pg.pageWidth.toFixed(0)} torn px`);
+  console.log(`${adjacency.length} adjacent pairs, ${((performance.now() - t0) / 1000).toFixed(0)} s`);
   for (const a of adjacency) console.log(`  ${a.a}–${a.b}: ${a.length.toFixed(0)} px`);
-  await overlay(gt, frags, intact, path.join(out, `${c.name}-registration.jpg`));
+  for (const [k, m] of models.entries()) {
+    const intact = await loadRgb(m.file);
+    await overlay({ ...gt, pieces: pieces.filter((p) => (p.page ?? 0) === k) }, frags, intact, path.join(out, `${c.name}-registration${models.length > 1 ? `-page${k}` : ""}.jpg`));
+  }
 }
 
 /** Pairs whose outlines run within 25 px of each other over ≥ 80 px on the true page, with the true relative pose. */
@@ -489,6 +551,8 @@ export function scoreReal(
   const tolPx = 0.015 * gt.pageWidth;
   const tolDeg = 2;
   const truth = new Map(gt.pieces.map((p) => [p.id, p.pose] as const));
+  // mixed bags: a predicted page agrees with the truth only through pieces of one true page
+  const pageOf = new Map(gt.pieces.map((p) => [p.id, p.page ?? 0] as const));
   const centroid = (id: string) => frags.get(id)?.centroid ?? gt.pieces.find((p) => p.id === id)!.centroid;
   const agree = (G: Pose, id: string, pose: Pose) => {
     const pred = poseCompose(G, pose);
@@ -499,7 +563,7 @@ export function scoreReal(
     const dth = Math.abs(Math.atan2(Math.sin(pred.theta - tr.theta), Math.cos(pred.theta - tr.theta)));
     return Math.hypot(x1 - x2, y1 - y2) <= tolPx && dth <= (tolDeg * Math.PI) / 180;
   };
-  const groups: { page: number; ids: string[] }[] = [];
+  const groups: { page: number; truePage: number; ids: string[] }[] = [];
   const errors: Record<string, { px: number; deg: number }> = {};
   let pagesScored = 0;
   let pagesUpright = 0;
@@ -514,10 +578,13 @@ export function scoreReal(
   pages.forEach((pg, k) => {
     let best: string[] = [];
     let bestG: Pose | null = null;
+    let bestPage = 0;
     for (const anchor of pg.pieces) {
       if (!truth.has(anchor.id)) continue;
+      const tp = pageOf.get(anchor.id);
+      const same = (id: string) => truth.has(id) && pageOf.get(id) === tp;
       let G = poseCompose(truth.get(anchor.id)!, poseInvert(anchor.pose));
-      let ok = pg.pieces.filter((m) => truth.has(m.id) && agree(G, m.id, m.pose));
+      let ok = pg.pieces.filter((m) => same(m.id) && agree(G, m.id, m.pose));
       if (ok.length >= 2) {
         const a: number[] = [];
         const b: number[] = [];
@@ -531,7 +598,7 @@ export function scoreReal(
         }
         if (a.length) {
           const G2 = fitRigid(Float64Array.from(a), Float64Array.from(b)).pose;
-          const ok2 = pg.pieces.filter((m) => truth.has(m.id) && agree(G2, m.id, m.pose));
+          const ok2 = pg.pieces.filter((m) => same(m.id) && agree(G2, m.id, m.pose));
           if (ok2.length >= ok.length) {
             ok = ok2;
             G = G2;
@@ -541,6 +608,7 @@ export function scoreReal(
       if (ok.length > best.length) {
         best = ok.map((m) => m.id);
         bestG = G;
+        bestPage = tp ?? 0;
       }
     }
     if (bestG) for (const m of pg.pieces) if (truth.has(m.id)) errors[m.id] = errorOf(bestG, m.id, m.pose);
@@ -548,11 +616,21 @@ export function scoreReal(
       pagesScored++;
       if (Math.abs(Math.atan2(Math.sin(bestG.theta), Math.cos(bestG.theta))) <= (10 * Math.PI) / 180) pagesUpright++;
     }
-    groups.push({ page: k, ids: best.length >= 2 ? best : [] });
+    groups.push({ page: k, truePage: bestPage, ids: best.length >= 2 ? best : [] });
   });
   groups.sort((x, y) => y.ids.length - x.ids.length);
-  const correct = groups[0]?.ids ?? [];
-  const split = groups.slice(1).flatMap((g) => g.ids);
+  // each true page is rebuilt by its largest agreeing group; other groups of the same page are split off
+  const seenPage = new Set<number>();
+  const correct: string[] = [];
+  const split: string[] = [];
+  for (const g of groups) {
+    if (!g.ids.length) continue;
+    if (seenPage.has(g.truePage)) split.push(...g.ids);
+    else {
+      seenPage.add(g.truePage);
+      correct.push(...g.ids);
+    }
+  }
   const placedIds = pages.flatMap((p) => p.pieces.map((q) => q.id));
   const misplaced = placedIds.filter((id) => !correct.includes(id) && !split.includes(id));
   const unplaced = allIds.filter((id) => !placedIds.includes(id));
@@ -695,6 +773,15 @@ export function experimentFactors(gt: RealGt, mode: string | undefined): Map<str
     }
     const co = solveSPD(A, y, 3);
     return new Map(gt.pieces.map((p) => [p.id, (co[0] + (co[1] * p.centroid[0]) / 1000 + (co[2] * p.centroid[1]) / 1000) / gt.scale] as const));
+  }
+  // a camera tilted along the photo's y axis: pieces lower in the photo are larger by g over the photo's height
+  const tilt = /^tilt:(-?[0-9.]+)$/.exec(mode);
+  if (tilt) {
+    const g = Number(tilt[1]);
+    const ys = gt.pieces.map((p) => p.centroid[1]);
+    const y0 = Math.min(...ys);
+    const y1 = Math.max(...ys);
+    return new Map(gt.pieces.map((p) => [p.id, 1 + g * ((p.centroid[1] - (y0 + y1) / 2) / Math.max(1, y1 - y0))] as const));
   }
   throw new Error(`unknown --piece-scale ${mode}`);
 }

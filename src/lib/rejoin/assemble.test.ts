@@ -106,6 +106,8 @@ describe("decide: a read confirms a join only where the geometry agrees", () => 
     expect(decide([cand({ ...strong, text: lines({ logLR: 4, phaseValid: false }) })], reads(strong.id, false, 0.85), o)).toHaveLength(0);
     expect(decide([cand({ ...strong, text: lines({ logLR: 2 }) })], reads(strong.id, false, 0.85), o)).toHaveLength(0);
     expect(decide([cand({ ...strong, margin: 1.2, marginOther: 1.2 })], reads(strong.id, false, 0.85), o)).toHaveLength(0);
+    // nor for a fit geometry alone takes only just: a chance fit on the real photo stood at margin 1.54
+    expect(decide([cand({ ...strong, margin: 1.6, marginOther: 1.6 })], reads(strong.id, false, 0.85), o)).toHaveLength(0);
   });
 
   it("leaves twins and straight cuts to the reads, as before", () => {

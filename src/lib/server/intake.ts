@@ -27,6 +27,45 @@ export const MIN_SHORT_SIDE = 600;
 /** Largest photo we decode (px): 50 MP. */
 export const MAX_PIXELS = 50_000_000;
 
+const HEIC_UNREADABLE = "That HEIC photo didn't open. Export it as JPEG, or take the photo with the phone page.";
+
+/**
+ * HEIC to JPEG. sharp's prebuilt binaries cannot decode HEVC, so libheif (wasm) decodes the pixels, and sharp encodes
+ * them natively: a phone photo in about 2 s, where heic-convert's JavaScript JPEG encoder alone took several more.
+ * The image's size is read from the container first and checked against MAX_PIXELS before a single pixel is decoded:
+ * a small file declaring a huge image must not get its pixel buffer allocated (width × height × 4 bytes).
+ */
+export async function heicToJpeg(bytes: Uint8Array): Promise<Uint8Array> {
+  let images: Awaited<ReturnType<typeof import("heic-decode").default.all>>;
+  try {
+    const { default: decode } = await import("heic-decode");
+    images = await decode.all({ buffer: bytes });
+  } catch {
+    throw new RunError("unreadable", HEIC_UNREADABLE);
+  }
+  try {
+    const primary = images[0];
+    if (!primary || !(primary.width > 0) || !(primary.height > 0)) throw new RunError("unreadable", HEIC_UNREADABLE);
+    if (primary.width * primary.height > MAX_PIXELS) throw new RunError("too-large", "That photo has more than 50 megapixels. Send a smaller copy.");
+    let pixels: { width: number; height: number; data: Uint8ClampedArray };
+    try {
+      pixels = await primary.decode();
+    } catch {
+      throw new RunError("unreadable", HEIC_UNREADABLE);
+    }
+    const jpeg = await sharp(Buffer.from(pixels.data.buffer, pixels.data.byteOffset, pixels.data.length), {
+      raw: { width: pixels.width, height: pixels.height, channels: 4 },
+      limitInputPixels: MAX_PIXELS,
+    })
+      .removeAlpha()
+      .jpeg({ quality: 94 })
+      .toBuffer();
+    return new Uint8Array(jpeg);
+  } finally {
+    images.dispose?.();
+  }
+}
+
 /**
  * Check an uploaded photo and return JPEG or PNG bytes sharp can decode (HEIC converted to JPEG).
  * Throws RunError with a designed code for every rejection.
@@ -35,15 +74,7 @@ export async function normalisePhoto(bytes: Uint8Array): Promise<{ bytes: Uint8A
   if (bytes.length > MAX_UPLOAD_BYTES) throw new RunError("too-large");
   const kind = sniffImage(bytes);
   if (!kind) throw new RunError("bad-type");
-  let data = bytes;
-  if (kind === "heic") {
-    try {
-      const { default: convert } = await import("heic-convert");
-      data = new Uint8Array(await convert({ buffer: bytes, format: "JPEG", quality: 0.94 }));
-    } catch {
-      throw new RunError("unreadable", "That HEIC photo didn't open. Export it as JPEG, or take the photo with the phone page.");
-    }
-  }
+  const data = kind === "heic" ? await heicToJpeg(bytes) : bytes;
   let meta: Metadata;
   try {
     meta = await sharp(data, { limitInputPixels: MAX_PIXELS }).metadata();

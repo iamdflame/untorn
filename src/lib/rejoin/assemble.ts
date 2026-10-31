@@ -89,6 +89,8 @@ export type AssembleOptions = {
    */
   linesOverrideLogLR: number;
   linesOverrideRead: number;
+  /** …and a margin over every rival of at least this (a chance fit p1–p4 of the real photo had 1.54; true ones 2.1+). */
+  linesOverrideMargin: number;
   /** Loop closure tolerance: px at the fragment's centroid, and degrees. */
   loopPx: number;
   loopDeg: number;
@@ -97,6 +99,12 @@ export type AssembleOptions = {
   overlapShare: number;
   /** The final check of every page allows less: no piece may lie on another beyond overlapPx + this share. */
   finalOverlapShare: number;
+  /**
+   * No piece may lie more than `edgeTol` px beyond a clean straight edge (a page border: ≥ 80 px, RMS ≤ 0.5 px) of
+   * another on its page, within half the edge's length plus `edgeReach` along it.
+   */
+  edgeTol: number;
+  edgeReach: number;
   /** A join is refused when this share of either seam is already used by an accepted join. */
   seamReuse: number;
   refineIters: number;
@@ -106,7 +114,7 @@ export type AssembleOptions = {
   trace?: (candidate: string, outcome: TraceOutcome) => void;
 };
 
-export type TraceOutcome = "accepted" | "pair-joined" | "seam-taken" | "loop-disagrees" | "overlap";
+export type TraceOutcome = "accepted" | "pair-joined" | "seam-taken" | "loop-disagrees" | "overlap" | "beyond-edge";
 
 export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   minGeomScore: 60,
@@ -142,11 +150,14 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   overrideScore: 300,
   linesOverrideLogLR: 3,
   linesOverrideRead: 0.9,
+  linesOverrideMargin: 2,
   loopPx: 6,
   loopDeg: 2,
   overlapPx: 300,
   overlapShare: 0.02,
   finalOverlapShare: 0.02,
+  edgeTol: 20,
+  edgeReach: 600,
   seamReuse: 0.35,
   refineIters: 6,
   twinLoops: true,
@@ -207,6 +218,7 @@ export function decide(cands: Candidate[], evidence: ContentEvidence | null, o: 
         c.edge !== "cut" &&
         ev.votes === 1 &&
         content.confidence <= o.linesOverrideRead &&
+        c.margin >= o.linesOverrideMargin &&
         geometryAlone(c, c.margin, o) &&
         !!t &&
         t.angleValid &&
@@ -292,6 +304,18 @@ export function assemble(
       for (const x of moved) {
         const px = poseCompose(T, pose.get(x)!);
         for (const y of staying) if (overlapping(byId.get(x)!, px, byId.get(y)!, pose.get(y)!, radius, o)) return no("overlap");
+      }
+      // nothing of a page lies beyond its paper's edge: a clean straight edge (a page border) runs the length of the
+      // page, and a join that hangs a piece out past one is a chance fit (p5–p8 of the real photo, read "same" twice).
+      // Torn pages only: where most pieces are bounded by straight cuts, a clean straight edge may be a cut with paper
+      // beyond it.
+      const shares = [...moved, ...staying].map((id) => straightShare(byId.get(id)!.f)).sort((x, y) => x - y);
+      const tornPage = shares[Math.floor(shares.length / 2)] <= 0.4;
+      for (const x of tornPage ? moved : []) {
+        const px = poseCompose(T, pose.get(x)!);
+        for (const y of staying) {
+          if (beyondEdge(byId.get(x)!, px, byId.get(y)!, pose.get(y)!, o.edgeTol, 12, 0.5, o.edgeReach) || beyondEdge(byId.get(y)!, pose.get(y)!, byId.get(x)!, px, o.edgeTol, 12, 0.5, o.edgeReach)) return no("beyond-edge");
+        }
       }
       for (const x of moved) {
         pose.set(x, poseCompose(T, pose.get(x)!));
@@ -722,6 +746,9 @@ export function linesAstray(
   return [...out];
 }
 
+/** Share of a piece's outline on straight segments. */
+const straightShare = (f: Fragment) => f.segments.filter((s) => s.kind === "straight").reduce((a, s) => a + s.length, 0) / Math.max(1, f.outline.length / 2);
+
 /** A clean straight segment: a page edge or a cut, not a stretch of tear that happens to run straight. */
 const cleanStraight = (seg: Segment) => seg.kind === "straight" && seg.length >= 80 && (seg.rms ?? Infinity) <= 0.5;
 
@@ -796,11 +823,7 @@ export function completePages(
   const made: Placement[] = [];
   // a piece bounded mostly by straight edges (scissor or shredder cuts) fits any gap of its shape along them: its place
   // is a content question, as for straight-cut joins
-  const cut = (u: string) => {
-    const f = byId.get(u)!.f;
-    const straight = f.segments.filter((s) => s.kind === "straight").reduce((a, s) => a + s.length, 0);
-    return straight > o.completeMaxStraight * (f.outline.length / 2);
-  };
+  const cut = (u: string) => straightShare(byId.get(u)!.f) > o.completeMaxStraight;
   const left = new Set(units.filter((u) => members.get(comp.get(u)!)?.length === 1 && !cut(u)));
   for (const u of left) pose.set(u, { theta: 0, tx: 0, ty: 0 });
   // what the reads ruled out: a "not the same" on a pair at a pose
@@ -960,10 +983,11 @@ export function completePages(
       seams.push({ with: v, rel, score: m.score, overlap: m.overlap, rms: m.rms, fineRms: m.fineRms, shapeRms: m.shapeRms, conditioning: m.conditioning, areaOverlap: m.areaOverlap, seamA: m.seamA, seamB: m.seamB, text });
     }
     if (!seams.length) return no("no seam");
-    // inside the paper: beyond no page edge of the page's pieces, and none of them beyond its own
-    for (const v of ids) {
-      if (beyondEdge(U, T, byId.get(v)!, pose.get(v)!)) return no(`beyond the page edge of ${v}`);
-      if (beyondEdge(byId.get(v)!, pose.get(v)!, U, T)) return no(`its page edge has ${v} beyond it`);
+    // inside the paper: beyond no page edge of the page's pieces, and none of them beyond its own (torn pages only)
+    const shares = ids.map((id) => straightShare(byId.get(id)!.f)).sort((x, y) => x - y);
+    for (const v of shares[Math.floor(shares.length / 2)] <= 0.4 ? ids : []) {
+      if (beyondEdge(U, T, byId.get(v)!, pose.get(v)!, o.edgeTol, 12, 0.5, o.edgeReach)) return no(`beyond the page edge of ${v}`);
+      if (beyondEdge(byId.get(v)!, pose.get(v)!, U, T, o.edgeTol, 12, 0.5, o.edgeReach)) return no(`its page edge has ${v} beyond it`);
     }
     // on the page's lines, and reading its way
     const t = U.f.text;
@@ -1252,7 +1276,10 @@ function clearOverlaps(
  * paper's edge: nothing of the page lies outside it, along its stretch. Counts X's interior samples more than `tol` px
  * outside it there; true beyond `limit` of them.
  */
-function beyondEdge(X: MatchData, px: Pose, Y: MatchData, py: Pose, tol = 20, limit = 12): boolean {
+export function beyondEdge(X: MatchData, px: Pose, Y: MatchData, py: Pose, tol = 20, limit = 12, reachK = 0.5, reachAdd = 60): boolean {
+  // only a torn piece's straight edge is the paper's border: on a cut piece (mostly straight, scissors or a shredder)
+  // a clean straight edge is as likely a cut through the page, with paper beyond it
+  if (straightShare(Y.f) > 0.4) return false;
   const c = Math.cos(py.theta);
   const s = Math.sin(py.theta);
   for (const seg of Y.f.segments) {
@@ -1279,7 +1306,7 @@ function beyondEdge(X: MatchData, px: Pose, Y: MatchData, py: Pose, tol = 20, li
     const ony = (s * nx + c * ny) / nl;
     // along the edge: its own stretch and a little more (page edges of distant pieces need not line up exactly: the
     // assembled page carries a few px of error per seam, and a phone photo's perspective bends a rigid layout)
-    const reach = 0.5 * seg.length + 60;
+    const reach = reachK * seg.length + reachAdd;
     let out = 0;
     const cx2 = Math.cos(px.theta);
     const sx2 = Math.sin(px.theta);

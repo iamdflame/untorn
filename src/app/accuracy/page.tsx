@@ -83,7 +83,7 @@ export default function AccuracyPage() {
         <div className="acc-top">
           <div>
             <h1>How accurate is it?</h1>
-            <p className="lede">Every number here was measured, and every test set says what it is. Simulated tears have known answers. One real hand-torn page has been scored so far, against a photo of it taken before it was torn.</p>
+            <p className="lede">Every number here was measured, and every test set says what it is. Simulated tears have known answers. Two real hand-torn pages have been scored so far, each against a photo of it taken before it was torn.</p>
           </div>
           <dl className="acc-keys">
             <div>
@@ -203,18 +203,26 @@ export default function AccuracyPage() {
           />
         </Section>
 
-        <Section id="real" title="Real tears" label="Measured: 1 page" intro="Hand-torn paper photographed on a table with a phone, scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place.">
+        <Section id="real" title="Real tears" label="Measured: 2 pages" intro="Hand-torn paper photographed on a table with a phone, scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place. Every run below is the deployed version on the live site, 31 Oct 2026.">
           <Table
-            caption="A printed report page, torn by hand into 10 pieces and photographed with several pieces touching: the same photo, five live runs"
+            caption="Page 1: a printed report page, torn by hand into 10 pieces and photographed with several pieces touching"
             head={["Run", "Placed correctly", "Misplaced", "Page upright", "Transcript errors", "Photo to page"]}
             rows={[
-              ["1, live site", "8 of 10", 0, "yes", "19.3%", "51.8 s"],
-              ["2, live site", "8 of 10", 0, "yes", "21.0%", "46.9 s"],
-              ["3, live site", "8 of 10", 0, "yes", "19.3%", "45.9 s"],
-              ["4, local, same code", "6 of 10", "2 (true neighbours, 40–50 px off)", "yes", "12.1%", "35.5 s"],
-              ["5, local, same code", "6 of 10", "1 (true neighbour, 49 px off)", "yes", "25.8%", "38.8 s"],
+              [1, "6 of 10", "1 (a true neighbour, 51 px and 2.2° off)", "yes", "25.5%", "58.1 s"],
+              [2, "9 of 10", 0, "yes", "8.0%", "51.6 s"],
+              [3, "6 of 10", "1 (the same, 50 px and 2.2° off)", "yes", "25.5%", "49.7 s"],
             ]}
-            note="Run on 31 Oct 2026 with the deployed version. Pieces that aren't placed are set aside, never forced. A misplaced piece here is its true neighbour set just past the tolerance (1.5% of the page width, 39 px). The transcript errors count the text of set-aside pieces as missing. The pieces left out lie against the middle piece in this photo: where pieces touch, their torn edges can't be seen whole, and the run now says so and asks for a retake with the pieces apart. Results vary between runs because Muse's reads vary. Earlier versions on this photo: 9, 7, 9 and 9 of 10 (30 Oct, 63–85 s a run); 8, 6, 8 and 7 of 10 (one near miss); 6, 7 and 6 of 10 with three wrong joins in one run; and, before the real-paper work, 0 of 10. The page's text is not shown here."
+            note="Pieces that aren't placed are set aside, never forced. A misplaced piece here is its true neighbour set just past the tolerance (1.5% of the page width, 39 px; 2°). The transcript errors count the text of set-aside pieces as missing. The pieces left out lie against the middle piece in this photo: where pieces touch, their torn edges can't be seen whole, and the run says so. Results vary between runs: SAM's outlines and Muse's reads differ a little each time. Earlier versions on this photo: 8, 8 and 8 of 10; 9, 7, 9 and 9 of 10 (63–85 s a run); and, before the real-paper work, 0 of 10. The page's text is not shown here."
+          />
+          <Table
+            caption="Page 2: another page of the same report, torn into 10 pieces laid apart, photographed 11.6° off straight down"
+            head={["Run", "Placed correctly", "Misplaced", "Split off", "Photo to page"]}
+            rows={[
+              [1, "3 of 10", 2, 2, "53.8 s"],
+              [2, "3 of 10", 2, 2, "58.6 s"],
+              [3, "4 of 10", 1, 0, "62.5 s"],
+            ]}
+            note="The phone recorded its tilt in the photo, and every run straightens it first. As taken, the far pieces' text lines were 63 px apart and the near ones' 90 px, and the page split into three fragments. In every misplacement, a true neighbour was turned 6–7° on a short seam (180 px). The words still continue across so short a seam, so the reading agreed, and that piece's curled lines were too unsure for the text-line check to catch the turn. The other piece misplaced was joined to it. The blank corner piece can only be placed by shape and wasn't placed in any run. The page's text is not shown here."
           />
         </Section>
 
@@ -233,9 +241,10 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl, pieces touching and a tilted camera, 6 to 8 of 10 pieces land in the right place on the one real page measured so far; the rest are set aside, and some runs set a piece just past the tolerance.</li>
+            <li>Real hand-torn paper is harder than our simulations. Fibrous rims, curl and pieces touching put 6 to 9 of 10 pieces in the right place on the first real page and 3 to 4 on the second. The rest are set aside, and some runs set a piece just past the tolerance or turned on a short seam.</li>
+            <li>A curled piece bends its own edges and text lines. On a short seam the reading can&apos;t see a turn of a few degrees, so the piece can land turned.</li>
             <li>Pieces that touch in the photo lose the edges between them; so do photos shrunk by a messaging app (the same page at 1920 px: 5 of 10).</li>
-            <li>A live run on a real photo takes 35–55 s; most of it is Muse reading across the tears.</li>
+            <li>A live run on a real photo takes 45–65 s; most of it is Muse reading across the tears.</li>
           </ul>
         </Section>
       </div>

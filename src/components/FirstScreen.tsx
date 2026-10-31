@@ -16,6 +16,9 @@ import dynamic from "next/dynamic";
 import { useRun, type LiveInput } from "./run/useRun";
 import { openPicker, TearYourOwn } from "./TearYourOwn";
 
+/** The sample in another language, offered under "Run the sample live". */
+const GERMAN_SAMPLE = "stresemann-1922";
+
 // below the fold: its code loads when it is needed
 const ResultSection = dynamic(() => import("./result/ResultSection").then((m) => m.ResultSection), { ssr: false });
 
@@ -186,6 +189,11 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
         onPhoto={onPhoto}
         onFile={onFile}
         onSample={() => goLive({ sample: sample.name })}
+        other={
+          sample.name === GERMAN_SAMPLE
+            ? { lead: "Or the first screen's English letter:", label: "a letter of 1927", href: "/" }
+            : { lead: "It reads other languages too:", label: "a German letter of 1922, read and translated", href: `/?sample=${GERMAN_SAMPLE}` }
+        }
         disabled={busy}
         footer={
           <footer className="foot">

@@ -12,7 +12,22 @@ type Phase = { kind: "idle" } | { kind: "creating" } | { kind: "waiting"; sessio
 
 export const POLL_MS = 1500;
 
-export function TearYourOwn({ onPhoto, onFile, onSample, disabled, footer }: { onPhoto: (photoId: string) => void; onFile: (file: File) => void; onSample?: () => void; disabled?: boolean; footer?: React.ReactNode }) {
+/** `other`: a link to the sample in another language, under "Run the sample live". */
+export function TearYourOwn({
+  onPhoto,
+  onFile,
+  onSample,
+  other,
+  disabled,
+  footer,
+}: {
+  onPhoto: (photoId: string) => void;
+  onFile: (file: File) => void;
+  onSample?: () => void;
+  other?: { lead: string; label: string; href: string };
+  disabled?: boolean;
+  footer?: React.ReactNode;
+}) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -159,6 +174,11 @@ export function TearYourOwn({ onPhoto, onFile, onSample, disabled, footer }: { o
               <button type="button" className="btn" onClick={onSample} disabled={disabled}>
                 Run the sample live
               </button>
+              {other && (
+                <p className="way-other">
+                  {other.lead} <a href={other.href}>{other.label}</a>
+                </p>
+              )}
             </div>
           )}
           <p className="privacy-line">Photos are deleted within 24 hours and never used for training.</p>

@@ -1274,6 +1274,16 @@ h2 {
   margin: 0 0 12px;
   font-size: 15px;
 }
+.way .way-other {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.way .way-other a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .qr {
   width: 184px;
   height: 184px;

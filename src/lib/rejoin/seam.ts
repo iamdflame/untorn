@@ -28,8 +28,11 @@ export type SeamRenderOptions = {
    * a harmonic) is drawn at this pitch instead, so one odd estimate cannot zoom a seam onto a single word.
    */
   pitchHint?: number | null;
-  /** Draw the tear as a dark line (pair images). */
-  seamLine?: boolean;
+  /**
+   * Draw the tear as a dark line (pair images): 3 px solid, or "thin" (1 px at 55%), which leaves the letters the tear
+   * cuts readable under it.
+   */
+  seamLine?: boolean | "thin";
   /** Choice sheets: show each candidate joined, flush, to the left piece (one strip per candidate; Muse's "joined"
    *  prompt) instead of on its own under it. */
   joined?: boolean;
@@ -188,7 +191,11 @@ export function renderSeam(frags: Fragment[] | Map<string, Fragment>, candidate:
   const fr = seamFrame(A, candidate.seamA, B, candidate.pose, opts);
   const out = blank(fr.width, fr.height, bg);
   paint(out, 0, 0, fr, [{ f: A, pose: { theta: 0, tx: 0, ty: 0 } }, { f: B, pose: candidate.pose }], bg);
-  if (opts.seamLine ?? true) {
+  const line = opts.seamLine ?? true;
+  if (line) {
+    const thin = line === "thin";
+    const r = thin ? 0 : 1;
+    const a = thin ? 0.55 : 1;
     const n = A.outline.length / 2;
     const c = Math.cos(fr.phi);
     const s = Math.sin(fr.phi);
@@ -198,15 +205,15 @@ export function renderSeam(frags: Fragment[] | Map<string, Fragment>, candidate:
       const dy = A.outline[2 * i + 1] - fr.cy;
       const u = (c * dx - s * dy) * fr.scale + fr.width / 2;
       const v = (s * dx + c * dy) * fr.scale + fr.height / 2;
-      for (let ddy = -1; ddy <= 1; ddy++) {
-        for (let ddx = -1; ddx <= 1; ddx++) {
+      for (let ddy = -r; ddy <= r; ddy++) {
+        for (let ddx = -r; ddx <= r; ddx++) {
           const X = Math.round(u + ddx);
           const Y = Math.round(v + ddy);
           if (X < 0 || Y < 0 || X >= fr.width || Y >= fr.height) continue;
           const k = 4 * (Y * fr.width + X);
-          out.data[k] = SEAM_INK[0];
-          out.data[k + 1] = SEAM_INK[1];
-          out.data[k + 2] = SEAM_INK[2];
+          out.data[k] = Math.round(a * SEAM_INK[0] + (1 - a) * out.data[k]);
+          out.data[k + 1] = Math.round(a * SEAM_INK[1] + (1 - a) * out.data[k + 1]);
+          out.data[k + 2] = Math.round(a * SEAM_INK[2] + (1 - a) * out.data[k + 2]);
         }
       }
     }

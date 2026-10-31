@@ -11,6 +11,7 @@ import {
   polygonArea,
   robustSeparation,
   snapToPaperEdge,
+  touchingPairs,
   traceOutline,
   upsampleMask,
   type PlacedMask,
@@ -142,5 +143,19 @@ describe("snapping a coarse mask to the paper edge", () => {
     expect(after.medianBoundaryPx).toBeLessThan(0.75);
     expect(after.medianBoundaryPx).toBeLessThan(was.medianBoundaryPx);
     expect(maskIoU(mask, gt)).toBeGreaterThan(0.98);
+  });
+});
+
+describe("touchingPairs", () => {
+  const rect = (x: number, y: number, w: number, h: number): PlacedMask => ({ x, y, width: w, height: h, data: new Uint8Array(w * h).fill(1) });
+  it("finds pieces laid against each other, and only those", () => {
+    const a = rect(100, 100, 200, 300);
+    const touching = rect(302, 120, 150, 200); // 2 px gap along 200 px
+    const apart = rect(700, 100, 200, 300); // 250 px away from the touching one
+    const corner = rect(304, 403, 50, 50); // meets a's corner only
+    expect(touchingPairs([a, touching, apart, corner])).toEqual([[0, 1]]);
+  });
+  it("counts pieces lying on one another", () => {
+    expect(touchingPairs([rect(0, 0, 300, 300), rect(250, 250, 300, 300)])).toEqual([[0, 1]]);
   });
 });

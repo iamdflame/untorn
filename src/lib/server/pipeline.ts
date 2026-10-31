@@ -32,8 +32,9 @@ import {
   type WarningCode,
 } from "@/lib/run/types";
 import { decodePhoto, resizeJpeg, rotate180Jpeg, type DecodedPhoto } from "./images";
-import { simplifyClosed } from "./mask-geometry";
+import { simplifyClosed, touchingPairs } from "./mask-geometry";
 import type { chooseContinuation, MuseOutcome, pageOrientation, readPage, translate, verifySeam } from "./muse";
+import { DEFAULT_PROMPT, type SeamPromptVersion } from "./prompts";
 import type { SegmentResult } from "./segment";
 import { sharpness } from "./intake";
 
@@ -75,6 +76,10 @@ export type PipelineOptions = {
   readHedgeMs?: number;
   /** Reasoning effort of the pair reads (k-way sheets keep the model's default, low). */
   readEffort?: "minimal" | "low";
+  /** Experiments: the pair reads' wording (default: prompts.ts DEFAULT_PROMPT) and the text-line evidence a join on
+   *  its shape alone needs (default 0; -Infinity is the solver's own default). */
+  seamPrompt?: SeamPromptVersion;
+  minLinesLogLR?: number;
   /** Transcription: reasoning effort and the page image's long side (px). */
   transcribeEffort?: "minimal" | "low";
   transcribeLongSide?: number;
@@ -89,6 +94,8 @@ export type PipelineOptions = {
 };
 
 const SEAM_JPEG_QUALITY = 90;
+/** Text lines closer than this (photo px) mean a small or distant photo: its torn edges are coarse. */
+const SMALL_PITCH = 60;
 /** Fewest type pixels a question needs to be worth a read: a pair image, each candidate of a k-way sheet, and the
  *  sheet's left piece (a few words). Measured on the stack sample: these keep 45 of 65 sheets and lift Muse's picks
  *  from 46/60 to 34/40 right. */
@@ -136,9 +143,9 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     timeline.push({ t: ev.t, type: ev.type, id: timelineId(ev) });
     emit(ev);
   };
-  const warn = (code: WarningCode) => {
+  const warn = (code: WarningCode, message?: string) => {
     if (warnings.some((w) => w.code === code)) return;
-    const w = { code, message: WARNINGS[code] };
+    const w = { code, message: message ?? WARNINGS[code] };
     warnings.push(w);
     send({ type: "warning", warning: w });
   };
@@ -203,6 +210,11 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   if (!seg.fragments.length) throw new RunError("no-pieces");
   if (seg.fragments.length > MAX_PIECES) throw new RunError("too-many");
   if (seg.fragments.length > 60) warn("many-pieces");
+  // pieces laid against or on one another: where they meet, SAM has to guess the boundary and the torn edges are lost
+  // (on the real torn page the pieces touching the middle one were the ones left out)
+  const touching = new Set(touchingPairs(seg.fragments.map((f) => f.mask)).flat());
+  if (touching.size)
+    warn("overlap", `${touching.size} pieces touch or lie on one another; where they meet, their torn edges can't be seen whole. Spread them apart and take another photo: more pieces will join.`);
   const pieces: PieceOut[] = seg.fragments.map((f) => ({
     id: pieceId(f.id),
     polygon: simplifyClosed(f.polygon, 1.2).map(([x, y]) => [round1(x), round1(y)] as [number, number]),
@@ -224,7 +236,19 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   const sheet = opts.choiceSheet ?? DEFAULT_CHOICE_SHEET;
   const win = opts.sheetWindow ?? DEFAULT_SHEET_WINDOW;
   const sheetArea = (win[0] * win[1]) / (420 * 150);
-  const prep: Prepared = prepare(inputs, { maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length), twinStrategy: strategy, render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1] } });
+  // reads are always asked here, so a join on its shape alone also needs the pieces' text lines not to disagree
+  // (minLinesLogLR 0): on the real photo a chance fit with lines 5° apart took a page apart; a read still confirms such
+  // a join. The tear line is drawn thin, so the letters it cuts stay readable (seam v3).
+  const prep: Prepared = prepare(inputs, {
+    maxPairChecks: opts.maxPairChecks ?? Math.min(40, 3 * inputs.length),
+    twinStrategy: strategy,
+    assemble: { minLinesLogLR: opts.minLinesLogLR ?? 0 },
+    render: { joined: sheet === "joined", sheetWidth: win[0], sheetHeight: win[1], seamLine: (opts.seamPrompt ?? DEFAULT_PROMPT.seam) === "v3" ? "thin" : true },
+  });
+  // the writing's size says how much edge detail the photo holds: on the real torn page, text lines 98 px apart placed
+  // 9 of 10 pieces, the same photo at 44 px placed 5 (2 of them wrongly)
+  if (prep.pitch && prep.pitch < SMALL_PITCH)
+    warn("small-photo", `The writing is small in this photo (text lines ${Math.round(prep.pitch)} px apart), so the torn edges are coarse. Move closer, or send the full-size original: more pieces will join.`);
   const textOf = new Map(prep.fragments.map((f) => [f.id, !!f.text && f.text.confidence >= 0.3] as const));
   for (const p of pieces) p.text = textOf.get(p.id) ?? false;
   const blank = pieces.filter((p) => !p.text).length;
@@ -275,13 +299,16 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     let read: ReadOut;
     let verdict: ContentVerdict | null = null;
     if (req.kind === "pair") {
-      const out = await deps.verifySeam(image, { ...callOpts, effort: opts.readEffort ?? DEFAULT_READ_EFFORT });
+      const out = await deps.verifySeam(image, { ...callOpts, effort: opts.readEffort ?? DEFAULT_READ_EFFORT, prompt: opts.seamPrompt });
       museCost(out);
       read = { ...base, kind: "pair", pieces: [req.a, req.b], candidates: [req.candidate], ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started };
       if (out.ok) {
         const v = out.value;
-        Object.assign(read, { same: v.same_place, confidence: round3(v.confidence), words: v.words_across, reason: v.reason });
-        verdict = { kind: "pair", id: req.id, same: v.same_place, confidence: v.confidence, reason: v.reason, wordsAcross: v.words_across };
+        // no letter crosses the tear (seam v3): the read is no clue either way, and the join rests on its shape and lines
+        const same = v.text_crosses === false ? null : v.same_place;
+        const confidence = v.text_crosses === false ? Math.min(0.5, v.confidence) : v.confidence;
+        Object.assign(read, { same, confidence: round3(confidence), words: v.words_across, reason: v.reason });
+        verdict = { kind: "pair", id: req.id, same, confidence, reason: v.reason, wordsAcross: v.words_across };
       } else read.error = out.error.code;
     } else {
       const out = await deps.chooseContinuation(image, req.candidates.length, sheet === "joined" ? { ...callOpts, prompt: "joined" } : callOpts);

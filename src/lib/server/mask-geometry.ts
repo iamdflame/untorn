@@ -147,6 +147,58 @@ export function maskCoverage(a: PlacedMask, b: PlacedMask): number {
   return area ? inter / area : 0;
 }
 
+/**
+ * Pairs of pieces (indices into `masks`) that touch or lie on one another: their masks come within `gap` px along at
+ * least `minContact` px, or overlap. Where two pieces touch, one edge hides under the other or the two blur together,
+ * so neither edge can be matched. Checked on a grid of `cell` px (each cell set when any pixel in it is), so a 24 MP
+ * photo takes milliseconds.
+ */
+export function touchingPairs(masks: PlacedMask[], { gap = 6, minContact = 40, cell = 4 } = {}): [number, number][] {
+  const grids = masks.map((m) => {
+    const gx0 = Math.floor(m.x / cell);
+    const gy0 = Math.floor(m.y / cell);
+    const w = Math.floor((m.x + m.width - 1) / cell) - gx0 + 1;
+    const h = Math.floor((m.y + m.height - 1) / cell) - gy0 + 1;
+    const g = new Uint8Array(Math.max(0, w * h));
+    for (let r = 0; r < m.height; r++) {
+      const row = (Math.floor((m.y + r) / cell) - gy0) * w;
+      for (let c = 0; c < m.width; c++) if (m.data[r * m.width + c]) g[row + Math.floor((m.x + c) / cell) - gx0] = 1;
+    }
+    return { gx0, gy0, w, h, g };
+  });
+  const reach = Math.ceil(gap / cell);
+  const out: [number, number][] = [];
+  for (let i = 0; i < grids.length; i++) {
+    for (let j = i + 1; j < grids.length; j++) {
+      const A = grids[i];
+      const B = grids[j];
+      if (A.gx0 > B.gx0 + B.w - 1 + reach || B.gx0 > A.gx0 + A.w - 1 + reach || A.gy0 > B.gy0 + B.h - 1 + reach || B.gy0 > A.gy0 + A.h - 1 + reach) continue;
+      // cells of A with a cell of B within reach: a contact line of L px gives about L / cell of them
+      let contact = 0;
+      for (let y = 0; y < A.h; y++) {
+        for (let x = 0; x < A.w; x++) {
+          if (!A.g[y * A.w + x]) continue;
+          let near = false;
+          for (let dy = -reach; dy <= reach && !near; dy++) {
+            const by = A.gy0 + y + dy - B.gy0;
+            if (by < 0 || by >= B.h) continue;
+            for (let dx = -reach; dx <= reach; dx++) {
+              const bx = A.gx0 + x + dx - B.gx0;
+              if (bx >= 0 && bx < B.w && B.g[by * B.w + bx]) {
+                near = true;
+                break;
+              }
+            }
+          }
+          if (near) contact++;
+        }
+      }
+      if (contact * cell >= minContact) out.push([i, j]);
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Outline tracing
 

@@ -10,7 +10,8 @@
 // .4: the parts wording allows a loose piece to be upside down.
 // 2026-10-30.1: orient v1 (pageOrientation: is a rebuilt page upright? asked only where the solver is unsure).
 // 2026-10-30.2: both lines together (rejoin-shred merged with rejoin): read markdown/parts and orient v1.
-export const PROMPTS_VERSION = "2026-10-30.2";
+// 2026-10-31.1: seam v3 (tears along the lines as well as across them; text_crosses: no letter at the tear is no clue).
+export const PROMPTS_VERSION = "2026-10-31.1";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -52,6 +53,47 @@ const SEAM_V2 =
   "so with a low confidence.\n" +
   "Return same_place, your confidence from 0 to 1, the joined words you read across the tear, and a one-line reason " +
   "that names the deciding words.";
+
+/**
+ * v3: v2 also asked the end of each line on the left piece against its start on the right, so a tear running along the
+ * lines (between two of them, through a paragraph gap or a margin) had nothing to read, and Muse answered "not the same"
+ * at 0.85 to true joins (the real photo's p2–p8, four times out of four). v3 first asks whether the words can judge
+ * the join at all; where they can't, the read is no clue either way and the join rests on its shape and lines. "No
+ * clue" is only for a tear no line of text meets from both pieces: a tear that crosses the lines between two words
+ * still has a sentence to read (an earlier v3 wording let Muse call such a false join blank, and it was taken).
+ */
+const SEAM_V3 =
+  "This image shows two torn paper fragments placed edge to edge; the thin dark line marks the tear between them. Some " +
+  "placements are true (both pieces come from this exact spot on one page); others are two different spots that only " +
+  "happen to fit.\n" +
+  "First compare the two pieces' text: if one piece's text is upside down or runs at a different angle from the " +
+  "other's, the lines cannot continue: that is a false join (text_crosses true, same_place false).\n" +
+  "Then decide whether the words can judge this join. text_crosses is true when the tear cuts through letters, or when " +
+  "a line of text meets the tear from both pieces, even where the tear passes between two words. text_crosses is " +
+  "false only when no line of text meets the tear from both pieces and no letter is cut: the tear runs between two " +
+  "lines, through a paragraph gap or along a margin. Then the words cannot decide this join: give your best guess with " +
+  "a confidence of at most 0.55.\n" +
+  "Where text crosses, work like a crossword. For each line that meets the tear from both pieces, read it from one " +
+  "piece into the other: on a true join the joined words are real words that continue the sentence. Letters cut by " +
+  "the tear must complete each other, including the tops and bottoms of letters cut by a tear that runs along a line. " +
+  "On a false join at least one line breaks: a cut letter does not complete, a joined word is not a word, or the " +
+  "sentence stops making sense. One broken line is enough to reject. Judge only from what you can read.\n" +
+  "Return text_crosses, same_place, your confidence from 0 to 1, the joined words you read across the tear, and a " +
+  "one-line reason that names the deciding words.";
+
+/** v3's answer: v2's, plus whether any text crosses the tear. */
+export const SEAM_SCHEMA_V3: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["text_crosses", "same_place", "confidence", "words_across", "reason"],
+  properties: {
+    text_crosses: { type: "boolean" },
+    same_place: { type: "boolean" },
+    confidence: { type: "number" },
+    words_across: words,
+    reason: { type: "string" },
+  },
+};
 
 /** flush: v1 for a seam drawn without the dark gap line (the two pieces simply meet). */
 const SEAM_FLUSH =
@@ -253,7 +295,7 @@ const SORT_V1 = (n: number) =>
 const fragmentLabel = (i: number) => `Fragment ${i}:`;
 
 export const PROMPTS = {
-  seam: { v1: SEAM_V1, v2: SEAM_V2, flush: SEAM_FLUSH },
+  seam: { v1: SEAM_V1, v2: SEAM_V2, v3: SEAM_V3, flush: SEAM_FLUSH },
   choice: { v1: CHOICE_V1, v2: CHOICE_V2, joined: CHOICE_JOINED },
   read: { v1: READ_V1, markdown: READ_MARKDOWN, parts: READ_PARTS },
   orient: { v1: ORIENT_V1 },
@@ -270,4 +312,4 @@ export type ReadPromptVersion = keyof typeof PROMPTS.read;
 export type ChoicePromptVersion = keyof typeof PROMPTS.choice;
 
 /** The wording each function uses by default, chosen from the measured runs in docs/MODELS.md. */
-export const DEFAULT_PROMPT = { seam: "v2" as SeamPromptVersion, choice: "v1" as ChoicePromptVersion };
+export const DEFAULT_PROMPT = { seam: "v3" as SeamPromptVersion, choice: "v1" as ChoicePromptVersion };

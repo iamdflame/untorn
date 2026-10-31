@@ -69,13 +69,14 @@ function opts(extra: Partial<MuseOptions> = {}) {
   return { o, logs, sleeps };
 }
 
-const seam = { same_place: false, confidence: 0.8, words_across: ["tose"], reason: "'to'+'se' is not a word" };
+const seam = { text_crosses: true, same_place: false, confidence: 0.8, words_across: ["tose"], reason: "'to'+'se' is not a word" };
 
 describe("verifySeam", () => {
   it("parses a recorded muse-spark-1.3 response and logs tokens and cost", async () => {
     const f = fakeFetch([new Response(recorded, { status: 200 })]);
     const { o, logs } = opts({ fetchImpl: f.impl });
-    const r = await verifySeam(img, o);
+    // the recording answers the v2 wording (no text_crosses)
+    const r = await verifySeam(img, { ...o, prompt: "v2" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.same_place).toBe(true);
@@ -85,6 +86,16 @@ describe("verifySeam", () => {
     expect(r.meta.costUsd).toBeCloseTo((199 * 1.25 + 1842 * 4.25) / 1e6, 8);
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatchObject({ outcome: "ok", status: 200 });
+  });
+
+  it("v3 passes text_crosses through, and retries an answer without it", async () => {
+    const f = fakeFetch([answer({ same_place: true, confidence: 0.5, words_across: [], reason: "blank" }), answer({ ...seam, text_crosses: false })]);
+    const { o, logs } = opts({ fetchImpl: f.impl });
+    const r = await verifySeam(img, o);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.text_crosses).toBe(false);
+    expect(logs.map((l) => l.error ?? "ok")).toEqual(["unparseable", "ok"]);
   });
 
   it("sends a strict structured request with a generic User-Agent and no stored response", async () => {

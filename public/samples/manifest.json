@@ -118,6 +118,46 @@
       },
       "twins": "stack-3-letters",
       "download": "/samples/stack-3-letters/result.json"
+    },
+    "stresemann-1922": {
+      "name": "stresemann-1922",
+      "title": "A German letter of 1922, torn into 10 pieces",
+      "caption": "Simulated tear of a real public-domain letter in German (Gustav Stresemann to Gustav Reimann, 11 May 1922, via Wikimedia Commons). The outlines, seam readings, joins, transcript and translation are the real pipeline’s.",
+      "honesty": "Simulated tear of a real 1922 letter in German, recorded run.",
+      "credit": "The letter is a simulated tear of a real public-domain letter in German (Gustav Stresemann to Gustav Reimann, 1922, via Wikimedia Commons).",
+      "recorded": "/samples/stresemann-1922/result-lite.json",
+      "file": "data/samples/stresemann-1922/photo.jpg",
+      "photo": {
+        "url": "/samples/stresemann-1922/photo.jpg",
+        "width": 3600,
+        "height": 2700,
+        "sources": [
+          {
+            "url": "/samples/stresemann-1922/photo-800.webp",
+            "w": 800
+          },
+          {
+            "url": "/samples/stresemann-1922/photo-1200.webp",
+            "w": 1200
+          },
+          {
+            "url": "/samples/stresemann-1922/photo-1600.webp",
+            "w": 1600
+          },
+          {
+            "url": "/samples/stresemann-1922/photo-2400.webp",
+            "w": 2400
+          },
+          {
+            "url": "/samples/stresemann-1922/photo-3200.webp",
+            "w": 3200
+          }
+        ],
+        "hires": "/samples/stresemann-1922/photo-full.webp",
+        "lqip": "data:image/webp;base64,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"
+      },
+      "twins": "stack-3-letters",
+      "download": "/samples/stresemann-1922/result.json"
     }
   },
   "stacks": {

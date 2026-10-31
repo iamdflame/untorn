@@ -39,6 +39,7 @@ All are public domain. The tears in the samples are simulated, and the app label
 - C. W. Ayars (War Department, Office of the Surgeon General) to Esther E. Leonard, 18 May 1918. Missouri History
   Museum, via Wikimedia Commons.
 - Ho Chi Minh to the US Secretary of State, 22 October 1945, page 2. Wikimedia Commons.
+- Gustav Stresemann to Gustav Reimann, 11 May 1922 (German). Wikimedia Commons, "Stresemann, Brief.jpg".
 - **The benchmark pages:** listed with their sources in [`scripts/bench/PAGES.md`](scripts/bench/PAGES.md).
 
 ## Benchmark

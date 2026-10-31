@@ -1269,6 +1269,9 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
     TEXT_LINES = (text ?? "").split("\n").filter((l) => l.trim()).length;
     TEXT = translation?.text ?? text ?? "";
     TEXT_FROM = translation ? languageName(translation.from) : null;
+    // the phone's run-in label (globals.css) names the language too
+    if (TEXT_FROM) elTxBody.dataset.from = TEXT_FROM;
+    else delete elTxBody.dataset.from;
     const hero = TEXT.split(/\n\s*\n/)
       .map((par) => {
         const ls = par.split("\n");

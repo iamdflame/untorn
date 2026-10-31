@@ -59,9 +59,9 @@ pnpm dev
 ```
 
 ## Built vs integrated
-- **Built for this project:** the solver (outlines, edge matching, two-clue assembly), the two-pass segmentation, the seam renders and reading prompts, the streaming pipeline, the phone handoff, the app and its design, and the benchmark generator.
+- **Built for this project:** the solver (outlines, edge matching, two-clue assembly), the two-pass segmentation, the seam renders and reading prompts, the streaming pipeline, the phone handoff, the searchable PDF writer, the app and its design, and the benchmark generator.
 - **Integrated:**
-  - Meta Model API (SAM 3.1, Muse Spark, Muse Wonder);
+  - Meta Model API: SAM 3.1 and Muse Spark (reading seams, choosing between twins, turning pages upright, transcribing, translating);
   - `@meta-sam/parser` (SAM License);
   - Next.js, `sharp`, Vercel Blob;
   - fonts: Gambetta (Fontshare), Schibsted Grotesk and IBM Plex Mono (OFL).

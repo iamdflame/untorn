@@ -56,6 +56,8 @@ export type EngineInput = {
   joins: JoinOut[];
   reads: ReadOut[];
   transcript: string | null;
+  /** Muse's English translation of a page in another language (`from`: its language code); the stage shows it. */
+  translation?: { text: string; from: string } | null;
   /** Live progress, for the status line. */
   progress: { stage: string | null; asks: number; done: boolean; failed: boolean };
   twins: StackTrial | null;
@@ -66,6 +68,15 @@ export type HeroApi = {
   setReduced: (r: boolean) => void;
   destroy: () => void;
 };
+
+/** "de" → "German", in English (the browser's own names); the code itself where it has none. */
+function languageName(code: string): string {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
 
 type P = Scene["pieces"][number] & {
   path: Path2D;
@@ -158,6 +169,8 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   let TEXT = "";
   let TEXT_START = "";
   let TEXT_LINES = 0;
+  /** The page's language, by name, when the stage shows Muse's translation ("German"). */
+  let TEXT_FROM: string | null = null;
 
   const T = {
     trace0: 0.9,
@@ -1251,9 +1264,11 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
 
   /* ---------------- transcript + one status line ---------------- */
   let lastChars = -1;
-  function setTranscript(text: string | null) {
-    TEXT = text ?? "";
-    TEXT_LINES = TEXT.split("\n").filter((l) => l.trim()).length;
+  function setTranscript(text: string | null, translation?: { text: string; from: string } | null) {
+    // the line count is the page's own (the result's transcript); a page in another language reads in English here
+    TEXT_LINES = (text ?? "").split("\n").filter((l) => l.trim()).length;
+    TEXT = translation?.text ?? text ?? "";
+    TEXT_FROM = translation ? languageName(translation.from) : null;
     const hero = TEXT.split(/\n\s*\n/)
       .map((par) => {
         const ls = par.split("\n");
@@ -1269,7 +1284,14 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
   let txHead = "";
   function transcriptAt(t: number) {
     // a partial page reads with gaps: say so, or the […] marks read as noise
-    const head = assembled && (pieces.some((p) => !p.placed) || (scene?.pages.length ?? 0) > 1) ? "Muse read the joined pieces; […] marks a missing piece" : "Muse read the page";
+    const partial = assembled && (pieces.some((p) => !p.placed) || (scene?.pages.length ?? 0) > 1);
+    const head = TEXT_FROM
+      ? partial
+        ? `Muse read the joined pieces in ${TEXT_FROM} and translated them; […] marks a missing piece`
+        : `Muse read the page in ${TEXT_FROM} and translated it`
+      : partial
+        ? "Muse read the joined pieces; […] marks a missing piece"
+        : "Muse read the page";
     if (head !== txHead && elTxH) elTxH.textContent = txHead = head;
     const vis = TEXT ? smooth(T.tx0 - 0.1, T.tx0 + 0.25, t) * (input?.mode === "recorded" ? 1 - smooth(T.loop - 0.7, T.loop - 0.1, t) : 1) : 0;
     elTx.style.opacity = vis.toFixed(3);
@@ -1581,7 +1603,7 @@ export function createHero(root: HTMLElement, opts: { reduced: boolean }): HeroA
       setScene(buildScene({ photo: { width: next.photo.width, height: next.photo.height }, pieces: next.pieces, pages: next.pages, joins: next.joins, reads: next.reads }));
       startCutouts();
     } else if (newRun || prev?.twins !== next.twins) computeT();
-    if (newRun || prev?.transcript !== next.transcript) setTranscript(next.transcript);
+    if (newRun || prev?.transcript !== next.transcript || prev?.translation?.text !== next.translation?.text) setTranscript(next.transcript, next.translation);
     if (next.twins && (newRun || !prev?.twins)) loadTwins();
     for (const r of next.reads)
       if (!liveSeen.has(r.id)) {

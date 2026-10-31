@@ -88,7 +88,11 @@ export function Hero({
   const photoSrc = fromSample && sample ? (sample.photo.hires ?? sample.photo.url) : (state.photo?.url ?? null);
   const pw = state.photo?.width ?? sample?.photo.width ?? 0;
   const ph = state.photo?.height ?? sample?.photo.height ?? 0;
-  const transcript = state.transcripts.find((x) => x.ok)?.text ?? null;
+  const tr = state.transcripts.find((x) => x.ok);
+  const transcript = tr?.text ?? null;
+  // a page in another language: the stage shows Muse's English translation (the result keeps both)
+  const translationText = tr?.translation && tr.language !== tr.translation.to ? tr.translation.text : null;
+  const translationFrom = translationText ? (tr?.language ?? null) : null;
   const stage = currentStage(state);
 
   const input = useMemo<EngineInput>(
@@ -101,10 +105,11 @@ export function Hero({
       joins: state.joins,
       reads: state.reads,
       transcript,
+      translation: translationText && translationFrom ? { text: translationText, from: translationFrom } : null,
       progress: { stage, asks: state.asks.length, done: state.status === "done", failed: state.status === "error" },
       twins: mode === "recorded" ? twins : null,
     }),
-    [runKey, mode, photoSrc, pw, ph, fromSample, sample, state.pieces, state.pages, state.joins, state.reads, transcript, stage, state.asks.length, state.status, twins],
+    [runKey, mode, photoSrc, pw, ph, fromSample, sample, state.pieces, state.pages, state.joins, state.reads, transcript, translationText, translationFrom, stage, state.asks.length, state.status, twins],
   );
   useEffect(() => {
     latest.current = input;

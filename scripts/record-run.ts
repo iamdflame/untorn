@@ -2,7 +2,7 @@
 //
 //   pnpm tsx scripts/record-run.ts [sample=chouteau-1903] [--photo FILE] [--out DIR] [--events FILE]
 //                                  [--strategy all|tree] [--sheet stacked|joined] [--window WxH] [--read-deadline MS] [--concurrency N]
-//                                  [--seam-prompt v2|v3] [--lines-floor N|off] [--assemble JSON]
+//                                  [--seam-prompt v2|v3] [--lines-floor N|off] [--assemble JSON] [--no-straighten]
 //
 // Runs the same pipeline as POST /api/runs with the real models (about $0.10 for a 10-piece page), and writes DIR
 // (default public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
@@ -60,7 +60,7 @@ async function main() {
   // as the upload route does: sniff, cap and normalise (HEIC → JPEG) before the pipeline
   const tIntake = Date.now();
   const photo = await normalisePhoto(new Uint8Array(readFileSync(photoFile)));
-  console.log(`intake ${photo.kind} ${photo.width}×${photo.height} in ${Date.now() - tIntake} ms`);
+  console.log(`intake ${photo.kind} ${photo.width}×${photo.height} in ${Date.now() - tIntake} ms${photo.tilt ? `, camera tilt recorded` : ""}`);
   const result = await runPipeline(
     photo.bytes,
     deps,
@@ -77,6 +77,8 @@ async function main() {
       seamPrompt: opt("--seam-prompt") as "v2" | "v3" | undefined,
       minLinesLogLR: opt("--lines-floor") === "off" ? -Infinity : opt("--lines-floor") ? Number(opt("--lines-floor")) : undefined,
       assemble: opt("--assemble") ? JSON.parse(opt("--assemble")!) : undefined,
+      // as the upload routes do: a tilt the photo recorded is straightened (--no-straighten to compare)
+      cameraTilt: argv.includes("--no-straighten") ? null : photo.tilt,
     },
     log,
   );

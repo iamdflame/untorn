@@ -1,6 +1,7 @@
 // Starting a live run: read the request (an upload, a stored phone photo, or a sample), admit it against the rate
 // limit and spend cap, then stream the pipeline's events as NDJSON. Every failure becomes a designed error event.
 
+import { parseTilt, type CameraTilt } from "@/lib/run/tilt";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ERRORS, RunError } from "@/lib/run/errors";
@@ -13,7 +14,8 @@ import { liveDeps } from "./live";
 import { runPipeline, type PipelineDeps } from "./pipeline";
 import { fileUrl, type Store } from "./store";
 
-export type RunInput = { bytes: Uint8Array; source: RunSource; sample?: string; caption?: string };
+/** `tilt`: the camera's tilt when the photo recorded it (src/lib/run/tilt.ts); the pipeline straightens the photo. */
+export type RunInput = { bytes: Uint8Array; source: RunSource; sample?: string; caption?: string; tilt?: CameraTilt | null };
 
 export async function readSample(name: string): Promise<{ bytes: Uint8Array; caption: string }> {
   const s = SAMPLES[name];
@@ -24,6 +26,16 @@ export async function readSample(name: string): Promise<{ bytes: Uint8Array; cap
 }
 
 /** Parse POST /api/runs: multipart with a `photo` file, or JSON { photoId } | { sample }. */
+/** A form field or stored text as JSON (null when absent or not JSON). */
+export function jsonOrNull(v: FormDataEntryValue | string | null): unknown {
+  if (typeof v !== "string") return null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
+}
+
 export async function readRunRequest(req: Request, store: Store): Promise<RunInput> {
   const len = Number(req.headers.get("content-length") ?? 0);
   if (len > MAX_UPLOAD_BYTES + 256 * 1024) throw new RunError("too-large");
@@ -39,7 +51,9 @@ export async function readRunRequest(req: Request, store: Store): Promise<RunInp
     if (!file || typeof file === "string") throw new RunError("bad-type", "No photo in the upload.");
     if (file.size > MAX_UPLOAD_BYTES) throw new RunError("too-large");
     const photo = await normalisePhoto(new Uint8Array(await file.arrayBuffer()));
-    return { bytes: photo.bytes, source: form.get("source") === "phone" ? "phone" : "upload" };
+    // a browser that re-encoded the photo dropped its EXIF, and sends the tilt it read first
+    const tilt = photo.tilt ?? parseTilt(jsonOrNull(form.get("tilt")));
+    return { bytes: photo.bytes, source: form.get("source") === "phone" ? "phone" : "upload", tilt };
   }
   let body: { photoId?: unknown; sample?: unknown };
   try {
@@ -55,7 +69,8 @@ export async function readRunRequest(req: Request, store: Store): Promise<RunInp
     if (!isPhotoId(body.photoId)) throw new RunError("not-found");
     const f = await store.get(`photos/${body.photoId}`);
     if (!f) throw new RunError("not-found", "That photo has expired or was never sent. Take it again.");
-    return { bytes: f.bytes, source: "phone" };
+    const t = await store.get(`photos/${body.photoId}.tilt.json`).catch(() => null);
+    return { bytes: f.bytes, source: "phone", tilt: t ? parseTilt(jsonOrNull(new TextDecoder().decode(t.bytes))) : null };
   }
   throw new RunError("bad-type", "Send a photo, a photo id or a sample name.");
 }
@@ -95,7 +110,7 @@ export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; r
           return fileUrl(key);
         };
         const deps = ctx.deps ?? liveDeps(putAsset);
-        await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, signal: abort.signal, meter }, write);
+        await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, signal: abort.signal, meter }, write);
       } catch (e) {
         const known = e instanceof RunError;
         if (!known) console.error(`[runs] ${runId} failed`, e);

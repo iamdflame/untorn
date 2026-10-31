@@ -39,6 +39,7 @@ export const WARNINGS: Record<WarningCode, string> = {
   partial: "Not every piece found its place. The unplaced pieces are shown, never forced.",
   "many-pieces": "Many pieces: this run takes longer.",
   overlap: "Some pieces seem to touch or overlap. Spread them apart for a cleaner result.",
+  tilted: "The photo was taken at an angle. Untorn straightened it with the tilt the phone recorded in the photo.",
 };
 
 /** A typed failure the routes turn into a designed error event or JSON body (never a stack trace). */

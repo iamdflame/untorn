@@ -3,6 +3,7 @@
 // converts them).
 
 import { ERRORS } from "@/lib/run/errors";
+import { readCameraTilt, type CameraTilt } from "@/lib/run/tilt";
 import { MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, type ErrorCode } from "@/lib/run/types";
 
 export class PhotoError extends Error {
@@ -57,6 +58,15 @@ export async function preparePhoto(file: File): Promise<Blob> {
     if (blob && blob.size <= MAX_REQUEST_BYTES) return blob;
   }
   throw new PhotoError("too-large");
+}
+
+/** The camera's tilt from the photo's EXIF (an iPhone records it), read before the photo is re-encoded. */
+export async function readTilt(file: File): Promise<CameraTilt | null> {
+  try {
+    return readCameraTilt(new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer()));
+  } catch {
+    return null;
+  }
 }
 
 /** Parse an error body from a non-2xx response into a PhotoError. */

@@ -120,7 +120,7 @@ export type TranscriptOut = {
 
 export type Warning = { code: WarningCode; message: string };
 
-export type WarningCode = "blurry" | "small-photo" | "no-text" | "some-blank" | "slow-reading" | "reading-failed" | "partial" | "many-pieces" | "overlap";
+export type WarningCode = "blurry" | "small-photo" | "no-text" | "some-blank" | "slow-reading" | "reading-failed" | "partial" | "many-pieces" | "overlap" | "tilted";
 
 export type ErrorCode =
   | "bad-type"

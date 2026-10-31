@@ -2,7 +2,7 @@
 
 Untorn is a project that puts torn documents back together from one photo, for archivists facing millions of hand-torn pages.
 
-Film: 1920×1080, 30 fps, under 2:00. Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
+Film: 1920×1080, 30 fps, 2:07.6. Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
 
 **Spoken vs shown.** The narrator reads numbers as words; the captions and the screen show figures. Every figure on screen carries its source or its label (simulated tear, recorded run, live run, real tear, benchmark). Numbers about the Stasi files come only from `docs/FACTS.md`; measured numbers come only from `src/data/numbers.json`, which names the report each one comes from.
 
@@ -44,13 +44,16 @@ Built from the recorded run's own data: a mask's edge at pixel scale with the tr
 
 > Under the hood, the solver traces SAM's masks to a fraction of a pixel and proposes joins from the shape of each tear. Muse Spark reads across them. Where the shape can't decide, the reading must agree, or the piece is set aside. Untorn never forces a fit.
 
-## 7 · Read whole again (1:41–1:58)
-The rebuilt 1927 letter on the light table; the line Muse transcribed lights up as it is read. Back to the sacks. End card: the wordmark, one line, the address and the credits.
+## 7 · Read whole again (1:46–2:08)
+The rebuilt 1927 letter on the light table; the line Muse transcribed lights up as it is read. The 1927 page lifts away and the first screen's German letter (Stresemann to Reimann, 1922, its recorded run's own page render) drops into its place: the sentence Muse read underlines in violet, and its translation types beside it.
+Label: *Gustav Stresemann to Gustav Reimann, 1922. Simulated tear, recorded run: 10 of 10 pieces placed, 16 of 16 joins right.*
+Back to the sacks. End card: the wordmark, one line, the address and the credits.
 
 > Ten pieces, whole again, and read: “I am starting a Patients' Aid Fund to help these poor children.”
+> It reads German too, the language of the Stasi's files.
 > About fifteen thousand four hundred sacks are still waiting. Untorn reads across the tears.
 
-End card: **Untorn** · Reads across the tears. · https://untorn.vercel.app · Built with Meta SAM 3.1 and Muse Spark. Archive photo: Maximilian Schönherr, CC BY-SA 4.0, cropped and reprojected. Letters: public domain (Science History Institute; Missouri History Museum; Missouri Historical Society).
+End card: **Untorn** · Reads across the tears. · https://untorn.vercel.app · Built with Meta SAM 3.1 and Muse Spark. Archive photo: Maximilian Schönherr, CC BY-SA 4.0, cropped and reprojected. Letters: public domain (Science History Institute; Missouri History Museum; Missouri Historical Society; Wikimedia Commons).
 
 ## Fact check (each spoken claim, and where it comes from)
 | Claim | Source |
@@ -67,4 +70,7 @@ End card: **Untorn** · Reads across the tears. · https://untorn.vercel.app · 
 | Outlines traced to a fraction of a pixel | `docs/SOLVER.md` (marching squares at iso-level 0.5, subpixel outline); `docs/MODELS.md` (median boundary error 0.36–0.52 px on simulated photos) |
 | Where shape can't decide, the reading must agree, or the piece is set aside; never forced | `docs/SOLVER.md` (two-clue acceptance; twins need two concordant reads; "Nothing is forced") |
 | “I am starting a Patients' Aid Fund to help these poor children.” | Muse's transcript of the rebuilt FDR letter (recorded run, CER 0.0 % against the reference) |
+| It reads German too (on screen: the German sentence and its English translation) | Muse's transcript and translation of the rebuilt Stresemann letter, verbatim (`public/samples/stresemann-1922/result.json`, run rec-stresemann-1922-54cafd; transcript CER 0.0 % against `data/samples/stresemann-1922/ref-page0.txt`) |
+| The Stasi's files are in German | General knowledge: the Stasi was East Germany's Ministry for State Security. The torn files are held by the Bundesarchiv's Stasi Records Archive (`docs/FACTS.md`, its reconstruction page) |
+| On screen (German letter): 10 of 10 pieces placed, 16 of 16 joins right | `pnpm tsx scripts/score-sample.ts public/samples/stresemann-1922/result.json data/samples/stresemann-1922/gt.json` (10/10 placed correctly, 0 misplaced, joins right 16/16) |
 | About 15,400 sacks still waiting | as above, Drucksache 21/6550 |

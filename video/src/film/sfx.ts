@@ -70,9 +70,13 @@ export function sfxCues(tl: Timeline): { cues: Cue[]; sections: Section[]; silen
   cues.push({ t: h + tl.hood.s4 + 2.2, kind: "tick", gain: 0.75, pan: 0.4 });
   cues.push({ t: h + tl.hood.s5 + 0.3, kind: "settle", gain: 0.85 });
 
-  // 7 · read whole again: the line lights, the sack, the end card's wordmark joins
+  // 7 · read whole again: the line lights, the German letter takes the page's place and its sentence underlines, the
+  // sack, the end card's wordmark joins
   const k = at("peak");
   cues.push({ t: k + tl.peak.quote0, kind: "tick", gain: 0.8 });
+  cues.push({ t: k + tl.peak.german - 0.35, kind: "lift", gain: 0.45, pan: 0.3 });
+  cues.push({ t: k + tl.peak.german + 0.12, kind: "settle", gain: 0.6, pan: 0.3 });
+  cues.push({ t: k + tl.peak.german + 0.5, kind: "tick", gain: 0.6, pan: 0.3 });
   cues.push({ t: k + tl.peak.sacks, kind: "swell", gain: 0.6, dur: 1.4 });
   cues.push({ t: k + tl.peak.seat - 0.05, kind: "settle", gain: 1.0 });
 

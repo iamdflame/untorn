@@ -205,15 +205,16 @@ export default function AccuracyPage() {
 
         <Section id="real" title="Real tears" label="Measured: 1 page" intro="Hand-torn paper photographed on a table with a phone, scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place.">
           <Table
-            caption="A printed report page, torn by hand into 10 pieces: the same photo, four live runs"
+            caption="A printed report page, torn by hand into 10 pieces and photographed with several pieces touching: the same photo, five live runs"
             head={["Run", "Placed correctly", "Misplaced", "Page upright", "Transcript errors", "Photo to page"]}
             rows={[
-              [1, "9 of 10", 0, "yes", "7.3%", "63.4 s"],
-              [2, "7 of 10", 0, "yes", "25.4%", "68.8 s"],
-              [3, "9 of 10", 0, "yes", "7.9%", "85.4 s"],
-              ["4, on the live site from the phone's original photo", "9 of 10", 0, "yes", "7.1%", "81.5 s"],
+              ["1, live site", "8 of 10", 0, "yes", "19.3%", "51.8 s"],
+              ["2, live site", "8 of 10", 0, "yes", "21.0%", "46.9 s"],
+              ["3, live site", "8 of 10", 0, "yes", "19.3%", "45.9 s"],
+              ["4, local, same code", "6 of 10", "2 (true neighbours, 40–50 px off)", "yes", "12.1%", "35.5 s"],
+              ["5, local, same code", "6 of 10", "1 (true neighbour, 49 px off)", "yes", "25.8%", "38.8 s"],
             ]}
-            note="Run on 30 Oct 2026 with the deployed version. Pieces that aren't placed are set aside, never forced; the transcript errors count the text of set-aside pieces as missing. Results vary between runs because Muse's reads vary. Earlier versions on this photo: 8, 6, 8 and 7 of 10 (one near miss); 6, 7 and 6 of 10 with three wrong joins in one run; and, before the real-paper work, 0 of 10. The page's text is not shown here."
+            note="Run on 31 Oct 2026 with the deployed version. Pieces that aren't placed are set aside, never forced. A misplaced piece here is its true neighbour set just past the tolerance (1.5% of the page width, 39 px). The transcript errors count the text of set-aside pieces as missing. The pieces left out lie against the middle piece in this photo: where pieces touch, their torn edges can't be seen whole, and the run now says so and asks for a retake with the pieces apart. Results vary between runs because Muse's reads vary. Earlier versions on this photo: 9, 7, 9 and 9 of 10 (30 Oct, 63–85 s a run); 8, 6, 8 and 7 of 10 (one near miss); 6, 7 and 6 of 10 with three wrong joins in one run; and, before the real-paper work, 0 of 10. The page's text is not shown here."
           />
         </Section>
 
@@ -232,8 +233,9 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl and a tilted camera, 7 to 9 of 10 pieces land in the right place on the one real page measured so far; the rest are set aside.</li>
-            <li>A live run on a real photo takes 60–90 s; most of it is Muse reading across the tears and reading the page.</li>
+            <li>Real hand-torn paper is harder than our simulations: with fibrous rims, curl, pieces touching and a tilted camera, 6 to 8 of 10 pieces land in the right place on the one real page measured so far; the rest are set aside, and some runs set a piece just past the tolerance.</li>
+            <li>Pieces that touch in the photo lose the edges between them; so do photos shrunk by a messaging app (the same page at 1920 px: 5 of 10).</li>
+            <li>A live run on a real photo takes 35–55 s; most of it is Muse reading across the tears.</li>
           </ul>
         </Section>
       </div>

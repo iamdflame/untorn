@@ -67,7 +67,14 @@ pnpm dev
   - fonts: Gambetta (Fontshare), Schibsted Grotesk and IBM Plex Mono (OFL).
 
 ## What's live, and known limits
-- **Live:** the full pipeline on uploads and phone photos, recorded-run replay, the join map, per-run links, a health check that rebuilds a known sample every 3 hours, a daily spend cap.
+- **Live:**
+  - the full pipeline on uploads and phone photos;
+  - recorded-run replay;
+  - the join map and per-run links;
+  - a searchable PDF of the rebuilt pages: each page image with Muse's transcript as a text layer, then the transcript and how the page was rebuilt;
+  - pages in other languages: Muse reads them and translates them into English (the German sample: `/?sample=stresemann-1922`);
+  - advice when pieces are left out (pieces touching, writing too small for the photo);
+  - a health check that rebuilds a known sample every 3 hours, and a daily spend cap.
 - **Limits:**
   - Real hand-torn paper is harder than simulations. On the one real page measured (several of its pieces touching in the photo), 6–8 of 10 pieces land, some runs set a piece just past the tolerance, and the rest are set aside. A live run takes 35–55 s. Pieces that touch, and photos shrunk by a messaging app, lose the edge detail the fits need, and the run says which applies.
   - Very large stacks can end with some twins unplaced, because reading is capped per run.

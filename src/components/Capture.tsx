@@ -26,6 +26,8 @@ function Guide({ children }: { children?: React.ReactNode }) {
 
 export function Capture({ code }: { code: string }) {
   const [step, setStep] = useState<Step>({ kind: "checking" });
+  // a browser that can't draw the photo (a HEIC outside Safari) gets a line instead of a broken image; it still sends
+  const [noPreview, setNoPreview] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,7 +50,9 @@ export function Capture({ code }: { code: string }) {
 
   const pick = (files: FileList | null) => {
     const f = files?.[0];
-    if (f) setStep({ kind: "preview", file: f, url: URL.createObjectURL(f) });
+    if (!f) return;
+    setNoPreview(false);
+    setStep({ kind: "preview", file: f, url: URL.createObjectURL(f) });
   };
 
   const send = async (file: File) => {
@@ -115,10 +119,14 @@ export function Capture({ code }: { code: string }) {
         <section aria-labelledby="cap-check">
           <h1 id="cap-check">Check the photo</h1>
           <Guide>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={step.url} alt="The photo you took" className="capture-preview" />
+            {noPreview ? (
+              <p className="capture-nopreview">This browser can’t show this photo, but Untorn can read it. Send it as it is.</p>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={step.url} alt="The photo you took" className="capture-preview" onError={() => setNoPreview(true)} />
+            )}
           </Guide>
-          <p className="muted">All pieces inside, sharp, and seen from straight above?</p>
+          {!noPreview && <p className="muted">All pieces inside, sharp, and seen from straight above?</p>}
           <div className="actions">
             <button type="button" className="cta tab" onClick={() => send(step.file)}>
               <span>Send to the laptop</span>

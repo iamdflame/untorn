@@ -1,7 +1,7 @@
 # YouTube upload
 
 **File:** `out/untorn-demo.mp4` (2:07.6, 1920x1080, 30 fps). **Captions:** upload `out/untorn-demo.srt` as English
-subtitles (the film also has them burned in). **Thumbnail:** `out/thumbnail.png`.
+subtitles (the film also has them burned in). **Thumbnail:** `out/thumbnail-real.png` (the hand-torn page: the one photo and the page whole; `out/thumbnail.png` is the 1927-letter one).
 
 ## Title
 

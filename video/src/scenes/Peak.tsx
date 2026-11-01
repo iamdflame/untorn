@@ -135,7 +135,7 @@ export const Peak: React.FC<{ cues?: PeakCues }> = ({ cues = PEAK_CUES }) => {
           <div style={{ position: "absolute", left: 200, right: 200, top: 900, textAlign: "center", fontFamily: F.sans, fontSize: 17, lineHeight: 1.6, color: C.chalk3, opacity: easeOut(clamp((t - cues.seat - 0.8) / 0.6)) }}>
             Built with Meta SAM 3.1 and Muse Spark. Narration: ElevenLabs. Archive photos: Maximilian Schönherr, Wikimedia Commons, CC BY-SA 4.0, reprojected and cropped.
             <br />
-            Letters: public domain (Science History Institute; Missouri History Museum; Missouri Historical Society; Wikimedia Commons). Benchmark image: ShredBench, Apache-2.0.
+            Letters: public domain (Science History Institute; Missouri History Museum; Wikimedia Commons). Benchmark image: ShredBench, Apache-2.0.
           </div>
         </AbsoluteFill>
       )}

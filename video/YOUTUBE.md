@@ -1,15 +1,21 @@
 # YouTube upload
 
-**File:** `out/untorn-demo.mp4` (2:07.6, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo.srt`, English
+**Uploaded:** https://youtu.be/fwXAsfIqFug (1 Nov 2026). **File:** `out/untorn-demo.mp4` (2:07.6, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo.srt`, English
 (the film also has them burned in). **Thumbnail:** `out/thumbnail-real.png` (the hand-torn page: its one photo, and the
 page whole again; `out/thumbnail.png` is the 1927-letter alternative).
 
 ## Title
 
+```text
 Untorn: torn pages put back together from one photo (Meta SAM 3.1 + Muse Spark)
+```
 
 ## Description
 
+Copy it with the copy button at the top right of the box (on GitHub), not by selecting the page text: the box keeps
+every line break, and YouTube needs each chapter on its own line to show chapters.
+
+```text
 Untorn puts torn documents back together from one photo. Meta's SAM 3.1 cuts out every piece to the pixel, a geometry solver proposes joins from the shape of each tear, and Muse Spark reads the half-words across each tear to confirm them, then reads the rebuilt page back.
 
 Try it: https://untorn.vercel.app (free, no sign-up: tear a printed page into about 6 pieces, take one photo with your phone, and watch it rebuild live)
@@ -45,13 +51,14 @@ Letters (public domain): Franklin D. Roosevelt to Julian Goldman, 1927 (Science 
 The hand-torn page: a printed page of our own.
 Benchmark image: ShredBench official image news_041 (github.com/ythere-y/ShredBench, Apache-2.0).
 Built with Meta SAM 3.1 and Muse Spark. Film made with Remotion.
+```
 
 ## Upload settings
 
 - **Video:** `out/untorn-demo.mp4`. **Thumbnail:** `out/thumbnail-real.png` (YouTube asks for a verified account to
   upload a custom thumbnail; verify by phone first if the option is greyed out).
-- **Title and description:** paste the two sections above as they are. The chapter list must stay in the description,
-  starting at 0:00, for YouTube to show chapters.
+- **Title and description:** paste the two boxes above as they are. The chapter list must stay in the description,
+  one chapter per line, starting at 0:00, for YouTube to show chapters.
 - **Subtitles:** upload `out/untorn-demo.srt` as English.
 - **Audience:** "No, it's not made for kids".
 - **Altered or synthetic content:** YouTube asks this for realistic content that could pass for real: a real person

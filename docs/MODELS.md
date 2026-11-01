@@ -1,14 +1,14 @@
 # Untorn's model layer
 
-Untorn puts torn documents back together from one photo. Three Meta models do the work. The server modules live in `src/lib/server/`, and route handlers call them.
+Untorn puts torn documents back together from one photo. Two Meta models do the work in the live app: SAM 3.1 and Muse Spark. A client for a third, Muse Wonder, sorts a mixed pile into pages; it was measured once and is not in the live pipeline. The server modules live in `src/lib/server/`, and route handlers call them.
 
 | Model | Job in Untorn | Module |
 |---|---|---|
 | **SAM 3.1** (`sam-3.1`) | Finds every fragment in the photo and cuts it out to the pixel | `segment.ts` → `segmentFragments` |
 | **Muse Spark** (`muse-spark-1.3`) | Reads half-letters across a candidate seam, like a crossword, to decide which pieces belong together. When pages were torn as a stack, outlines repeat and the reading decides. It also transcribes and translates the finished page. | `muse.ts` → `verifySeam`, `chooseContinuation`, `readPage`, `translate` |
-| **Muse Wonder** (`muse-wonder-1.0`) | Sorts a mixed pile of fragments into pages | `muse.ts` → `sortFragments` |
+| **Muse Wonder** (`muse-wonder-1.0`) | Sorts a mixed pile of fragments into pages (client and one measured call; not in the live pipeline) | `muse.ts` → `sortFragments` |
 
-Every number below was measured on **simulated tears**: the spike's `tear.py` applied to a public-domain 1903 letter and to synthetic typed and handwritten pages, plus 5 ShredBench renders. Nothing here has been tested on real hand-torn paper yet.
+The model measurements below were made on **simulated tears**: the spike's `tear.py` applied to a public-domain 1903 letter and to synthetic typed and handwritten pages, plus 5 ShredBench renders. Seam reads and the transcription prompt were also measured on real hand-torn photos (below). Results of the whole pipeline on real hand-torn paper are in the README and on [untorn.vercel.app/accuracy](https://untorn.vercel.app/accuracy).
 
 ## Function signatures (for the UI and the solver)
 

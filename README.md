@@ -1,12 +1,19 @@
 # Untorn
 
-**Untorn is a project that puts torn documents back together from one photo, for archivists facing millions of hand-torn pages.** Meta's Segment Anything Model (SAM 3.1) cuts out every fragment to the pixel. Muse reads the half-letters across each tear, like a crossword, to decide which pieces belong together. When pages were torn as a stack, the pieces have identical outlines, so shape can't decide; reading does.
+**Untorn puts torn documents back together from one photo.** Meta's SAM 3.1 cuts out every piece to the pixel, and Muse Spark reads the half-letters across each tear, like a crossword, to decide which pieces belong together. When a stack of pages is torn at once, the pieces share the very same edges and shape can't decide. Reading does.
 
 ![A page torn by hand into 6 pieces, rebuilt live on untorn.vercel.app: SAM 3.1 finds the pieces, Muse reads across a tear, the page closes and Muse reads it back (a live run, waits cut)](docs/media/untorn-real.gif)
 
 *A page torn by hand into 6 pieces, one photo from a phone, rebuilt live on untorn.vercel.app (waits cut; the run took 55 s).*
 
-**Live:** https://untorn.vercel.app · **Demo video:** _(link added at submission)_ · **Verify it yourself:** [below](#verify-it-yourself)
+**Try it:** https://untorn.vercel.app (free, no sign-up) · **Demo video:** _(link added at submission)_ · **Accuracy:** [untorn.vercel.app/accuracy](https://untorn.vercel.app/accuracy) · **Verify it yourself:** [below](#verify-it-yourself)
+
+## At a glance
+- **Real paper:** a printed page torn by hand into 6 pieces came back whole in **5 of 5** live runs, in 48–61 s, its transcript running on line by line across every tear.
+- **A published benchmark:** on the [ShredBench](docs/SHREDBENCH.md) protocol (Findings of ACL 2026), Untorn makes **8× fewer text errors** than Muse Spark alone on the same photos (normalised edit distance 0.050 against 0.404).
+- **Stacks:** where pages were torn together and outlines repeat, Muse picked the right piece in **22 of 22** readings (chance: 1 in 3).
+- **Meta's models do the key work:** SAM 3.1 finds and outlines every piece in one call; Muse Spark reads every seam, picks between identical outlines, turns pages upright, transcribes and translates. A run makes about one SAM 3.1 call and ten Muse Spark calls, and costs about $0.08–0.21 (measured on the live runs below).
+- **Honest by design:** two clues or no join. Pieces that don't fit are set aside, never forced; gaps in the transcript stay marked as gaps.
 
 Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026).
 
@@ -91,7 +98,7 @@ pnpm dev
 
 ## Pre-existing vs new this event
 - **New this event (from kickoff, Oct 26, 2026):** all code in this repository.
-- Untorn's idea, research and code date from Oct 27–28. The repository's other branches hold an earlier project from this event (Push, a CPR trainer), from which only the SAM 3.1 client and parser were carried over.
+- Untorn's idea, research and code date from Oct 27–28. Only the SAM 3.1 client and parser were carried over, from an earlier project of ours at this event (Push, a CPR trainer) that is not part of this repository.
 
 ## Credits and licences
 - Every third-party model, package, font, document, photo and voice, with its licence: [`THIRD_PARTY.md`](THIRD_PARTY.md).

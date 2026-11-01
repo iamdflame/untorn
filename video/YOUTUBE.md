@@ -13,7 +13,7 @@ Untorn puts torn documents back together from a single photo. Meta's SAM 3.1 cut
 
 Try it: https://untorn.vercel.app (tear a page, take one photo with your phone, and watch it rebuild live)
 How accurate is it: https://untorn.vercel.app/accuracy
-Code: [REPO URL]
+Code: https://github.com/iamdflame/untorn
 
 Why it matters: in 1989 the Stasi began tearing up its files by hand, about 16,000 sacks of them, and about 15,400 are still in pieces (Federal Government evaluation report, Bundestag Drucksache 21/6550, 2026). At the current pace, Germany's Federal Court of Audit puts the job at about 847 years (Bundesrechnungshof, Bundestag Drucksache 20/6530, 2023).
 
@@ -44,5 +44,4 @@ Built with Meta SAM 3.1 and Muse Spark. Film made with Remotion.
 
 ## Before publishing
 
-- Replace `[REPO URL]` with the public repository's address.
 - Chapter times are the scene starts rounded up to the second; check them against the final upload.

@@ -49,7 +49,7 @@ Every number was measured, and each row says what kind of test it is: a real tea
 
 ## Verify it yourself
 1. Open https://untorn.vercel.app. The first screen replays a recorded run of the real pipeline; press **Run it live** to send the same photo through it again.
-2. **Tear your own:** tear a printed page into 6–12 pieces, lay them text-side up on something dark, scan the QR code with your phone and take one photo from above.
+2. **Tear your own:** tear a printed page into about 6 pieces (fewer, larger pieces do best), lay them text-side up on something dark, not touching, scan the QR code with your phone and take one photo from above.
 3. Every result has a **join map**: for each seam you see the edge fit and the exact image Muse read, with its answer and reason.
 
 ## Run locally

@@ -113,7 +113,7 @@ export function TearYourOwn({
         <span className="rc" aria-hidden="true" />
         <div className="how tear-drop">
           <h2 id="tear-title">Tear your own.</h2>
-          <p>Tear a page, lay the pieces flat on something dark, text side up and not touching, and take one photo from straight above. Untorn runs the whole pipeline on it, live.</p>
+          <p>Tear a printed page into about 6 pieces, lay them flat on something dark, text side up and not touching, and take one photo from straight above. Untorn runs the whole pipeline on it, live.</p>
           <button type="button" className="cta tab" onClick={() => fileRef.current?.click()} disabled={disabled}>
             <span>Choose a photo</span>
           </button>

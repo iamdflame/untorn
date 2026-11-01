@@ -107,7 +107,7 @@ export function Capture({ code }: { code: string }) {
           <h1 id="cap-title">One photo of the torn pieces</h1>
           <Guide>
             <ul className="guide-tips">
-              <li>Lay the pieces flat on a dark, plain table, not touching.</li>
+              <li>About 6 pieces, flat on a dark, plain table, not touching.</li>
               <li>Hold the phone flat, straight above them.</li>
               <li>Fill the frame; avoid glare and shadows.</li>
             </ul>

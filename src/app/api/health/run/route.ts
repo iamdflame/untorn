@@ -1,5 +1,5 @@
 // POST (or cron GET) /api/health/run: run the fixed sample through the real pipeline and assert the join accuracy.
-// Hourly by Vercel Cron (vercel.json). Needs `Authorization: Bearer $CRON_SECRET`. 200 when healthy, 503 when not.
+// Every 12 hours by Vercel Cron (vercel.json). Needs `Authorization: Bearer $CRON_SECRET`. 200 when healthy, 503 when not.
 
 import { cronAllowed, runHealthCheck } from "@/lib/server/health";
 import { getStore } from "@/lib/server/store";

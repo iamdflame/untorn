@@ -6,7 +6,7 @@
 
 *A page torn by hand into 6 pieces, one photo from a phone, rebuilt live on untorn.vercel.app (waits cut; the run took 55 s).*
 
-**Try it:** https://untorn.vercel.app (free, no sign-up) · **Demo video:** _(link added at submission)_ · **Accuracy:** [untorn.vercel.app/accuracy](https://untorn.vercel.app/accuracy) · **Verify it yourself:** [below](#verify-it-yourself)
+**Try it:** https://untorn.vercel.app (free, no sign-up) · **Demo video:** [youtu.be/fwXAsfIqFug](https://youtu.be/fwXAsfIqFug) · **Accuracy:** [untorn.vercel.app/accuracy](https://untorn.vercel.app/accuracy) · **Verify it yourself:** [below](#verify-it-yourself)
 
 ## At a glance
 - **Real paper:** a printed page torn by hand into 6 pieces came back whole in **5 of 5** live runs, in 48–61 s, its transcript running on line by line across every tear.
@@ -87,7 +87,7 @@ pnpm dev
   - pages in other languages: Muse reads them and translates them into English (the German sample: `/?sample=stresemann-1922`);
   - advice when pieces are left out (pieces touching, writing too small for the photo);
   - a tilted photo straightened before the pieces are fitted: from the tilt an iPhone records, or, when the photo has no such reading, from the spacing of the pieces' text lines (it acts only when one tilt explains nearly every piece; it left all 4 samples, 5 flat real photos and 56 benchmark photos untouched, and straightened both tilted real photos);
-  - a health check that rebuilds a known sample every 3 hours, and a daily spend cap.
+  - a health check that rebuilds a known sample every 12 hours, a daily spend cap, and a daily limit of live runs per address.
 - **Limits:**
   - Real hand-torn paper is harder than simulations. A page torn into 6 pieces came back whole in 5 of 5 live runs; two pages torn into 10 small pieces put 6–8 and 2–5 of 10 in the right place. Some runs set a piece just past the tolerance or turned on a short seam, and the rest are set aside. Fewer, larger pieces laid flat and apart do best. A live run takes 45–65 s. Pieces that touch, curled pieces, and photos shrunk by a messaging app lose the edge detail the fits need. The run says which applies.
   - Very large stacks can end with some twins unplaced, because reading is capped per run.

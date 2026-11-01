@@ -28,7 +28,7 @@ Runs the full pipeline: SAM 3.1 segmentation → edge matching → Muse reads ac
 | `done` | the full `RunResult` |
 | `error` | a designed error code and a plain message |
 
-**Limits** (env-configurable): runs per IP per hour (`RUNS_PER_IP_PER_HOUR`, default 12), a daily model-spend cap across all runs (`DAILY_SPEND_CAP_USD`, default 10), concurrent pipelines per instance (`MAX_CONCURRENT_RUNS`, default 4) with a queue (`MAX_QUEUE`, default 12), and at most 120 pieces per photo. `maxDuration` is 300 s.
+**Limits** (env-configurable): runs per IP per hour (`RUNS_PER_IP_PER_HOUR`, default 12) and per UTC day (`RUNS_PER_IP_PER_DAY`, default 6), a daily model-spend cap across all runs (`DAILY_SPEND_CAP_USD`; by default $4 a day on the judging days, 4–9 Nov 2026, and $1.50 on other days, so the remaining model credit lasts to 10 Nov), concurrent pipelines per instance (`MAX_CONCURRENT_RUNS`, default 4) with a queue (`MAX_QUEUE`, default 12), and at most 120 pieces per photo. `maxDuration` is 300 s.
 
 **Example:**
 ```bash

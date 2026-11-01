@@ -60,7 +60,7 @@ same pipeline, labelled as such.
 
 - **Retries and hedges** on every model call, with jitter; the read stage has a deadline, and the assembly goes ahead
   with what was read (a warning says so).
-- **Rate limit and spend cap:** live runs per IP per hour, and a daily model-spend cap across all runs. IPs are kept only
+- **Rate limit and spend cap:** live runs per IP per hour and per day, and a daily model-spend cap across all runs. IPs are kept only
   as salted hashes (`src/lib/server/limits.ts`).
 - **Health:** a cron rebuilds a fixed sample through the real pipeline and checks the join accuracy against its answer
   key; `GET /api/health` reports the last run.

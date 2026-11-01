@@ -2,8 +2,9 @@
 // queue. All env-configurable. IPs are only kept as salted hashes.
 //
 //   RUNS_PER_IP_PER_HOUR      live runs one address may start per hour (default 12: judges may share one office address)
+//   RUNS_PER_IP_PER_DAY       live runs one address may start per UTC day (default 6), so no one visitor spends the day's cap
 //   SESSIONS_PER_IP_PER_HOUR  phone codes one address may make per hour (default 30)
-//   DAILY_SPEND_CAP_USD       model spend per UTC day across all runs (default 10)
+//   DAILY_SPEND_CAP_USD       model spend per UTC day across all runs (default: dailyCapFor, below)
 //   MAX_CONCURRENT_RUNS       pipelines one server instance runs at once; the rest queue (default 4)
 //   MAX_QUEUE                 runs that may wait per instance before "busy" (default 12)
 
@@ -16,10 +17,22 @@ const num = (k: string, d: number) => {
   return Number.isFinite(v) && v >= 0 ? v : d;
 };
 
+/** The hackathon's judging days and live finals (UTC), when a judge's live run matters most. */
+export const JUDGING_DAYS = { from: "2026-11-04", to: "2026-11-09" };
+
+/**
+ * The default spend cap for a UTC day: $4 on judging days, $1.50 on the others. With about $35 of model credit left
+ * on 1 Nov 2026, even ten capped days in a row (to 10 Nov, health checks included) stay within it.
+ */
+export function dailyCapFor(d: string): number {
+  return d >= JUDGING_DAYS.from && d <= JUDGING_DAYS.to ? 4 : 1.5;
+}
+
 export const limits = () => ({
   runsPerIpPerHour: num("RUNS_PER_IP_PER_HOUR", 12),
+  runsPerIpPerDay: num("RUNS_PER_IP_PER_DAY", 6),
   sessionsPerIpPerHour: num("SESSIONS_PER_IP_PER_HOUR", 30),
-  dailyCapUsd: num("DAILY_SPEND_CAP_USD", 10),
+  dailyCapUsd: num("DAILY_SPEND_CAP_USD", dailyCapFor(day())),
   maxConcurrent: Math.max(1, num("MAX_CONCURRENT_RUNS", 4)),
   maxQueue: num("MAX_QUEUE", 12),
   /** Counted for a run until its real cost is known. */
@@ -97,7 +110,10 @@ export async function admitRun(store: Store, ip: string, runId: string): Promise
   const today = await spendToday(store);
   if (today.usd + L.estimateUsd > L.dailyCapUsd) throw new RunError("daily-cap");
   if (ipKey !== "health") {
-    const recent = (today.byIp.get(ipKey) ?? []).filter((e) => Date.now() - e.at.getTime() < 3600_000);
+    const mine = today.byIp.get(ipKey) ?? [];
+    if (mine.length >= L.runsPerIpPerDay)
+      throw new RunError("rate-limited", "That's today's live runs from this address. The recorded run still plays, and live runs open again tomorrow.");
+    const recent = mine.filter((e) => Date.now() - e.at.getTime() < 3600_000);
     if (recent.length >= L.runsPerIpPerHour) throw new RunError("rate-limited");
   }
   await store.put(`ledger/${day()}/${ipKey}/${runId}_${Math.round(L.estimateUsd * 1e6)}.s`, "1", "text/plain"); // Blob refuses empty bodies

@@ -71,10 +71,10 @@ Every number the film shows or says is in `src/data/numbers.json`, each with its
 
 ## Swap the real-tear beat
 
-The "Tear your own" beat (1:06-1:26) has a swap flag in `src/data/golden.json`: `use: "sim"` (built and rendered:
-a simulated tear of a real 1903 letter, run live on untorn.vercel.app) or `use: "real"` (the user's own hand-torn
-page). **Use `real` only after the main loop confirms the page may be shown publicly.** Its photos stay out of git
-and go nowhere except through the app's own run.
+The "Tear your own" beat (1:06-1:26) has a swap flag in `src/data/golden.json`: `use: "real"` (the film as rendered:
+a printed page torn by hand into 6 pieces, run live on untorn.vercel.app on 1 Nov 2026, all 6 pieces on one page) or
+`use: "sim"` (a simulated tear of a real 1903 letter, run live the same way). Hand-torn photos stay out of git and go
+nowhere except through the app's own run.
 
 1. Film it: `APP_URL=https://untorn.vercel.app GOLDEN_DIR=golden-real node scripts/capture/golden-live.mjs <photo>`
    (one live run), then `GOLDEN_DIR=golden-real node scripts/capture/golden-replay.mjs`.
@@ -83,6 +83,9 @@ and go nowhere except through the app's own run.
    frame and its hold, the hero taking the run, the lift, a read in the loupe and its hold plus the loupe's centre
    `readAt`, the pieces coming home, the climax close-up, the transcript typing, the whole page).
 4. Check the label in `variants.real.label`, set `use: "real"` (or render with `--props '{"tear":"real"}'`), render.
+5. A HEIC photo: headless Chromium can't draw it, so the phone's "Check the photo" screen comes out blank. Re-shoot
+   that one screen with the same photo as JPEG (what an iPhone's browser hands the page):
+   `APP_URL=https://untorn.vercel.app GOLDEN_DIR=golden-real node scripts/capture/phone-check.mjs <code> <photo.jpg>`.
 
 The film throws a clear error if `real` is selected before it has a capture and marks.
 

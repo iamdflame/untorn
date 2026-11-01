@@ -60,7 +60,7 @@ const run = {
   url: rec.meta.session.body.url,
   source: r.source,
   createdAt: r.createdAt,
-  photo: "data/samples/chouteau-1903/photo.jpg (simulated tear of a real 1903 letter), sent from the phone page in an emulated iPhone 15 Pro",
+  photo: `${process.env.GOLDEN_PHOTO ?? rec.photo}, sent from the phone page in an emulated iPhone 15 Pro`,
   arrived: { doneMs: Math.round(done.at) },
   timings: r.timings,
   cost: r.cost,

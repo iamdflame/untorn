@@ -37,3 +37,6 @@ scripts/eval/real.local.json
 
 # the demo video: captures and renders stay local (video/out is covered by out/ above)
 video/capture/
+
+__pycache__/
+*.pyc

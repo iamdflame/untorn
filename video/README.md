@@ -95,7 +95,7 @@ The film throws a clear error if `real` is selected before it has a capture and 
 
 - Narrator: **Peter** (ElevenLabs library voice `ZthjuvLPty3kTMaNKVKb`) on **eleven_v4**, stability 0.5, similarity
   0.75, speed 1.0, chosen by evidence (auditions, scores and the top three takes in `out/voice-auditions/`). The
-  scripts refuse the user's own cloned voice. Played at the speed it was spoken: no time-stretch (an earlier 3.5 %
+  scripts refuse cloned voices. Played at the speed it was spoken: no time-stretch (an earlier 3.5 %
   ffmpeg atempo speed-up was dropped). The proof scene is a re-take (the first take started mid-sound).
 - Joins: the mix cuts the narration into caption clips and joins them on the audio's own silence
   (`scripts/audio/voice.mts`): where the edit keeps the voice's timing the clips meet at one sample (the original

@@ -1,7 +1,7 @@
 // Keeping the live pipeline alive for everyone: a per-IP rate limit, a daily model-spend cap and a per-instance
 // queue. All env-configurable. IPs are only kept as salted hashes.
 //
-//   RUNS_PER_IP_PER_HOUR      live runs one address may start per hour (default 8)
+//   RUNS_PER_IP_PER_HOUR      live runs one address may start per hour (default 12: judges may share one office address)
 //   SESSIONS_PER_IP_PER_HOUR  phone codes one address may make per hour (default 30)
 //   DAILY_SPEND_CAP_USD       model spend per UTC day across all runs (default 10)
 //   MAX_CONCURRENT_RUNS       pipelines one server instance runs at once; the rest queue (default 4)
@@ -17,7 +17,7 @@ const num = (k: string, d: number) => {
 };
 
 export const limits = () => ({
-  runsPerIpPerHour: num("RUNS_PER_IP_PER_HOUR", 8),
+  runsPerIpPerHour: num("RUNS_PER_IP_PER_HOUR", 12),
   sessionsPerIpPerHour: num("SESSIONS_PER_IP_PER_HOUR", 30),
   dailyCapUsd: num("DAILY_SPEND_CAP_USD", 10),
   maxConcurrent: Math.max(1, num("MAX_CONCURRENT_RUNS", 4)),

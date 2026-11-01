@@ -203,26 +203,38 @@ export default function AccuracyPage() {
           />
         </Section>
 
-        <Section id="real" title="Real tears" label="Measured: 2 pages" intro="Hand-torn paper photographed on a table with a phone, scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place. Every run below is the deployed version on the live site, 31 Oct 2026.">
+        <Section id="real" title="Real tears" label="Measured: 3 pages" intro="Hand-torn paper photographed on a table with a phone. Pages 1 and 2 are scored against a photo of the page taken before tearing: each piece's printing is registered on the intact page, which gives every piece its true place. Page 3 has no such photo, so it is judged by whether the whole page comes back and reads straight across every tear.">
           <Table
-            caption="Page 1: a printed report page, torn by hand into 10 pieces and photographed with several pieces touching"
-            head={["Run", "Placed correctly", "Misplaced", "Page upright", "Transcript errors", "Photo to page"]}
+            caption="Page 3: a printed report page, torn by hand into 6 pieces, laid apart and photographed from above (live site, 1 Nov 2026)"
+            head={["Run", "How it arrived", "Pieces on one page", "Photo to page"]}
             rows={[
-              [1, "6 of 10", "1 (a true neighbour, 51 px and 2.2° off)", "yes", "25.5%", "58.1 s"],
-              [2, "9 of 10", 0, "yes", "8.0%", "51.6 s"],
-              [3, "6 of 10", "1 (the same, 50 px and 2.2° off)", "yes", "25.5%", "49.7 s"],
+              [1, "upload", "6 of 6", "56.1 s"],
+              [2, "upload", "6 of 6", "51.8 s"],
+              [3, "upload", "6 of 6", "47.9 s"],
+              [4, "upload (fresh browser)", "6 of 6", "51.3 s"],
+              [5, "sent from a phone (QR code)", "6 of 6", "60.8 s"],
             ]}
-            note="Pieces that aren't placed are set aside, never forced. A misplaced piece here is its true neighbour set just past the tolerance (1.5% of the page width, 39 px; 2°). The transcript errors count the text of set-aside pieces as missing. The pieces left out lie against the middle piece in this photo: where pieces touch, their torn edges can't be seen whole, and the run says so. Results vary between runs: SAM's outlines and Muse's reads differ a little each time. Earlier versions on this photo: 8, 8 and 8 of 10; 9, 7, 9 and 9 of 10 (63–85 s a run); and, before the real-paper work, 0 of 10. The page's text is not shown here."
+            note="Every page read line by line against the photo: each line continues straight across every tear. The two halves of this page meet along a tear that runs in the gap between two text lines, so no letter is cut there and a reading has nothing to go on; the page's own border joins them (its straight edges line up only when the halves are placed right). Earlier versions on this photo: two groups (4 + 2) or one piece set aside in 3 of 4 runs. The page's text is not shown here."
           />
           <Table
-            caption="Page 2: another page of the same report, torn into 10 pieces laid apart, photographed 11.6° off straight down"
-            head={["Run", "Placed correctly", "Misplaced", "Split off", "Photo to page"]}
+            caption="Page 1: a printed report page, torn by hand into 10 pieces and photographed with several pieces touching (current version, 1 Nov 2026, the live site's code run on our machine)"
+            head={["Run", "Placed correctly", "Misplaced", "Set aside", "Page upright", "Photo to page"]}
             rows={[
-              [1, "3 of 10", 2, 2, "53.8 s"],
-              [2, "3 of 10", 2, 2, "58.6 s"],
-              [3, "4 of 10", 1, 0, "62.5 s"],
+              [1, "8 of 10", 0, 2, "yes", "52.2 s"],
+              [2, "7 of 10", "1 (a true neighbour, just past the tolerance)", 2, "yes", "47.9 s"],
+              [3, "6 of 10", "1 (the same)", 3, "yes", "55.3 s"],
             ]}
-            note="The phone recorded its tilt in the photo, and every run straightens it first. As taken, the far pieces' text lines were 63 px apart and the near ones' 90 px, and the page split into three fragments. In every misplacement, a true neighbour was turned 6–7° on a short seam (180 px). The words still continue across so short a seam, so the reading agreed, and that piece's curled lines were too unsure for the text-line check to catch the turn. The other piece misplaced was joined to it. The blank corner piece can only be placed by shape and wasn't placed in any run. The page's text is not shown here."
+            note="Pieces that aren't placed are set aside, never forced. A misplaced piece here is its true neighbour set just past the tolerance (1.5% of the page width, 39 px; 2°). The pieces left out lie against the middle piece in this photo: where pieces touch, their torn edges can't be seen whole, and the run says so. Results vary between runs: SAM's outlines and Muse's reads differ a little each time. Earlier versions, on the live site: 6, 9 and 6 of 10 (31 Oct); 8, 8 and 8; 9, 7, 9 and 9 (63–85 s a run); and, before the real-paper work, 0 of 10. The page's text is not shown here."
+          />
+          <Table
+            caption="Page 2: another page of the same report, torn into 10 small pieces laid apart, photographed 11.6° off straight down (current version, 1 Nov 2026, the live site's code run on our machine)"
+            head={["Run", "Placed correctly", "Misplaced", "Set aside", "Photo to page"]}
+            rows={[
+              [1, "5 of 10", 2, 3, "53.9 s"],
+              [2, "4 of 10", 1, 5, "49.1 s"],
+              [3, "2 of 10", 3, 5, "67.4 s"],
+            ]}
+            note="The hardest page we have: small pieces that curl. The phone recorded its tilt in the photo, and every run straightens it first (as taken, the far pieces' text lines were 63 px apart and the near ones' 90 px). Every run now keeps the placed pieces on one page; on 31 Oct (3, 3 and 4 of 10) the page split into fragments. The misplacements are true neighbours set a little off: a curled piece bends its own edge and lines, so on a short seam it can land turned a few degrees. The blank corner piece can only be placed by shape. The page's text is not shown here."
           />
         </Section>
 
@@ -241,7 +253,7 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper is harder than our simulations. Fibrous rims, curl and pieces touching put 6 to 9 of 10 pieces in the right place on the first real page and 3 to 4 on the second. The rest are set aside, and some runs set a piece just past the tolerance or turned on a short seam.</li>
+            <li>Real hand-torn paper is harder than our simulations. A page torn into 6 pieces came back whole in 5 of 5 live runs; pages torn into 10 small pieces, with curl and pieces touching, put 6 to 8 and 2 to 5 of 10 in the right place. The rest are set aside, and some runs set a piece just past the tolerance or turned on a short seam.</li>
             <li>A curled piece bends its own edges and text lines. On a short seam the reading can&apos;t see a turn of a few degrees, so the piece can land turned.</li>
             <li>Pieces that touch in the photo lose the edges between them; so do photos shrunk by a messaging app (the same page at 1920 px: 5 of 10).</li>
             <li>A live run on a real photo takes 45–65 s; most of it is Muse reading across the tears.</li>

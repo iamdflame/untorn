@@ -1,0 +1,30 @@
+{
+ "note": "The live run filmed for the golden path (untorn.vercel.app, phone page to laptop). Summary of its done event; the full event log stays in capture/golden-real/run-events.json (gitignored).",
+ "runId": "g3sj5fmhr33xem8j",
+ "session": "FJ4VZ6",
+ "url": "https://untorn.vercel.app/c/FJ4VZ6",
+ "source": "phone",
+ "createdAt": "2026-11-01T04:53:21.635Z",
+ "photo": "a printed page torn by hand into 6 pieces, photographed from above with an iPhone (HEIC), sent from the phone page in an emulated iPhone 15 Pro",
+ "arrived": {
+  "doneMs": 55090
+ },
+ "timings": {
+  "total": 54731,
+  "segment": 12329,
+  "match": 4720,
+  "read": 31621,
+  "assemble": 3246,
+  "transcribe": 2556
+ },
+ "cost": {
+  "usd": 0.0781,
+  "samCalls": 1,
+  "museCalls": 10
+ },
+ "pieces": 6,
+ "joins": 7,
+ "unplaced": 0,
+ "reads": 9,
+ "pages": 1
+}

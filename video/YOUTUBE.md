@@ -23,7 +23,7 @@ Muse also reads pages in other languages and translates them: the film ends on a
 
 On a 64-document replica of the ShredBench protocol (8 pieces each), Muse Spark alone gets a normalised edit distance of 0.404 against the true text; Untorn, the same Muse Spark with SAM 3.1 and the solver, gets 0.050. On ShredBench's 3 official images with known text: 0.528 and 0.002.
 
-What you see: the letters are simulated tears of real public-domain letters; every run is labelled on screen as a recorded run or a live run. The "Tear your own" part is a live run on untorn.vercel.app (photo sent from the phone page in an emulated phone), with the waits cut and the real elapsed time shown.
+What you see: the letters are simulated tears of real public-domain letters; every run is labelled on screen as a recorded run or a live run. The "Tear your own" part is a printed page torn by hand into 6 pieces and photographed from above: the photo goes from the phone page (in an emulated phone) to a live run on untorn.vercel.app, with the waits cut and the real elapsed time shown.
 
 Chapters
 0:00 One photo, put back together
@@ -45,5 +45,4 @@ Built with Meta SAM 3.1 and Muse Spark. Film made with Remotion.
 ## Before publishing
 
 - Replace `[REPO URL]` with the public repository's address.
-- If the real-tear variant is cleared and rendered, change "What you see" to say which part shows a page torn by hand.
 - Chapter times are the scene starts rounded up to the second; check them against the final upload.

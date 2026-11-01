@@ -10,6 +10,7 @@ import { Proof } from "./scenes/Proof";
 import { Sacks } from "./scenes/Sacks";
 import { Twins } from "./scenes/Twins";
 import { Thumbnail } from "./scenes/Thumbnail";
+import { ThumbnailReal } from "./scenes/ThumbnailReal";
 import { Backup } from "./scenes/Backup";
 import { BACKUP_TOTAL } from "./film/backupEdit";
 import { Still } from "remotion";
@@ -24,6 +25,7 @@ export const RemotionRoot: React.FC = () => {
     <>
       <Composition id="UntornDemo" component={Film} durationInFrames={FILM_FRAMES} fps={FPS} width={W} height={H} defaultProps={{ audio: "mix" as const, tear: DEFAULT_TEAR }} />
       <Still id="Thumbnail" component={Thumbnail} width={1280} height={720} />
+      <Still id="ThumbnailReal" component={ThumbnailReal} width={1280} height={720} />
       <Composition id="Backup" component={Backup} durationInFrames={Math.round(BACKUP_TOTAL * FPS)} fps={FPS} width={W} height={H} />
       <Composition id="ColdOpen" component={ColdOpen} durationInFrames={S(13.5)} fps={FPS} width={W} height={H} />
       <Composition id="ColdOpenDebug" component={ColdOpen} durationInFrames={S(13.5)} fps={FPS} width={W} height={H} defaultProps={{ debug: true }} />

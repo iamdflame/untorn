@@ -8,6 +8,7 @@ own `package.json` and is excluded from the app's typecheck, lint, tests, instal
 | `untorn-demo.mp4` | `UntornDemo` | The film: 1920x1080, 30 fps, 2:07.6, H.264 + AAC 320k, about -14 LUFS |
 | `untorn-demo.srt` | | Captions (the narration, timed from the voice's own alignment) |
 | `thumbnail.png` | `Thumbnail` | 1280x720 still: the letter whole again, a read in the loupe, the wordmark |
+| `thumbnail-real.png` | `ThumbnailReal` | 1280x720 still: the hand-torn page, its one photo beside it whole again (needs `capture/golden-real/thumb`) |
 | `untorn-backup.mp4` | `Backup` | The insurance cut: a plain captioned walkthrough from the same captures, 1:17, quiet score |
 | `contact.png` | | One frame every 4 s of the film, for review |
 
@@ -48,6 +49,7 @@ write them as `marks` in `src/data/golden.json` (each mark is a capture frame; `
 node scripts/render.mjs video UntornDemo out/untorn-demo.mp4 --crf 12 --preset slow --concurrency 8
 node_modules/.bin/tsx scripts/tools/timeline.mts --srt out/untorn-demo.srt
 node scripts/render.mjs still Thumbnail 0 out/stills && cp out/stills/Thumbnail-00000.png out/thumbnail.png
+node scripts/render.mjs still ThumbnailReal 0 out/stills && cp out/stills/ThumbnailReal-00000.png out/thumbnail-real.png
 node scripts/render.mjs video Backup out/untorn-backup.mp4 --crf 14
 node scripts/tools/review.mjs out/untorn-demo.mp4 out/review --every 4 --stills 3,30,110
 node scripts/tools/sheet.mjs out/review/frames out/contact.png --cols 6 --w 320

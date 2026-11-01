@@ -47,7 +47,7 @@ Every number was measured, and each row says what kind of test it is: a real tea
 
 | What | Result | Kind |
 |---|---|---|
-| A printed page torn by hand into 6 pieces, laid apart and photographed from above, 5 live runs on the live site (3 uploads, a fresh browser, a phone) | The whole page, all 6 pieces on one page, in **5 of 5** runs, each read line by line across every tear; 48–61 s. Its two halves meet along a tear between two text lines, with nothing to read: the page's own border joins them | real tear |
+| A printed page torn by hand into 6 pieces, laid apart and photographed from above, 5 live runs on the live site (3 uploads, a fresh browser, a phone) | The whole page, all 6 pieces on one page, in **5 of 5** runs, each transcribed line by line across every tear; 48–61 s. Its two halves meet along a tear between two text lines, with nothing to read: the page's own border joins them | real tear |
 | Two printed pages torn by hand into 10 small pieces each, 3 runs each of the current version (the live site's code) | Page 1 (several pieces touching): 8, 7 and 6 of 10 placed correctly; two runs set one true neighbour just past the tolerance. Page 2 (curled pieces, photographed 11.6° off straight down and straightened from the phone's own tilt reading): 5, 4 and 2 of 10; 1–3 misplaced, true neighbours set a little off. The rest set aside; every run one page | real tear |
 | Shredded documents, 64 documents × 8 pieces (news, Chinese news, code, tables) | text errors (NED) **0.050**; Muse Spark alone on the same photos **0.404** | ShredBench protocol, our replica |
 | ShredBench's own images with published answers | NED 0.002; Muse Spark alone 0.528 | ShredBench, 3 official images |
@@ -103,4 +103,4 @@ pnpm dev
 ## Credits and licences
 - Every third-party model, package, font, document, photo and voice, with its licence: [`THIRD_PARTY.md`](THIRD_PARTY.md).
 - Sample letters: public domain. Pierre Chouteau to Mary Louise Dalton, 1903, Missouri Historical Society, via DPLA and Wikimedia Commons. Other pages are listed in [`scripts/bench/PAGES.md`](scripts/bench/PAGES.md).
-- The tears in the samples are simulated, and every sample is labelled as such in the app.
+- The tears in the samples are simulated, and every sample is labelled as such in the app. The page at the top of this README and in the film's "Tear your own" part was torn by hand.

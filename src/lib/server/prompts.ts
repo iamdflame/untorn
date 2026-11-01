@@ -11,7 +11,7 @@
 // 2026-10-30.1: orient v1 (pageOrientation: is a rebuilt page upright? asked only where the solver is unsure).
 // 2026-10-30.2: both lines together (rejoin-shred merged with rejoin): read markdown/parts and orient v1.
 // 2026-10-31.1: seam v3 (tears along the lines as well as across them; text_crosses: no letter at the tear is no clue).
-export const PROMPTS_VERSION = "2026-10-31.1";
+export const PROMPTS_VERSION = "2026-11-01.1";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -186,6 +186,24 @@ const READ_V1 =
   "each word you transcribed but are not sure of, exactly as it appears in text.";
 
 /**
+ * v2: the tears are read across, not marked. On a page torn by hand the tear cuts letters and leaves a hairline
+ * between the pieces; v1 took those for missing paper and wrote "two[…]-core" and "tim[…]es" all over a page that
+ * was whole (the user's 6-piece page). Gaps are kept for what is really missing: a piece that isn't there.
+ */
+const READ_V2 =
+  "This is a document that was torn into pieces and has been put back together. Thin lines and narrow gaps run " +
+  "where two pieces meet: those are tears, not missing text. Read straight across them, joining the two halves of a " +
+  'letter or word split by a tear (for example "ti" + "mes" is "times"). Some pieces may still be missing: then ' +
+  "lines of text run into a hole (dark background) and break off.\n" +
+  "Transcribe the text exactly as written, line by line, keeping the original spelling, punctuation, and line " +
+  "breaks. Never invent, complete, or guess text that is not visible: only where text breaks off at a missing " +
+  `piece, write ${GAP} for what is missing there, keeping the visible part of a cut word (for example ` +
+  `"Missis${GAP}"). Blank paper is not missing text: write nothing for empty margins or the empty part of a page. ` +
+  `Write ${GAP} for illegible text too.\n` +
+  "Return the transcription as text, the language as a BCP 47 code (for example en, de, fr), and in uncertain list " +
+  "each word you transcribed but are not sure of, exactly as it appears in text.";
+
+/**
  * markdown: a reassembled page to Markdown, with ShredBench's own conversion rules (their published MLLM prompt,
  * github.com/ythere-y/ShredBench, Apache-2.0) adapted only where the input differs: the page is already put back
  * together, and missing text is marked instead of guessed.
@@ -297,7 +315,7 @@ const fragmentLabel = (i: number) => `Fragment ${i}:`;
 export const PROMPTS = {
   seam: { v1: SEAM_V1, v2: SEAM_V2, v3: SEAM_V3, flush: SEAM_FLUSH },
   choice: { v1: CHOICE_V1, v2: CHOICE_V2, joined: CHOICE_JOINED },
-  read: { v1: READ_V1, markdown: READ_MARKDOWN, parts: READ_PARTS },
+  read: { v1: READ_V1, v2: READ_V2, markdown: READ_MARKDOWN, parts: READ_PARTS },
   orient: { v1: ORIENT_V1 },
   translate: { v1: TRANSLATE_V1 },
   sort: { v1: SORT_V1, fragmentLabel },
@@ -312,4 +330,4 @@ export type ReadPromptVersion = keyof typeof PROMPTS.read;
 export type ChoicePromptVersion = keyof typeof PROMPTS.choice;
 
 /** The wording each function uses by default, chosen from the measured runs in docs/MODELS.md. */
-export const DEFAULT_PROMPT = { seam: "v3" as SeamPromptVersion, choice: "v1" as ChoicePromptVersion };
+export const DEFAULT_PROMPT = { seam: "v3" as SeamPromptVersion, choice: "v1" as ChoicePromptVersion, read: "v2" as ReadPromptVersion };

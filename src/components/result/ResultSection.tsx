@@ -465,7 +465,6 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
             <Plate scene={scene} cuts={cuts} J={J} hl={hl} label={`The rebuilt page from ${placed} torn pieces, seams drawn as hairlines; violet seams were confirmed by reading across the tear.`} />
             <figcaption>
               Fig. 1. The page rebuilt from {placed} pieces. Hairlines are the tears; <span className="vi">violet</span> where Muse read a word across them.
-              {result.pages[0] ? ` ${Math.round(result.pages[0].completeness * 100)}% of the page is covered by paper.` : ""}
             </figcaption>
           </figure>
 

@@ -485,7 +485,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
   await Promise.all(
     toRead.map(async (p) => {
       const jpeg = pageJpegs.get(p.id)!;
-      const out = await deps.readPage({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog, effort: opts.transcribeEffort ?? DEFAULT_TRANSCRIBE_EFFORT, hedgeAfterMs: 15_000 });
+      const out = await deps.readPage({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog, effort: opts.transcribeEffort ?? DEFAULT_TRANSCRIBE_EFFORT, hedgeAfterMs: 15_000, prompt: DEFAULT_PROMPT.read });
       museCost(out);
       let tr: TranscriptOut;
       if (!out.ok) tr = { page: p.id, ok: false, text: "", language: "und", uncertain: [], translation: null, error: out.error.code };

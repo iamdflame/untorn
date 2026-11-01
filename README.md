@@ -26,7 +26,7 @@ flowchart LR
 - **SAM 3.1** segments every piece in one call: a low-resolution pass finds the pieces, then each outline is snapped at full resolution.
 - **Geometry** (deterministic TypeScript, `src/lib/rejoin`) traces subpixel outlines, separates straight page edges from torn ones, and fits torn edges together.
 - **Muse Spark** looks at the rendered seam and reads across it: do the half-letters complete each other, and do the words continue? When several pieces share one outline, Muse picks the one that reads.
-- **The two-clue rule:** a join is accepted only when the edges fit AND the words continue. Untorn never forces a join; unplaced pieces stay unplaced.
+- **The two-clue rule:** a join needs two clues that agree: the edges fit and the words continue across the tear. Where no letters cross a tear, the second clue is the page itself: a strong fit whose text lines run on in step, or, between two halves of a page, its straight border lining up. Untorn never forces a join; unplaced pieces stay unplaced.
 - **Muse** transcribes the rebuilt page, marks gaps as `[…]` and never fills them in.
 
 More: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/SOLVER.md`](docs/SOLVER.md) · [`docs/MODELS.md`](docs/MODELS.md) · [`docs/SHREDBENCH.md`](docs/SHREDBENCH.md) · [`docs/API.md`](docs/API.md) · [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)

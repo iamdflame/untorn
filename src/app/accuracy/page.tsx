@@ -243,7 +243,7 @@ export default function AccuracyPage() {
             <li>SAM 3.1 outlines every piece in one call; each outline is snapped to the paper&apos;s edge at full resolution.</li>
             <li>Torn edges are matched by shape: candidate joins where two edges are mirror images.</li>
             <li>Muse Spark reads across each plausible seam. Where shapes tie (stack tears), it picks which twin continues the words.</li>
-            <li>A join is accepted only when the shape fits and the reading agrees, or when reading breaks a tie. Nothing is forced; pieces that fit nowhere stay unplaced.</li>
+            <li>A join needs two clues that agree: the shape fits and the reading agrees, or reading breaks a tie. Where no letters cross a tear, the second clue is the page itself: text lines that run on in step, or, between two halves of a page, its straight border lining up. Nothing is forced; pieces that fit nowhere stay unplaced.</li>
             <li>Muse transcribes the rebuilt page. Gaps stay gaps: nothing is written that isn&apos;t on the paper.</li>
           </ol>
         </Section>

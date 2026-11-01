@@ -171,6 +171,17 @@ The new client answered every one of its 120 Spark bench calls. Its retries took
 
 **readPage.** On the letter with a piece cut away, it marked 8+ gaps at the cut (`Lacle[…]`, `17[…]`) and invented nothing under the hole. The model wrote `[...]`, and the client normalises that to `[…]`.
 
+**readPage on real tears: prompt v2 (live default since 1 Nov 2026).** A hand tear cuts letters and leaves a hairline between the pieces, and the first prompt took those for missing paper: on a real 6-piece page that came back whole it wrote 31–35 gaps (`two[…]-core`, `tim[…]es`). v2 says thin lines are tears to read across and keeps `[…]` for text that breaks off at a missing piece, never for blank paper. Three reads each, on the images the pipeline sends:
+
+| Page | v1 | v2 |
+|---|---|---|
+| Real 6-piece page, whole | 35, 35, 31 gaps | 0, 0, 0 gaps |
+| German letter (simulated tear), CER | 1.4%, 0.0%, 3.7% | 0.1%, 0.0%, 0.0% |
+| 1927 letter (simulated tear), CER | 0.0%, 1.6%, 0.0% | 0.0%, 1.6%, 1.6% (the same single line) |
+| Real page with 3 pieces missing | 46, 56, 33 gaps | 17, 17, 17 gaps, still at the missing pieces |
+
+ShredBench keeps its own prompts (`markdown`, `parts`), so its numbers stand.
+
 ## Reliability
 
 | Function | Retries | Hedge after | Per-attempt timeout | Deadline |

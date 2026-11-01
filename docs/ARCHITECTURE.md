@@ -38,8 +38,7 @@ same pipeline, labelled as such.
 | Confirm a join | **Muse Spark 1.3** | It reads the half-letters across a rendered seam: do they complete words, does the sentence continue? Where pieces share an identical outline (stack tears), it chooses the one that reads. |
 | Read the page back | **Muse Spark** | Transcribes each rebuilt page, marking gaps as `[…]` and never filling them in. |
 
-**The two-clue rule:** a join is accepted only when the edges fit and the words continue. A piece with no confident
-fit is set aside, never forced.
+**The two-clue rule:** a join needs two clues that agree: the edges fit and the words continue across the tear. Where no letters cross a tear, the second clue is the page itself: a strong fit whose text lines run on in step, or, between two halves of a page, its straight border lining up. A piece with no confident fit is set aside, never forced.
 
 ## Where the code is
 

@@ -102,10 +102,16 @@ export type AssembleOptions = {
   /** Loop closure tolerance: px at the fragment's centroid, and degrees. */
   loopPx: number;
   loopDeg: number;
-  /** Deep overlap (px²) allowed between two placed fragments, plus a share of the smaller one's area. */
+  /**
+   * Deep overlap (px²) allowed between two placed fragments, plus a share of the smaller one's area. A hand tear splits
+   * the paper's layers, and a piece's edge can carry a flap that lies on its neighbour when the two are put back: on
+   * the user's 6-piece page the last join (true, the page then reading straight across every tear) set p4 10,076 px²
+   * over p1, 6.8% of p1, reaching 40 px deep along their seam, and at a 2% share the page stayed in two halves. At 7%
+   * Bench-S (oracle reads at 10% and 20% error, and geometry alone) and the replays of the real pages are unchanged.
+   */
   overlapPx: number;
   overlapShare: number;
-  /** The final check of every page allows less: no piece may lie on another beyond overlapPx + this share. */
+  /** The final check of every page: no piece may lie on another beyond overlapPx + this share. */
   finalOverlapShare: number;
   /**
    * No piece may lie more than `edgeTol` px beyond a clean straight edge (a page border: ≥ 80 px, RMS ≤ 0.5 px) of
@@ -163,8 +169,8 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   loopPx: 6,
   loopDeg: 2,
   overlapPx: 300,
-  overlapShare: 0.02,
-  finalOverlapShare: 0.02,
+  overlapShare: 0.07,
+  finalOverlapShare: 0.07,
   edgeTol: 20,
   edgeReach: 600,
   seamReuse: 0.35,

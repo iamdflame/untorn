@@ -53,6 +53,11 @@ node scripts/render.mjs still ThumbnailReal 0 out/stills && cp out/stills/Thumbn
 node scripts/render.mjs video Backup out/untorn-backup.mp4 --crf 14
 node scripts/tools/review.mjs out/untorn-demo.mp4 out/review --every 4 --stills 3,30,110
 node scripts/tools/sheet.mjs out/review/frames out/contact.png --cols 6 --w 320
+# the X thread's clips, cut from the finished film (times are the film's own)
+node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-1-main.mp4 0-33.6,65.96-85.8,118.75-127.6
+node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-2-twins.mp4 34.44-52.0
+node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-3-proof.mp4 52.13-65.9
+node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-4-german.mp4 105.55-127.6
 ```
 
 `render.mjs` links `capture/` into Remotion's bundle (Remotion can't copy a Windows junction), renders in the

@@ -75,6 +75,16 @@ export type AssembleOptions = {
   complete: boolean;
   completeMinScore: number;
   completeOneSeam: number;
+  /**
+   * Join two groups on a seam too weak to decide alone (score ≥ borderMinScore) when the merge lines up at least
+   * borderMinLength px of the page's border carried by both (sharedBorder), within borderDeg and borderPx. 0: off.
+   * On the user's whole 6-piece page, border stretches of different pieces sat 1.8–2.8° and 9–24 px off one line
+   * (curl, and a few px of error per seam), hence the tolerance.
+   */
+  borderMinLength: number;
+  borderMinScore: number;
+  borderDeg: number;
+  borderPx: number;
   /** A seam counts toward the two a placement needs from this score up. */
   completeSeamScore: number;
   /** Pieces whose outline is straight beyond this share (cut, not torn) get no second chance. */
@@ -128,7 +138,7 @@ export type AssembleOptions = {
   trace?: (candidate: string, outcome: TraceOutcome) => void;
 };
 
-export type TraceOutcome = "accepted" | "pair-joined" | "seam-taken" | "loop-disagrees" | "overlap" | "beyond-edge";
+export type TraceOutcome = "accepted" | "pair-joined" | "seam-taken" | "loop-disagrees" | "overlap" | "beyond-edge" | "border";
 
 export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   minGeomScore: 60,
@@ -153,6 +163,10 @@ export const ASSEMBLE_DEFAULTS: AssembleOptions = {
   astrayAlong: 0.15,
   upConfidence: UP_CONFIDENCE,
   complete: true,
+  borderMinLength: 150,
+  borderMinScore: 40,
+  borderDeg: 3,
+  borderPx: 25,
   completeMinScore: 100,
   completeOneSeam: Infinity,
   completeSeamScore: 60,
@@ -399,6 +413,31 @@ export function assemble(
       if (tryAccept({ c, combined, decidedBy: "geometry", content: null })) added++;
     }
     if (!added) break;
+  }
+
+  // Two groups of one torn page, the seam between them too weak to decide alone (a tear along the gap between two text
+  // lines: nothing for a read, and SAM's outline puts its fit anywhere from 61 to 200 from run to run). The page's
+  // border decides: when both groups carry a stretch of it, the right join puts the two stretches on one line. Every
+  // check of a join still applies (overlap, beyond the edge), and a join a read speaks against is not taken.
+  if (o.borderMinLength > 0) {
+    for (let pass = 0; pass < 3; pass++) {
+      let added = 0;
+      for (const c of byScore) {
+        if (acceptedIds.has(c.id) || c.twinGroup || c.edge === "cut" || c.score < o.borderMinScore) continue;
+        const ca = comp.get(c.a)!;
+        const cb = comp.get(c.b)!;
+        if (ca === cb) continue;
+        const ev = evidence?.get(c.id);
+        if (ev && ev.logOdds < 0) continue;
+        if (!linesContinue(c, o) || (c.text && c.text.weight >= 0.5 && c.text.logLR < o.minLinesLogLR)) continue;
+        const T = alignComponents(poseCompose(pose.get(c.a)!, poseCompose(c.pose, poseInvert(pose.get(c.b)!))), members.get(cb)!, members.get(ca)!, byId, pose, radius, Math.min(o.rimMax, c.rim ?? 0));
+        const shared = sharedBorder(members.get(cb)!, members.get(ca)!, (id) => (comp.get(id) === cb ? poseCompose(T, pose.get(id)!) : pose.get(id)!), byId, o.borderDeg, o.borderPx);
+        if (shared < o.borderMinLength) continue;
+        o.trace?.(c.id, "border");
+        if (tryAccept({ c, combined: 1 - Math.exp(-c.score / 60), decidedBy: "geometry", content: null })) added++;
+      }
+      if (!added) break;
+    }
   }
 
   // Twins whose pieces already sit side by side on one page, exactly as the seam says: the loop closes on its own
@@ -781,6 +820,61 @@ const straightShare = (f: Fragment) => f.segments.filter((s) => s.kind === "stra
 
 /** A clean straight segment: a page edge or a cut, not a stretch of tear that happens to run straight. */
 const cleanStraight = (seg: Segment) => seg.kind === "straight" && seg.length >= 80 && (seg.rms ?? Infinity) <= 0.5;
+
+/**
+ * A torn piece's long straight edges (the page's border) placed by `p`: midpoint, unit direction, outward normal. On
+ * the user's 6-piece photo the border stretches fit their lines to 0.35–0.68 px over 298–810 px, and the corner pieces
+ * are 54–55% straight; stretches of tear that ran straight were shorter or rougher (64–250 px, 0.69–0.91 px). Pieces
+ * mostly straight (scissor cuts, shredder strips: 80% and more) carry cuts, not border.
+ */
+function borderLines(X: MatchData, p: Pose): { mx: number; my: number; dx: number; dy: number; nx: number; ny: number; length: number }[] {
+  if (straightShare(X.f) > 0.7) return [];
+  const c = Math.cos(p.theta);
+  const s = Math.sin(p.theta);
+  const out: { mx: number; my: number; dx: number; dy: number; nx: number; ny: number; length: number }[] = [];
+  for (const seg of X.f.segments) {
+    if (seg.kind !== "straight" || seg.length < 150 || (seg.rms ?? Infinity) > 0.7) continue;
+    let mx = 0;
+    let my = 0;
+    let nx = 0;
+    let ny = 0;
+    for (let k = 0; k < seg.count; k++) {
+      const i = (seg.start + k) % X.n;
+      mx += X.X[i];
+      my += X.Y[i];
+      nx += X.NX[i];
+      ny += X.NY[i];
+    }
+    const nl = Math.hypot(nx, ny) || 1;
+    const [px, py] = poseApply(p, mx / seg.count, my / seg.count);
+    const onx = (c * nx - s * ny) / nl;
+    const ony = (s * nx + c * ny) / nl;
+    out.push({ mx: px, my: py, dx: -ony, dy: onx, nx: onx, ny: ony, length: seg.length });
+  }
+  return out;
+}
+
+/**
+ * How much page border two groups share once placed: the length of the shorter edge, summed over pairs of clean
+ * straight edges (one from each group) that face the same way and lie on one line (within `deg` and `px`). A page's
+ * border is one straight line along each side, so two groups that each carry a stretch of it line them up only when
+ * they are placed right.
+ */
+function sharedBorder(moved: string[], staying: string[], at: (id: string) => Pose, byId: Map<string, MatchData>, deg: number, px: number): number {
+  const cosTol = Math.cos((deg * Math.PI) / 180);
+  let total = 0;
+  const a = moved.flatMap((id) => borderLines(byId.get(id)!, at(id)));
+  const b = staying.flatMap((id) => borderLines(byId.get(id)!, at(id)));
+  for (const u of a) {
+    for (const v of b) {
+      if (u.nx * v.nx + u.ny * v.ny < cosTol) continue;
+      // on one line: each midpoint within `px` of the other's line
+      if (Math.abs((u.mx - v.mx) * v.nx + (u.my - v.my) * v.ny) > px || Math.abs((v.mx - u.mx) * u.nx + (v.my - u.my) * u.ny) > px) continue;
+      total += Math.min(u.length, v.length);
+    }
+  }
+  return total;
+}
 
 /** Share of an outline range ([first, count], wrapping) on torn edges (not on any straight segment). */
 function tornShare(D: MatchData, seam: [number, number]): number {

@@ -1,6 +1,6 @@
 // The screens' view of a run, built by folding RunEvents (live or replayed) through one reducer. Pure.
 
-import { STAGES, type AskOut, type CandidateOut, type ErrorCode, type JoinOut, type PageOut, type PieceOut, type ReadOut, type RunEvent, type RunResult, type RunSource, type Stage, type TranscriptOut, type UnplacedOut, type Warning } from "./types";
+import { STAGES, type AskOut, type CandidateOut, type CatalogOut, type ErrorCode, type JoinOut, type PageOut, type PieceOut, type ReadOut, type RunEvent, type RunResult, type RunSource, type Stage, type TranscriptOut, type UnplacedOut, type Warning } from "./types";
 
 export type StageStatus = "pending" | "active" | "done";
 
@@ -24,6 +24,8 @@ export type RunState = {
   unplaced: UnplacedOut[];
   transcripts: TranscriptOut[];
   warnings: Warning[];
+  /** Archive records: they arrive after done on a live run, and with the result on a replay. */
+  catalogs: CatalogOut[];
   result: RunResult | null;
   error: { code: ErrorCode; message: string } | null;
   /** Run time of the last event (ms from the run's start). */
@@ -48,6 +50,7 @@ export const initialRunState = (mode: RunState["mode"] = null): RunState => ({
   unplaced: [],
   transcripts: [],
   warnings: [],
+  catalogs: [],
   result: null,
   error: null,
   t: 0,
@@ -100,11 +103,14 @@ export function reduceRun(s: RunState, e: RunAction): RunState {
         unplaced: r.unplaced,
         transcripts: r.transcripts,
         warnings: r.warnings,
+        catalogs: r.catalogs ?? s.catalogs,
         stages: Object.fromEntries(STAGES.map((st) => [st, { status: "done", ms: r.timings[st] }])) as RunState["stages"],
         result: r,
         t,
       };
     }
+    case "catalog":
+      return { ...s, catalogs: [...s.catalogs.filter((c) => c.page !== e.catalog.page), e.catalog], t };
     case "error":
       return { ...s, status: "error", error: { code: e.code, message: e.message }, t };
   }

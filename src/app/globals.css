@@ -1050,6 +1050,109 @@ h2 {
   color: var(--chalk-2);
   margin: 12px 0 0;
 }
+/* the archive record: a catalogue card, ruled, under the transcript */
+.r-rec {
+  margin-top: 40px;
+}
+.r-rec h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 28px;
+  letter-spacing: -0.015em;
+  margin: 0 0 14px;
+}
+.rec {
+  margin: 0;
+  border-top: 1px solid var(--chalk-hair-2);
+}
+.rec > div {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--chalk-hair);
+}
+.rec dt {
+  font-size: 13.5px;
+  color: var(--chalk-3);
+}
+.rec dd {
+  margin: 0;
+  font-size: 15px;
+  color: var(--chalk);
+  min-width: 0;
+}
+.rec-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.rec-name .as {
+  display: block;
+  margin-top: 1px;
+  font: 400 11.5px/1.5 var(--mono);
+  color: var(--chalk-3);
+  overflow-wrap: anywhere;
+}
+.rec-sum {
+  margin: 16px 0 0;
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--chalk);
+  max-width: 62ch;
+}
+.note .note-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+.note .rec-on .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--chalk);
+  animation: rec-wait 0.8s ease-in-out infinite alternate;
+}
+.note .rec-on .t {
+  font: 500 12.5px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--chalk-2);
+}
+.note-text {
+  margin: 0;
+  font: 400 13px/1.6 var(--mono);
+  color: var(--chalk);
+  overflow-wrap: anywhere;
+}
+.note-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--chalk-3);
+}
+.note-hint.err {
+  color: var(--red-lt);
+}
+.note-hint .linkish {
+  color: var(--chalk-2);
+}
+.rec-wait {
+  margin: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--chalk-hair-2);
+  color: var(--chalk-2);
+  animation: rec-wait 1.6s ease-in-out infinite alternate;
+}
+@keyframes rec-wait {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
 .seg-row {
   display: inline-flex;
   padding: 3px;

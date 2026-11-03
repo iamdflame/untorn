@@ -4,6 +4,7 @@
 //   RUNS_PER_IP_PER_HOUR      live runs one address may start per hour (default 12: judges may share one office address)
 //   RUNS_PER_IP_PER_DAY       live runs one address may start per UTC day (default 6), so no one visitor spends the day's cap
 //   SESSIONS_PER_IP_PER_HOUR  phone codes one address may make per hour (default 30)
+//   NOTES_PER_IP_PER_HOUR     spoken provenance notes one address may send per hour (default 20)
 //   DAILY_SPEND_CAP_USD       model spend per UTC day across all runs (default: dailyCapFor, below)
 //   MAX_CONCURRENT_RUNS       pipelines one server instance runs at once; the rest queue (default 4)
 //   MAX_QUEUE                 runs that may wait per instance before "busy" (default 12)
@@ -32,6 +33,7 @@ export const limits = () => ({
   runsPerIpPerHour: num("RUNS_PER_IP_PER_HOUR", 12),
   runsPerIpPerDay: num("RUNS_PER_IP_PER_DAY", 6),
   sessionsPerIpPerHour: num("SESSIONS_PER_IP_PER_HOUR", 30),
+  notesPerIpPerHour: num("NOTES_PER_IP_PER_HOUR", 20),
   dailyCapUsd: num("DAILY_SPEND_CAP_USD", dailyCapFor(day())),
   maxConcurrent: Math.max(1, num("MAX_CONCURRENT_RUNS", 4)),
   maxQueue: num("MAX_QUEUE", 12),
@@ -76,7 +78,7 @@ export function admitSession(ip: string) {
 type LedgerEntry = { runId: string; ip: string; micro: number; done: boolean; at: Date };
 
 function parseLedger(key: string, at: Date): LedgerEntry | null {
-  const m = /^ledger\/\d{4}-\d{2}-\d{2}\/([0-9a-f]{16}|health)\/([a-z0-9-]+)_(\d+)\.(s|d)$/.exec(key);
+  const m = /^ledger\/\d{4}-\d{2}-\d{2}\/([0-9a-f]{16}|health|notes)\/([a-z0-9-]+)_(\d+)\.(s|d)$/.exec(key);
   return m ? { ip: m[1], runId: m[2], micro: Number(m[3]), done: m[4] === "d", at } : null;
 }
 
@@ -118,6 +120,18 @@ export async function admitRun(store: Store, ip: string, runId: string): Promise
   }
   await store.put(`ledger/${day()}/${ipKey}/${runId}_${Math.round(L.estimateUsd * 1e6)}.s`, "1", "text/plain"); // Blob refuses empty bodies
   return { ipKey };
+}
+
+/**
+ * Admit a spoken note, or throw "rate-limited" / "daily-cap". Notes settle under one shared key ("notes"): they count
+ * towards the day's spend (about $0.003 a minute) but never towards a visitor's live runs.
+ */
+export async function admitNote(store: Store, ip: string): Promise<{ ipKey: string }> {
+  const L = limits();
+  if (!hit(`n:${ipHash(ip)}`, L.notesPerIpPerHour, 3600_000)) throw new RunError("rate-limited", "That's enough notes from this address for an hour.");
+  const today = await spendToday(store);
+  if (today.usd + 0.01 > L.dailyCapUsd) throw new RunError("daily-cap");
+  return { ipKey: "notes" };
 }
 
 /** Record a finished (or failed) run's real model cost. */

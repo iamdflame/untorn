@@ -54,6 +54,24 @@ afterEach(() => {
 });
 
 describe("POST /api/runs", () => {
+  it("after done, streams the archive record and stores the run with it (fields that don't quote the page left out)", async () => {
+    fake.opts = { catalog: true };
+    const scene = await fakeScene();
+    const events = await readEvents(await postRun(uploadRequest(scene.photo, "203.0.113.31")));
+    const types = events.map((e) => e.type);
+    const doneAt = types.indexOf("done");
+    expect(doneAt).toBeGreaterThan(0);
+    const after = events.slice(doneAt + 1).filter((e) => e.type === "catalog") as Extract<RunEvent, { type: "catalog" }>[];
+    expect(after.map((e) => e.catalog.status)).toEqual(["pending", "done"]);
+    const rec = after[1].catalog;
+    expect(rec.record?.to?.name).toBe("Frau Dalton");
+    expect(rec.record?.people).toEqual([]);
+    expect(rec.dropped).toBe(1);
+    const runId = (events[doneAt] as { result: RunResult }).result.runId;
+    const stored = (await (await getRun(new Request(`http://localhost/api/runs/${runId}`), ctx({ runId }))).json()) as RunResult;
+    expect(stored.catalogs?.[0].record?.to?.name).toBe("Frau Dalton");
+  });
+
   it("streams a whole run for an upload and stores it for replay", async () => {
     const scene = await fakeScene();
     const res = await postRun(uploadRequest(scene.photo));

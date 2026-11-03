@@ -118,6 +118,44 @@ export type TranscriptOut = {
   error?: string;
 };
 
+/** What an archive record says the page is (the catalogue's "kind of document"). */
+export type RecordKind = "letter" | "telegram" | "memo" | "report" | "form" | "list" | "receipt" | "minutes" | "notes" | "article" | "other";
+
+/** A name the record gives, with the words on the page it rests on (checked: they are in the transcript). */
+export type RecordField = { name: string; quote: string };
+
+/** An archive record for one rebuilt page, written by Muse from its transcript; only fields that quote the page. */
+export type PageRecord = {
+  kind: RecordKind;
+  /** The date the page gives for itself, as written, and as ISO 8601 when its numbers bear that out. */
+  date: { quote: string; iso: string | null } | null;
+  /** Where it was written or sent from. */
+  place: RecordField | null;
+  from: RecordField | null;
+  to: RecordField | null;
+  /** Everyone and everything else the page names, once each. */
+  people: RecordField[];
+  places: RecordField[];
+  organisations: RecordField[];
+  /** Muse's own one-sentence description, in English: the one field no quote can check, and labelled so. */
+  summary: string;
+};
+
+export type CatalogOut = {
+  page: string;
+  status: "pending" | "done" | "failed";
+  record: PageRecord | null;
+  /** Fields Muse gave whose words are not on the page: left out of the record. */
+  dropped: number;
+  model: string | null;
+  ms?: number;
+  costUsd?: number;
+  error?: string;
+};
+
+/** A spoken provenance note, transcribed by Muse Voice Transcribe (POST /api/notes); kept in the visitor's browser. */
+export type SpokenNote = { text: string; audioMs: number; ms: number; costUsd: number; model: string };
+
 export type Warning = { code: WarningCode; message: string };
 
 export type WarningCode = "blurry" | "small-photo" | "no-text" | "some-blank" | "slow-reading" | "reading-failed" | "partial" | "many-pieces" | "overlap" | "tilted";
@@ -185,6 +223,8 @@ export type RunResult = {
   };
   /** The event order and timing (ms from the start), for replay. */
   timeline: TimelineEntry[];
+  /** Archive records, written after the page is shown (absent on runs made before them). */
+  catalogs?: CatalogOut[];
 };
 
 export type RunEvent =
@@ -200,6 +240,8 @@ export type RunEvent =
   | { type: "warning"; t: number; warning: Warning }
   | { type: "tick"; t: number }
   | { type: "done"; t: number; result: RunResult }
+  /** After done: each page's archive record, first pending, then done or failed. */
+  | { type: "catalog"; t: number; catalog: CatalogOut }
   | { type: "error"; t: number; code: ErrorCode; message: string };
 
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;

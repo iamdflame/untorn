@@ -11,7 +11,8 @@
 // 2026-10-30.1: orient v1 (pageOrientation: is a rebuilt page upright? asked only where the solver is unsure).
 // 2026-10-30.2: both lines together (rejoin-shred merged with rejoin): read markdown/parts and orient v1.
 // 2026-10-31.1: seam v3 (tears along the lines as well as across them; text_crosses: no letter at the tear is no clue).
-export const PROMPTS_VERSION = "2026-11-01.1";
+// 2026-11-03.1: catalog v1 (catalogPage: an archive record from a page's transcript, every field quoting it).
+export const PROMPTS_VERSION = "2026-11-03.1";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -312,6 +313,62 @@ const SORT_V1 = (n: number) =>
 
 const fragmentLabel = (i: number) => `Fragment ${i}:`;
 
+// ---------------------------------------------------------------------------------------------------------------
+// catalogPage: an archive record for a rebuilt page, from its transcript. Each field quotes the page (record.ts
+// checks every quote against the transcript and leaves out what isn't there).
+
+export const RECORD_KINDS = ["letter", "telegram", "memo", "report", "form", "list", "receipt", "minutes", "notes", "article", "other"] as const;
+
+const named = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "quote"],
+  properties: { name: { type: "string" }, quote: { type: "string" } },
+} as const;
+
+export const CATALOG_SCHEMA: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "date", "place", "from", "to", "people", "places", "organisations", "summary"],
+  properties: {
+    kind: { type: "string", enum: [...RECORD_KINDS] },
+    date: {
+      type: "object",
+      additionalProperties: false,
+      required: ["quote", "iso"],
+      properties: { quote: { type: "string" }, iso: { type: "string" } },
+    },
+    place: named,
+    from: named,
+    to: named,
+    people: { type: "array", items: named },
+    places: { type: "array", items: named },
+    organisations: { type: "array", items: named },
+    summary: { type: "string" },
+  },
+};
+
+const CATALOG_V1 =
+  "Below is the transcription of one page of a document that was torn into pieces and put back together. " +
+  `${GAP} marks text that is missing from the torn original. Catalogue the page for an archive, from the ` +
+  "transcription alone:\n" +
+  `- kind: what the page is: ${RECORD_KINDS.join(", ")}.\n` +
+  "- date: the date the document gives for itself (when it was written or sent), not a date it mentions; in iso the " +
+  "same date as YYYY-MM-DD, or YYYY-MM or YYYY when the page gives no more.\n" +
+  "- place: where it was written or sent from.\n" +
+  "- from: who wrote or sent it: a person, or the office or organisation when no person is named.\n" +
+  "- to: who it is addressed to.\n" +
+  "- people, places, organisations: every other person, place and organisation the text names, once each (people " +
+  "are named individuals, not nationalities or groups).\n" +
+  "For each of these, quote is the words exactly as they stand in the transcription, character for character, " +
+  "with its spelling, capitals and abbreviations, as short as possible (just the name or the date); name is the " +
+  "same name written normally, the name alone (no greeting such as Dear), with nothing added. Leave name and quote " +
+  "empty when the page does not say it. " +
+  `Never infer, complete or translate a name or a date, never take one from a ${GAP} gap, and never use what you ` +
+  "know about the document from anywhere else.\n" +
+  "- summary: one plain sentence in English, at most 30 words, saying what the page is about, from what the " +
+  "transcription says.";
+
 export const PROMPTS = {
   seam: { v1: SEAM_V1, v2: SEAM_V2, v3: SEAM_V3, flush: SEAM_FLUSH },
   choice: { v1: CHOICE_V1, v2: CHOICE_V2, joined: CHOICE_JOINED },
@@ -319,6 +376,7 @@ export const PROMPTS = {
   orient: { v1: ORIENT_V1 },
   translate: { v1: TRANSLATE_V1 },
   sort: { v1: SORT_V1, fragmentLabel },
+  catalog: { v1: CATALOG_V1 },
   /** Added when the seam image is also sent rotated by 180°. */
   bothOrientations:
     "The same seam is shown twice: as photographed and turned by 180 degrees, because the pieces' upright direction " +

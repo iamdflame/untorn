@@ -82,6 +82,8 @@ export type FakeOptions = {
   museFails?: boolean;
   /** Delay per Muse seam call (ms). */
   readDelayMs?: number;
+  /** Write archive records after done: a record quoting the fake page (one name it doesn't, to be dropped). */
+  catalog?: boolean;
 };
 
 export function fakeDeps(putAsset: PipelineDeps["putAsset"], o: FakeOptions = {}): PipelineDeps & { calls: Record<string, number> } {
@@ -128,5 +130,24 @@ export function fakeDeps(putAsset: PipelineDeps["putAsset"], o: FakeOptions = {}
       calls.translate++;
       return ok("translate", { text: `Dear Mrs Dalton, […] thank you. (${text.length})`, source_language: "de", to });
     },
+    ...(o.catalog
+      ? {
+          catalogPage: async () => {
+            calls.catalogPage = (calls.catalogPage ?? 0) + 1;
+            const none = { name: "", quote: "" };
+            return ok("catalogPage", {
+              kind: "letter",
+              date: { quote: "", iso: "" },
+              place: none,
+              from: none,
+              to: { name: "Frau Dalton", quote: "Frau Dalton" },
+              people: [{ name: "Herr Reimann", quote: "Herr Reimann" }],
+              places: [],
+              organisations: [],
+              summary: "A short letter of thanks to Mrs Dalton.",
+            });
+          },
+        }
+      : {}),
   } as PipelineDeps & { calls: Record<string, number> };
 }

@@ -9,6 +9,7 @@ import { SAMPLES } from "@/lib/run/samples";
 import { MAX_UPLOAD_BYTES, type RunEvent, type RunSource } from "@/lib/run/types";
 import { isPhotoId, randomId } from "./ids";
 import { normalisePhoto } from "./intake";
+import { catalogRun } from "./catalog";
 import { acquireSlot, admitRun, settleRun } from "./limits";
 import { liveDeps } from "./live";
 import { clearPause, pauseAge, PAUSE_FAIL_FAST_MS, readPause, setPause } from "./live-status";
@@ -111,8 +112,11 @@ export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; r
           return fileUrl(key);
         };
         const deps = ctx.deps ?? liveDeps(putAsset);
-        await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, signal: abort.signal, meter }, write);
+        const result = await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, signal: abort.signal, meter }, write);
         await clearPause(store).catch(() => {});
+        // the page is on screen: now the archive records, streamed after done (a failure there is a note, not an error)
+        if (deps.catalogPage)
+          await catalogRun(result, { catalogPage: deps.catalogPage, putAsset }, { signal: abort.signal, meter, emit: write, t: () => Date.now() - t0 }).catch((e) => console.error(`[runs] ${runId} record failed`, e));
       } catch (e) {
         const known = e instanceof RunError;
         if (!known) console.error(`[runs] ${runId} failed`, e);

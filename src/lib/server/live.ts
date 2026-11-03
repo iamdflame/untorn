@@ -1,7 +1,8 @@
-// The pipeline's real model calls: SAM 3.1 (two-pass segmentation) and Muse Spark (seams, pages, translation).
+// The pipeline's real model calls: SAM 3.1 (two-pass segmentation), Muse Spark (seams, pages, translation) and Muse
+// Wonder (the archive record, after the page is shown).
 // Server-only: these read MODEL_API_KEY.
 
-import { chooseContinuation, pageOrientation, readPage, translate, verifySeam } from "./muse";
+import { catalogPage, chooseContinuation, pageOrientation, readPage, translate, verifySeam } from "./muse";
 import type { PipelineDeps } from "./pipeline";
 import { segmentFragments } from "./segment";
 
@@ -14,6 +15,7 @@ export function liveDeps(putAsset: PipelineDeps["putAsset"]): PipelineDeps {
     readPage,
     translate,
     pageOrientation,
+    catalogPage,
     putAsset,
   };
 }

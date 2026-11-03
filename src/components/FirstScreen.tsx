@@ -189,7 +189,7 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
 
       <div ref={resultRef} />
       {result && resultOn ? (
-        <ResultSection result={result} photoSrc={usesSamplePhoto ? (sample.photo.hires ?? sample.photo.url) : (result.photo.url ?? state.photo?.url ?? null)} J={J} setJ={setJ} />
+        <ResultSection result={result} catalogs={state.catalogs} photoSrc={usesSamplePhoto ? (sample.photo.hires ?? sample.photo.url) : (result.photo.url ?? state.photo?.url ?? null)} J={J} setJ={setJ} />
       ) : (
         <section className="result" id="result" aria-labelledby="rh" aria-busy={busy}>
           <div className="r-head">

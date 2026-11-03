@@ -12,6 +12,7 @@
 // Every attempt is logged with its latency, tokens and estimated cost; the totals ride on the outcome's meta.
 
 import { hedge } from "./hedge";
+import type { RawNamed, RawRecord } from "./record";
 import { isAccountRefusal } from "./refusal";
 import {
   choiceSchema,
@@ -25,6 +26,7 @@ import {
   SEAM_SCHEMA_V3,
   SORT_SCHEMA,
   TRANSLATE_SCHEMA,
+  CATALOG_SCHEMA,
   type ChoicePromptVersion,
   type ReadPromptVersion,
   type SeamPromptVersion,
@@ -35,6 +37,8 @@ export const META_API_BASE = "https://api.meta.ai/v1";
 export const USER_AGENT = "rejoin/0.1";
 
 export type MuseModel = "muse-spark-1.3" | "muse-wonder-1.0";
+/** The archive record's model (scripts/eval/catalog.ts measured both on the samples' transcripts). */
+export const CATALOG_MODEL: MuseModel = "muse-wonder-1.0";
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type ImageDetail = "low" | "high" | "auto" | "original";
 
@@ -640,6 +644,36 @@ export async function translate(text: string, to: string, opts: MuseOptions = {}
         const out = normaliseGaps(raw);
         if (out.split(GAP).length - 1 < gaps) return null;
         return { text: out, source_language, to };
+      },
+    },
+    opts,
+  );
+}
+
+/**
+ * An archive record for a rebuilt page, from its transcript (no image: every field must quote the text). The answer
+ * is only shape-checked here; record.ts keeps the fields whose quotes are on the page.
+ */
+export async function catalogPage(text: string, opts: MuseOptions = {}): Promise<MuseOutcome<RawRecord>> {
+  return museCall(
+    {
+      fn: "catalogPage",
+      schemaName: "archive_record",
+      schema: CATALOG_SCHEMA,
+      content: [textPart(PROMPTS.catalog.v1), textPart(normaliseGaps(text))],
+      promptVersion: `${PROMPTS_VERSION}/catalog.v1`,
+      defaults: { model: CATALOG_MODEL, effort: "minimal", maxOutputTokens: 4000, timeoutMs: 30_000, deadlineMs: 60_000, hedgeAfterMs: 12_000 },
+      check: (j) => {
+        if (!isObj(j) || !isObj(j.date)) return null;
+        const named = (v: unknown): RawNamed | null => (isObj(v) && typeof v.name === "string" && typeof v.quote === "string" ? { name: v.name, quote: v.quote } : null);
+        const names = (v: unknown): RawNamed[] | null => (Array.isArray(v) ? v.map(named).filter((x): x is RawNamed => !!x) : null);
+        const kind = str(j.kind);
+        const date = { quote: str(j.date.quote), iso: str(j.date.iso) };
+        const [place, from, to] = [named(j.place), named(j.from), named(j.to)];
+        const [people, places, organisations] = [names(j.people), names(j.places), names(j.organisations)];
+        const summary = str(j.summary);
+        if (kind === null || date.quote === null || date.iso === null || !place || !from || !to || !people || !places || !organisations || summary === null) return null;
+        return { kind, date: { quote: date.quote, iso: date.iso }, place, from, to, people, places, organisations, summary };
       },
     },
     opts,

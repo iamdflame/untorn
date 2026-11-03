@@ -1,14 +1,16 @@
 "use client";
 
 // The finished run, in the same room: the rebuilt page on the light table (assembled or pulled apart with J, a
-// real-pixel close-up under the pointer), what Muse read on it, every seam with both of its clues, the pieces left
-// unplaced, and the downloads.
+// real-pixel close-up under the pointer), what Muse read on it, its archive record, every seam with both of its
+// clues, the pieces left unplaced, and the downloads.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrefersReducedMotion } from "../hooks";
 import { WARNINGS } from "@/lib/run/errors";
 import { buildScene, splitWords, statedSplit, type Scene, type SceneSeam } from "@/lib/run/scene";
-import type { RunResult } from "@/lib/run/types";
+import type { CatalogOut, RunResult, SpokenNote } from "@/lib/run/types";
+import { dublinCore, KIND_LABEL, recordDate } from "@/lib/run/record-view";
+import { RecordCard } from "./RecordCard";
 import { languageName } from "@/lib/client/language";
 import { pagesPdf } from "@/lib/client/pdf";
 import { cutoutKey, makeCutouts, readPoint, sharedCutouts, type Cutout } from "../hero/cutouts";
@@ -249,7 +251,8 @@ function Crop({ scene, seam, cuts, at }: { scene: Scene; seam: SceneSeam; cuts: 
   return <canvas ref={ref} width={420} height={126} role="img" aria-label={`The tear between pieces ${a} and ${b}, real pixels`} />;
 }
 
-export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult; photoSrc: string | null; J: number; setJ: (v: number) => void }) {
+/** `catalogs`: the archive records as they stream in after a live run's done event (default: the stored result's). */
+export function ResultSection({ result, catalogs, photoSrc, J, setJ }: { result: RunResult; catalogs?: CatalogOut[]; photoSrc: string | null; J: number; setJ: (v: number) => void }) {
   const scene = useMemo(() => buildScene(result), [result]);
   const [cuts, setCuts] = useState<Map<string, Cutout> | null>(null);
   const [hl, setHl] = useState(-1);
@@ -290,6 +293,21 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
   const recording = !!result.photo.url?.startsWith("/samples/");
   const simulated = /simulated/i.test(result.caption ?? "");
   const json = recording ? result.photo.url!.replace(/photo[^/]*$/, "result.json") : `/api/runs/${result.runId}?download=1`;
+  const catalog = transcript ? (catalogs ?? result.catalogs ?? []).find((c) => c.page === transcript.page) : undefined;
+  const record = catalog?.status === "done" ? catalog.record : null;
+  // the archivist's spoken note: kept in this browser, and written into the downloads
+  const [note, setNote] = useState<SpokenNote | null>(null);
+  // where this run can be seen again: the recording's sample link, or the live run's permalink
+  const runLink = () => (recording || result.source === "sample" ? (result.sample ? `${location.origin}/?sample=${result.sample}` : null) : `${location.origin}/r/${result.runId}`);
+  const saveRecord = () => {
+    if (!catalog || !record) return;
+    const url = URL.createObjectURL(new Blob([dublinCore(result, catalog, runLink(), note)], { type: "application/xml" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `untorn-${result.runId}-record.xml`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
   // the archive copy: the rebuilt pages with Muse's transcript as searchable text, and how they were rebuilt
   const [pdf, setPdf] = useState<"idle" | "making" | "failed">("idle");
   const savePdf = async () => {
@@ -309,6 +327,12 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
         `${result.pieces.length - setAside} pieces placed on ${pages.length === 1 ? "one page" : `${pages.length} pages`}${setAside ? `; ${setAside} set aside, never forced` : ""}.`,
         `${result.joins.length} joins: ${confirmed} confirmed by Muse reading across the tear, the rest by the shape of the torn edges.`,
         ...(recording || result.source === "sample" ? [] : [`The run, with every seam and its clues: ${location.origin}/r/${result.runId}`]),
+        ...(record
+          ? [
+              `Archive record by Muse Wonder, every name and date quoted from the page: ${KIND_LABEL[record.kind]}${recordDate(record) ? `, ${recordDate(record)}` : ""}${record.place ? `, written at ${record.place.name}` : ""}${record.from ? `; from ${record.from.name}` : ""}${record.to ? `; to ${record.to.name}` : ""}.`,
+            ]
+          : []),
+        ...(note ? [`Where it was found, as the archivist said it (written down by Muse Voice Transcribe): ${note.text}`] : []),
       ];
       const blob = await pagesPdf(pages, { title: "A page rebuilt by Untorn", summary });
       const url = URL.createObjectURL(blob);
@@ -443,6 +467,12 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
               Transcript <small>TXT</small>
             </a>
           )}
+          {record && (
+            <button type="button" className="btn" onClick={saveRecord}>
+              <DlIcon />
+              Archive record <small>Dublin Core</small>
+            </button>
+          )}
           <a className="btn" href={json} download={`untorn-${result.runId}.json`}>
             <DlIcon />
             Join map <small>JSON</small>
@@ -494,6 +524,7 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
               Read from the rebuilt page by Muse Spark. Line breaks follow the page; gaps where paper is missing are marked […], never filled in.
               {transcript?.uncertain.length ? ` Uncertain: ${transcript.uncertain.join(", ")}.` : ""}
             </p>
+            {catalog && <RecordCard catalog={catalog} note={note} onNote={setNote} />}
           </div>
         </div>
       ) : (

@@ -37,7 +37,7 @@ import { simplifyClosed, touchingPairs } from "./mask-geometry";
 import { focalPx, rectifyRgb, rectifyWith, rotationMap } from "./rectify";
 import { DEFAULT_F35, lineSamples, tiltFromLines } from "./tilt-lines";
 import type { CameraTilt } from "@/lib/run/tilt";
-import type { chooseContinuation, MuseOutcome, pageOrientation, readPage, translate, verifySeam } from "./muse";
+import type { catalogPage, chooseContinuation, MuseOutcome, pageOrientation, readPage, translate, verifySeam } from "./muse";
 import { DEFAULT_PROMPT, type SeamPromptVersion } from "./prompts";
 import type { SegmentResult } from "./segment";
 import { sharpness } from "./intake";
@@ -52,6 +52,8 @@ export type PipelineDeps = {
   translate: typeof translate;
   /** Is a rebuilt page upright? Asked only for pages whose up/down the solver could not settle (optional). */
   pageOrientation?: typeof pageOrientation;
+  /** The archive record, written after done (catalog.ts; optional: without it a run ends at done). */
+  catalogPage?: typeof catalogPage;
   /** Store a run file and return the URL the browser loads it from. */
   putAsset: (name: string, bytes: Uint8Array, contentType: string) => Promise<string | null>;
   now?: () => number;

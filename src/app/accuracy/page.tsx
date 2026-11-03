@@ -16,6 +16,9 @@ export const metadata: Metadata = {
 
 type Row = (string | number)[];
 
+/** Whether this deployment reads with Meta's open weights (src/lib/server/live.ts: the host's key, not set aside). */
+const OPEN_WEIGHTS_LIVE = Boolean(process.env.BASETEN_API_KEY) && process.env.OPEN_WEIGHTS !== "off";
+
 function Table({ caption, head, rows, note }: { caption: string; head: string[]; rows: Row[]; note?: string }) {
   return (
     <figure className="eval-table">
@@ -215,7 +218,11 @@ export default function AccuracyPage() {
           id="open-weights"
           title="Meta’s open weights"
           label="Real model calls: simulated seams, sample pages, real tears"
-          intro="Muse Spark Open is Meta’s open-weights Muse Spark, served here by Baseten. It gets the same questions as Muse Spark, with the same prompts. The site asks Muse Spark first and Muse Spark Open when a read is slow; the switch “Read on open weights only” sends every read, the transcript and the record to it."
+          intro={
+            OPEN_WEIGHTS_LIVE
+              ? "Muse Spark Open is Meta’s open-weights Muse Spark, served here by Baseten. It gets the same questions as Muse Spark, with the same prompts. The site asks Muse Spark first and Muse Spark Open when a read is slow; the switch “Read on open weights only” sends every read, the transcript and the record to it."
+              : "Muse Spark Open is Meta’s open-weights Muse Spark, served by Baseten. It gets the same questions as Muse Spark, with the same prompts. These runs used the site’s code on our machine; this deployment of the site reads on Meta’s API alone until its open-weights host is set up."
+          }
         >
           <Table
             caption="The same tests, one run each (3 Nov 2026)"

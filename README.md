@@ -109,7 +109,7 @@ pnpm dev
   - a tilted photo straightened before the pieces are fitted: from the tilt an iPhone records, or, when the photo has no such reading, from the spacing of the pieces' text lines (it acts only when one tilt explains nearly every piece; it left all 4 samples, 5 flat real photos and 56 benchmark photos untouched, and straightened both tilted real photos);
   - a real hand-torn page as a recorded live run (`/?sample=hand-torn-6`), linked beside every simulated sample;
   - an archive record for every rebuilt page (Muse Wonder, every field quoted from the page and checked), downloadable as Dublin Core, with a spoken provenance note (Muse Voice Transcribe);
-  - Meta's open weights in every run: Muse Spark Open answers the reads Muse Spark is slow on, and the switch **Read on open weights only** (under Tear your own) sends every read to it; each read in the join map names the model that gave it;
+  - Meta's open weights: Muse Spark Open answers the reads Muse Spark is slow on, and the switch **Read on open weights only** (under Tear your own) sends every read to it; each read in the join map names the model that gave it (built and measured on our machine with the site's code; on untorn.vercel.app once its open-weights host key is set);
   - a health check that rebuilds a known sample every 12 hours, a daily spend cap, and a daily limit of live runs per address;
   - an honest pause: if Meta's model API refuses the key (no credit left, say), the first screen says live runs are paused before anyone tears a page, and the recorded runs stay available.
 - **Limits:**

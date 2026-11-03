@@ -1,6 +1,7 @@
 // The film: seven scenes on one timeline computed from the narration's timestamps, with transitions made from the
 // subject (the page pulls apart into the archive; a tear-shaped wipe cut from a real SAM outline; cuts on the voice's
-// stresses; a match cut on the page), burned-in captions and the narration.
+// stresses), burned-in captions and the narration. The real page, torn by hand and rebuilt live, comes right after the
+// sacks, inside the film's first minute.
 import React, { useMemo } from "react";
 import { AbsoluteFill, Audio, Sequence, staticFile } from "remotion";
 import { Captions } from "../components/Captions";
@@ -36,6 +37,8 @@ export const Film: React.FC<{ audio?: "scratch" | "final" | "mix" | "none"; tear
       {seq("sacks", <Sacks cues={tl.sacks} />)}
       {/* the cold open sits on top: its page pulls apart and the archive shows through */}
       {seq("cold", <ColdOpen warp={tl.cold.warp} />)}
+      {/* the real page, rebuilt live, right after the sacks; the twins tear in over its last moments */}
+      {seq("golden", <Golden cues={tl.golden} tear={tear} />)}
       {seq(
         "twins",
         <TearWipe t0={0} dur={0.95}>
@@ -43,7 +46,6 @@ export const Film: React.FC<{ audio?: "scratch" | "final" | "mix" | "none"; tear
         </TearWipe>,
       )}
       {seq("proof", <Proof cues={tl.proof} />)}
-      {seq("golden", <Golden cues={tl.golden} tear={tear} />)}
       {seq("hood", <Hood cues={tl.hood} />)}
       {seq("peak", <Peak cues={tl.peak} />)}
       {/* the end card sets the last line itself ("Untorn" / "Reads across the tears."), so its caption is not burned in

@@ -2,17 +2,17 @@
 
 Untorn is a project that puts torn documents back together from one photo, for archivists facing millions of hand-torn pages.
 
-Film: 1920×1080, 30 fps, 2:34.1 (v3, 3 Nov 2026: Meta's open weights under the hood; v2, 2:26.5: the people who asked for their files, and the archive record). Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
+Film: 1920×1080, 30 fps, 2:34.1 (v4, 3 Nov 2026: the real tear, rebuilt live, moved to 0:39, inside the first minute; v3: Meta's open weights under the hood; v2, 2:26.5: the people who asked for their files, and the archive record). Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
 
 **Spoken vs shown.** The narrator reads numbers as words; the captions and the screen show figures. Every figure on screen carries its source or its label (simulated tear, recorded run, live run, real tear, benchmark). Numbers about the Stasi files come only from `docs/FACTS.md`; measured numbers come only from `src/data/numbers.json`, which names the report each one comes from.
 
-## 1 · Cold open (0:00–0:11)
+## 1 · Cold open (0:00–0:14)
 One continuous camera move on the light table: macro on real torn fibres, pull back to the whole photo, SAM 3.1's outlines draw on, the pieces lift and fly home with their real poses, one word reads across a tear in violet, and the torn "Untorn" wordmark slides together as the last piece seats.
 Label: *Simulated tear of a real 1927 letter, recorded run.*
 
 > Untorn puts torn documents back together from a single photo. Meta's SAM 3.1 cuts out every piece, and Muse reads the half-words across each tear, like a crossword.
 
-## 2 · The people, then the sacks (0:13–0:40)
+## 2 · The people, then the sacks (0:13–0:39)
 The rebuilt page pulls apart along its seams, and the archive shows through: the Stasi Records Archive's depot, two sacks on the floor. First the people: 3,499,663 set in type, "people have asked to see the files the Stasi kept on them", with its source. Then the counts: about 16,000 sacks, then about 15,400 still in pieces. A beat of silence. Then 847 years, alone.
 
 > Three and a half million people have asked to see the files the Stasi kept on them.
@@ -21,31 +21,31 @@ The rebuilt page pulls apart along its seams, and the archive shows through: the
 
 Sources on screen: Federal Government evaluation report, Bundestag Drucksache 21/6550 (2026) for the sacks; Bundesrechnungshof, Drucksache 20/6530 (2023) for the 847 years.
 
-## 3 · The twins (0:28–0:43)
+## 3 · Tear your own (0:39–0:59)
+The real app, run live from this repository's production build: "Tear your own" and the QR code, the phone's capture page, the laptop picking the photo up, the live stages, the rebuilt page and the transcript. The waits are cut, and a clock in the corner shows the real elapsed time.
+Label: *Simulated tear of a real 1903 letter, sent from a phone. Live run, waits cut.*
+
+> Tear a page and take one photo with your phone. The laptop picks it up, and the real pipeline runs live: SAM 3.1 finds the pieces, Muse reads across the tears, and the page comes back together. Then Muse reads it back to you.
+
+## 4 · The twins (0:59–1:17)
 Staged like a trick, with the real pieces of the recorded stack run: one torn piece with an empty slot, three scraps from three different letters with the very same torn edge. Each is tried in the slot: two make no words and get a red pencil strike. A beat. The third completes the words in violet.
 Label: *Simulated stack tear of three real letters, recorded run. Muse Spark picked C at 0.97.*
 
 > When pages are torn together, as a stack, their pieces share the very same edge. Shape alone can't tell them apart.
 > So Untorn reads. Only the true neighbour completes the words.
 
-## 4 · Proof (0:43–0:57)
+## 5 · Proof (1:17–1:31)
 The same shredded photo, read two ways. On ShredBench's own image news_041, Muse Spark alone (given the scattered photo and ShredBench's prompt) drops whole phrases; Untorn, the same Muse Spark with SAM 3.1 and the solver, returns the text word for word. Then the measured scores, labelled as a benchmark, and tiles for the recorded runs (each labelled "simulated tear, recorded run").
 Label: *ShredBench (2026): 3 official images; a 64-document replica of its protocol, our re-implementation. NED, lower is better.*
 
 > Given the same shredded photos, Muse Spark alone gets about forty percent of the text wrong. Untorn, the same Muse Spark with SAM 3.1 and the geometry solver, gets about five percent wrong.
 
-## 5 · Tear your own (0:56–1:21)
-The real app, run live from this repository's production build: "Tear your own" and the QR code, the phone's capture page, the laptop picking the photo up, the live stages, the rebuilt page and the transcript. The waits are cut, and a clock in the corner shows the real elapsed time.
-Label: *Simulated tear of a real 1903 letter, sent from a phone. Live run, waits cut.*
-
-> Tear a page and take one photo with your phone. The laptop picks it up, and the real pipeline runs live: SAM 3.1 finds the pieces, Muse reads across the tears, and the page comes back together. Then Muse reads it back to you.
-
-## 6 · Under the hood (1:31–1:59)
+## 6 · Under the hood (1:31–1:58)
 Built from the recorded run's own data: a mask's edge at pixel scale with the traced outline, two edge traces sliding into a fit, the exact image Muse read and its answer, a twin set aside, the page, then the app's join map with both clues for every seam. Under the words Muse read, a line names Meta's open weights with their measured result: "Muse Spark Open, Meta's open weights: 23 of 24 test seams read right" (`docs/MODELS.md`: Muse Spark 1.3 read 22 of the same 24).
 
 > Under the hood, the solver traces SAM's masks to a fraction of a pixel and proposes joins from the shape of each tear. Muse Spark reads across them. Every read can also run on Meta's open weights, Muse Spark Open, which an archive can host itself. If the shape can't decide, the reading must agree, or the piece is set aside. Never forced.
 
-## 7 · Read whole again (1:46–2:08)
+## 7 · Read whole again (1:58–2:34)
 The rebuilt 1927 letter on the light table; the line Muse transcribed lights up as it is read. The 1927 page lifts away and the first screen's German letter (Stresemann to Reimann, 1922, its recorded run's own page render) drops into its place: the sentence Muse read underlines in violet, and its translation types beside it.
 Label: *Gustav Stresemann to Gustav Reimann, 1922. Simulated tear, recorded run: 10 of 10 pieces placed, 16 of 16 joins right.*
 Back to the sacks. End card: the wordmark, one line, the address and the credits.

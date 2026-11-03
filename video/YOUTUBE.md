@@ -1,6 +1,6 @@
 # YouTube upload
 
-**v3, uploaded 3 Nov 2026:** https://youtu.be/PC_j0_HwPjg (public, English captions uploaded). **File:** `out/untorn-demo-v3.mp4` (2:34.1, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo-v3.srt`, English. v3 adds Meta's open weights (Muse Spark Open) under the hood. v2 (2:26.5, not uploaded) added the people who asked for their files and the archive record (Muse Wonder) with a spoken note (Muse Voice Transcribe). **v1:** https://youtu.be/fwXAsfIqFug (1 Nov 2026, 2:07.6)
+**v4 to upload (3 Nov 2026):** **File:** `out/untorn-demo-v4.mp4` (2:34.1, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo-v4.srt`, English. v4 moves the real tear (a page torn by hand, rebuilt live on the site) to 0:39, right after the problem, so real paper is on screen in the first minute; the picture, voice and numbers are otherwise v3's. **v3:** https://youtu.be/PC_j0_HwPjg (3 Nov 2026). v3 adds Meta's open weights (Muse Spark Open) under the hood. v2 (2:26.5, not uploaded) added the people who asked for their files and the archive record (Muse Wonder) with a spoken note (Muse Voice Transcribe). **v1:** https://youtu.be/fwXAsfIqFug (1 Nov 2026, 2:07.6)
 (the film also has them burned in). **Thumbnail:** `out/thumbnail-real.png` (the hand-torn page: its one photo, and the
 page whole again; `out/thumbnail.png` is the 1927-letter alternative).
 
@@ -22,7 +22,7 @@ Try it: https://untorn.vercel.app (free, no sign-up: tear a printed page into ab
 How accurate is it: https://untorn.vercel.app/accuracy
 Code: https://github.com/iamdflame/untorn
 
-On real paper: a printed page torn by hand into 6 pieces came back whole in 5 of 5 live runs on the site. That page is the one rebuilt live at 1:12.
+On real paper: a printed page torn by hand into 6 pieces came back whole in 5 of 5 live runs on the site (12 of 15 counting our own runs of it). That page is the one rebuilt live at 0:39.
 
 Why it matters: 3,499,663 people have asked to see the files the Stasi kept on them (Bundesarchiv, as of 31 Dec 2025). In 1989 the Stasi began tearing up its files by hand, about 16,000 sacks of them, and about 15,400 are still in pieces (Federal Government evaluation report, Bundestag Drucksache 21/6550, 2026). At the current pace, Germany's Federal Court of Audit puts the job at about 847 years (Bundesrechnungshof, Bundestag Drucksache 20/6530, 2023).
 
@@ -32,17 +32,17 @@ Muse also reads pages in other languages and translates them: the film ends on a
 
 On a 64-document replica of the ShredBench protocol (Findings of ACL 2026; 8 pieces each), Muse Spark alone gets a normalised edit distance of 0.404 against the true text; Untorn, the same Muse Spark with SAM 3.1 and the solver, gets 0.050, 8× fewer errors. On ShredBench's 3 official images with known text: 0.528 and 0.002.
 
-What you see: the "Tear your own" part (1:12) is a printed page torn by hand into 6 pieces and photographed from above. The photo goes from the phone page (in an emulated phone) to a live run on untorn.vercel.app, with the waits cut and the real elapsed time shown (55 s). The letters elsewhere are simulated tears of real public-domain letters, and every run is labelled on screen as a recorded run or a live run. The proof part uses ShredBench's own benchmark image.
+What you see: the "Tear your own" part (0:39) is a printed page torn by hand into 6 pieces and photographed from above. The photo goes from the phone page (in an emulated phone) to a live run on untorn.vercel.app, with the waits cut and the real elapsed time shown (55 s). The letters elsewhere are simulated tears of real public-domain letters, and every run is labelled on screen as a recorded run or a live run. The proof part uses ShredBench's own benchmark image.
 
 Chapters
 0:00 One photo, put back together
 0:14 3.5 million people, and the Stasi's torn files
-0:40 Twins: pages torn as a stack
-0:58 Proof: the same shredded photos, read two ways
-1:12 Tear your own, live
-1:32 Under the hood
+0:39 Tear your own, live
+0:59 Twins: pages torn as a stack
+1:17 Proof: the same shredded photos, read two ways
+1:31 Under the hood
 1:59 Read whole again
-2:13 Filed for the archive
+2:12 Filed for the archive
 
 Credits
 Narration: ElevenLabs library voice "Peter" (an AI voice).
@@ -56,11 +56,11 @@ Built with Meta SAM 3.1, Muse Spark, Muse Spark Open, Muse Wonder and Muse Voice
 
 ## Upload settings
 
-- **Video:** `out/untorn-demo-v3.mp4`. **Thumbnail:** `out/thumbnail-real.png` (YouTube asks for a verified account to
+- **Video:** `out/untorn-demo-v4.mp4`. **Thumbnail:** `out/thumbnail-real.png` (YouTube asks for a verified account to
   upload a custom thumbnail; verify by phone first if the option is greyed out).
 - **Title and description:** paste the two boxes above as they are. The chapter list must stay in the description,
   one chapter per line, starting at 0:00, for YouTube to show chapters.
-- **Subtitles:** upload `out/untorn-demo-v3.srt` as English.
+- **Subtitles:** upload `out/untorn-demo-v4.srt` as English.
 - **Audience:** "No, it's not made for kids".
 - **Altered or synthetic content:** YouTube asks this for realistic content that could pass for real: a real person
   shown saying or doing something they didn't, real footage altered, or a made-up scene that looks real. None of the

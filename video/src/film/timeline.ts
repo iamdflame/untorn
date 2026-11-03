@@ -93,8 +93,29 @@ export function buildTimeline(): Timeline {
   };
   scenes.push({ id: "sacks", start: sS, dur: sacksCues.end + 0.9 });
 
-  // 3 · the twins (a tear-shaped wipe in)
-  const tS = sS + sacksCues.end - 0.1;
+  // 3 · tear your own: the real page, torn by hand and rebuilt live, right after the sacks, so real paper is on screen
+  // in the film's first minute (a cut on the first word)
+  const gS = sS + sacksCues.end - 0.1;
+  const golden = place("golden", gS, 0.35, { 1: 1.25 });
+  const gAssemble = golden[3].start - 0.1;
+  const gClimax = gAssemble + 2.2;
+  const gTranscript = Math.max(gClimax + 2.0, golden[4].start - 0.1);
+  const goldenCues: GoldenCues = {
+    phone: golden[0].start + 1.2,
+    live: golden[1].start - 0.15,
+    reads: golden[2].start,
+    close: golden.word("muse") - 0.2,
+    assemble: gAssemble,
+    climax: gClimax,
+    transcript: gTranscript,
+    result: gTranscript + 1.6,
+    end: gTranscript + 2.55,
+  };
+  // it runs on under the twins' wipe
+  scenes.push({ id: "golden", start: gS, dur: goldenCues.end + 1.05 });
+
+  // 4 · the twins (a tear-shaped wipe in, over the live run's last moments)
+  const tS = gS + goldenCues.end - 0.1;
   const twinsLocal = chunkTimes("twins");
   const lead3 = 0.7;
   // chunks 0-2 natural, then the tries, a beat, and the verdict line when C seats
@@ -117,7 +138,7 @@ export function buildTimeline(): Timeline {
   };
   scenes.push({ id: "twins", start: tS, dur: twinsCues.end + 0.6 });
 
-  // 4 · proof (a cut on the first word)
+  // 5 · proof (a cut on the first word)
   const pS = tS + twinsCues.end;
   const proof = place("proof", pS, 0.45);
   const proofCues: ProofCues = {
@@ -129,27 +150,8 @@ export function buildTimeline(): Timeline {
   };
   scenes.push({ id: "proof", start: pS, dur: proofCues.end + 0.2 });
 
-  // 5 · tear your own (a cut on the first word)
-  const gS = pS + proofCues.end;
-  const golden = place("golden", gS, 0.35, { 1: 1.25 });
-  const gAssemble = golden[3].start - 0.1;
-  const gClimax = gAssemble + 2.2;
-  const gTranscript = Math.max(gClimax + 2.0, golden[4].start - 0.1);
-  const goldenCues: GoldenCues = {
-    phone: golden[0].start + 1.2,
-    live: golden[1].start - 0.15,
-    reads: golden[2].start,
-    close: golden.word("muse") - 0.2,
-    assemble: gAssemble,
-    climax: gClimax,
-    transcript: gTranscript,
-    result: gTranscript + 1.6,
-    end: gTranscript + 2.55,
-  };
-  scenes.push({ id: "golden", start: gS, dur: goldenCues.end + 0.2 });
-
-  // 6 · under the hood (a match cut on a torn edge)
-  const hS = gS + goldenCues.end;
+  // 6 · under the hood (a cut on the first word)
+  const hS = pS + proofCues.end;
   const hood = place("hood", hS, 0.4);
   const hoodCues: HoodCues = {
     s1: hood[0].start - 0.25,

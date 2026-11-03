@@ -109,5 +109,7 @@ export function sfxCues(tl: Timeline): { cues: Cue[]; sections: Section[]; silen
     [s + tl.sacks.dim + 0.1, s + tl.sacks.years - 0.05],
     [w + tl.twins.tryC - 0.35, w + tl.twins.verdict - 0.05],
   ];
+  // the scenes no longer play in the order listed: the mix reads the sections in time order
+  sections.sort((a, b) => a.t - b.t);
   return { cues, sections, silences };
 }

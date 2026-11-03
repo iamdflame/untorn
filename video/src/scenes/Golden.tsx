@@ -1,4 +1,4 @@
-// 1:04 Tear your own: the real app on untorn.vercel.app, run live (frames from the replay of that recorded live run,
+// 0:39 Tear your own (right after the sacks): the real app on untorn.vercel.app, run live (frames from the replay of that recorded live run,
 // 3840x2160). The laptop shows "Tear your own" and the QR code; the phone page takes the photo and sends it; the laptop
 // picks it up and the real pipeline runs live; the page comes back and Muse reads it back. The waits are cut, and the
 // clock shows the run's real elapsed time, jumps included, and stops when the run is done.

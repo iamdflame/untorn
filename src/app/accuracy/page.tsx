@@ -194,6 +194,23 @@ export default function AccuracyPage() {
           />
         </Section>
 
+        <Section
+          id="record"
+          title="The archive record"
+          label="Recorded transcripts, real model calls"
+          intro="After a page is rebuilt, Muse Wonder catalogues it from its transcript: kind, date, place, sender, recipient, and the names it mentions. Every name and date must quote the transcript; the app checks each quote and leaves out any that isn't there. Scored against an answer key read off 7 sample pages: five letters, a page from the middle of a letter, and a printed page with no sender or date."
+        >
+          <Table
+            caption="Archive records against the answer key"
+            head={["Model, effort", "Field checks right", "Quotes not on the page", "Names found", "Median time"]}
+            rows={[
+              ["Muse Wonder, minimal (in the app), 4 rounds", "108 of 112", "0", "102 of 104", "6–7 s"],
+              ["Muse Spark 1.3, minimal, 3 rounds", "83 of 84", "1, left out by the check", "75 of 78", "10–11 s"],
+            ]}
+            note="Field checks: kind, date, place, sender, recipient. Wonder's repeated miss calls the mid-letter page “other”. Source: docs/MODELS.md and scripts/eval/catalog.ts."
+          />
+        </Section>
+
         <Section id="live" title="The health-check letter, recorded" label="Recorded run of the live pipeline" intro="A simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. The health check reruns it on the live site every 12 hours.">
           <Table
             caption="The recorded run, scored against the answer key"

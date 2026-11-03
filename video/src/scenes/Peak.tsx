@@ -207,8 +207,10 @@ export const Peak: React.FC<{ cues?: PeakCues }> = ({ cues = PEAK_CUES }) => {
           <TornWord text="Untorn" t={t} t0={cues.card} seat={cues.seat} x={W / 2} y={250} size={250} align="center" gap={3.2} />
           <div style={{ position: "absolute", left: 0, right: 0, top: 560, textAlign: "center", fontFamily: F.serif, fontWeight: 500, fontSize: 54, color: C.chalk2, opacity: easeOut(clamp((t - cues.seat - 0.15) / 0.6)), transform: `translateY(${(1 - easeOut(clamp((t - cues.seat - 0.15) / 0.6))) * 10}px)` }}>Reads across the tears.</div>
           <div style={{ position: "absolute", left: 0, right: 0, top: 668, textAlign: "center", fontFamily: F.sans, fontWeight: 600, fontSize: 36, color: C.chalk, letterSpacing: "0.01em", opacity: easeOut(clamp((t - cues.seat - 0.5) / 0.6)) }}>untorn.vercel.app</div>
-          <div style={{ position: "absolute", left: 200, right: 200, top: 900, textAlign: "center", fontFamily: F.sans, fontSize: 17, lineHeight: 1.6, color: C.chalk3, opacity: easeOut(clamp((t - cues.seat - 0.8) / 0.6)) }}>
-            Built with Meta SAM 3.1, Muse Spark, Muse Wonder and Muse Voice Transcribe. Narration: ElevenLabs. Archive photos: Maximilian Schönherr, Wikimedia Commons, CC BY-SA 4.0, reprojected and cropped.
+          <div style={{ position: "absolute", left: 120, right: 120, top: 880, textAlign: "center", fontFamily: F.sans, fontSize: 17, lineHeight: 1.6, color: C.chalk3, opacity: easeOut(clamp((t - cues.seat - 0.8) / 0.6)) }}>
+            <span style={{ color: C.chalk2 }}>Built with Meta SAM 3.1, Muse Spark, Muse Spark Open, Muse Wonder and Muse Voice Transcribe.</span>
+            <br />
+            Narration: ElevenLabs. Archive photos: Maximilian Schönherr, Wikimedia Commons, CC BY-SA 4.0, reprojected and cropped.
             <br />
             Letters: public domain (Science History Institute; Missouri History Museum; Wikimedia Commons). Benchmark image: ShredBench, Apache-2.0.
           </div>

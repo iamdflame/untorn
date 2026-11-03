@@ -5,7 +5,7 @@ own `package.json` and is excluded from the app's typecheck, lint, tests, instal
 
 | Output (in `out/`, gitignored) | Composition | What |
 |---|---|---|
-| `untorn-demo-v2.mp4` | `UntornDemo` | The film: 1920x1080, 30 fps, 2:26.5, H.264 + AAC 320k, about -14 LUFS (v2: the people who asked for their files, and the archive record; `untorn-demo.mp4` was v1, 2:07.6) |
+| `untorn-demo-v3.mp4` | `UntornDemo` | The film: 1920x1080, 30 fps, 2:34.1, H.264 + AAC 320k, about -14 LUFS (v3: Meta's open weights under the hood; v2, 2:26.5: the people who asked for their files, and the archive record; `untorn-demo.mp4` was v1, 2:07.6) |
 | `untorn-demo.srt` | | Captions (the narration, timed from the voice's own alignment) |
 | `thumbnail.png` | `Thumbnail` | 1280x720 still: the letter whole again, a read in the loupe, the wordmark |
 | `thumbnail-real.png` | `ThumbnailReal` | 1280x720 still: the hand-torn page, its one photo beside it whole again (needs `capture/golden-real/thumb`) |
@@ -54,10 +54,11 @@ node scripts/render.mjs video Backup out/untorn-backup.mp4 --crf 14
 node scripts/tools/review.mjs out/untorn-demo.mp4 out/review --every 4 --stills 3,30,110
 node scripts/tools/sheet.mjs out/review/frames out/contact.png --cols 6 --w 320
 # the X thread's clips, cut from the finished film (times are the film's own)
-node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-1-main.mp4 0-33.6,65.96-85.8,118.75-127.6
-node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-2-twins.mp4 34.44-52.0
-node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-3-proof.mp4 52.13-65.9
-node scripts/tools/xcut.mjs out/untorn-demo.mp4 out/x/x-4-german.mp4 105.55-127.6
+node scripts/tools/xcut.mjs out/untorn-demo-v3.mp4 out/x-v3/x-1-main.mp4 0-39.1,71.45-89.6,145.0-154.13
+node scripts/tools/xcut.mjs out/untorn-demo-v3.mp4 out/x-v3/x-2-twins.mp4 39.4-57.5
+node scripts/tools/xcut.mjs out/untorn-demo-v3.mp4 out/x-v3/x-3-proof.mp4 57.6-71.4
+node scripts/tools/xcut.mjs out/untorn-demo-v3.mp4 out/x-v3/x-4-german.mp4 126.9-154.13
+node scripts/tools/xcut.mjs out/untorn-demo-v3.mp4 out/x-v3/x-5-open.mp4 100.1-110.4
 ```
 
 `render.mjs` links `capture/` into Remotion's bundle (Remotion can't copy a Windows junction), renders in the

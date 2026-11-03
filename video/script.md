@@ -2,7 +2,7 @@
 
 Untorn is a project that puts torn documents back together from one photo, for archivists facing millions of hand-torn pages.
 
-Film: 1920×1080, 30 fps, 2:26.5 (v2, 3 Nov 2026: the people who asked for their files, and the archive record). Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
+Film: 1920×1080, 30 fps, 2:34.1 (v3, 3 Nov 2026: Meta's open weights under the hood; v2, 2:26.5: the people who asked for their files, and the archive record). Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
 
 **Spoken vs shown.** The narrator reads numbers as words; the captions and the screen show figures. Every figure on screen carries its source or its label (simulated tear, recorded run, live run, real tear, benchmark). Numbers about the Stasi files come only from `docs/FACTS.md`; measured numbers come only from `src/data/numbers.json`, which names the report each one comes from.
 
@@ -40,10 +40,10 @@ Label: *Simulated tear of a real 1903 letter, sent from a phone. Live run, waits
 
 > Tear a page and take one photo with your phone. The laptop picks it up, and the real pipeline runs live: SAM 3.1 finds the pieces, Muse reads across the tears, and the page comes back together. Then Muse reads it back to you.
 
-## 6 · Under the hood (1:21–1:41)
-Built from the recorded run's own data: a mask's edge at pixel scale with the traced outline, two edge traces sliding into a fit, the exact image Muse read and its answer, a twin set aside, the page, then the app's join map with both clues for every seam.
+## 6 · Under the hood (1:31–1:59)
+Built from the recorded run's own data: a mask's edge at pixel scale with the traced outline, two edge traces sliding into a fit, the exact image Muse read and its answer, a twin set aside, the page, then the app's join map with both clues for every seam. Under the words Muse read, a line names Meta's open weights with their measured result: "Muse Spark Open, Meta's open weights: 23 of 24 test seams read right" (`docs/MODELS.md`: Muse Spark 1.3 read 22 of the same 24).
 
-> Under the hood, the solver traces SAM's masks to a fraction of a pixel and proposes joins from the shape of each tear. Muse Spark reads across them. Where the shape can't decide, the reading must agree, or the piece is set aside. Untorn never forces a fit.
+> Under the hood, the solver traces SAM's masks to a fraction of a pixel and proposes joins from the shape of each tear. Muse Spark reads across them. Every read can also run on Meta's open weights, Muse Spark Open, which an archive can host itself. If the shape can't decide, the reading must agree, or the piece is set aside. Never forced.
 
 ## 7 · Read whole again (1:46–2:08)
 The rebuilt 1927 letter on the light table; the line Muse transcribed lights up as it is read. The 1927 page lifts away and the first screen's German letter (Stresemann to Reimann, 1922, its recorded run's own page render) drops into its place: the sentence Muse read underlines in violet, and its translation types beside it.
@@ -66,6 +66,7 @@ End card: **Untorn** · Reads across the tears. · https://untorn.vercel.app · 
 | Claim | Source |
 |---|---|
 | 3.5 million people have asked to see the files the Stasi kept on them (on screen: 3,499,663) | `docs/FACTS.md`: Bundesarchiv, "Das Stasi-Unterlagen-Archiv in Zahlen": 3,499,663 citizens have asked to see their files, as of 31 Dec 2025 |
+| Every read can also run on Meta's open weights, Muse Spark Open, which an archive can host itself (on screen: 23 of 24 test seams read right) | `docs/MODELS.md` (Meta's open weights): Muse Spark Open read 23 of 24 simulated seams right, Muse Spark 1.3 22 of 24, one run each, 3 Nov 2026 (`scripts/eval/open-weights.ts`); every read goes to it with the site's switch "Read on open weights only" (`src/lib/server/live.ts`); its weights are published by Meta (`docs/FACTS.md`) |
 | Muse Wonder files it: who wrote it, to whom, when and where, each quoted from the page (on screen: the record's rows and quotes) | The recorded run's record, `public/samples/stresemann-1922/result.json` (`catalogs`), made by the app's record step (`src/lib/server/catalog.ts`, `record.ts`: every quote checked against the transcript); copied verbatim to `src/data/record-stresemann.json` |
 | Muse Voice Transcribe writes down where it came from (on screen: the note and 1.7 s) | POST https://untorn.vercel.app/api/notes, 3 Nov 2026, with a synthetic-voice WAV of that sentence: the answer, word for word, in 1,679 ms (`src/data/record-stresemann.json`) |
 | The Stasi began tearing its files by hand in (autumn) 1989 | `docs/FACTS.md`: Bundesrechnungshof, Drucksache 20/6530: "Im Herbst 1989 begann die Stasi damit, in großem Umfang Unterlagen zu vernichten. Sie lagerte das von Hand zerrissene Material in etwa 16 000 Säcken." |

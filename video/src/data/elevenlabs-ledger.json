@@ -659,5 +659,51 @@
     "accountUsedAfter": 31309,
     "accountDelta": 0,
     "requestId": "vBbyBHPtfkmzuFfxa3fg"
+  },
+  {
+    "at": "2026-11-03T07:58:03.250Z",
+    "purpose": "retake hood",
+    "id": "1",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 339,
+    "billed": 136,
+    "header": 136,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31441,
+    "accountUsedAfter": 31441,
+    "accountDelta": 0,
+    "requestId": "kPNGBiTGYEyCby3pVAzx"
+  },
+  {
+    "at": "2026-11-03T07:58:13.717Z",
+    "purpose": "retake hood",
+    "id": "2",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 339,
+    "billed": 136,
+    "header": 136,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31441,
+    "accountUsedAfter": 31441,
+    "accountDelta": 0,
+    "requestId": "X2n3we82IuftMyx4Is2V"
   }
 ]

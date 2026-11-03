@@ -127,6 +127,10 @@
           "Muse Spark reads across them."
         ],
         [
+          "Every read can also run on Meta's open weights, Muse Spark Open, which an archive can host itself.",
+          "Every read can also run on Meta's open weights, Muse Spark Open, which an archive can host itself."
+        ],
+        [
           "If the shape can't decide, the reading must agree, or the piece is set aside.",
           "If the shape can't decide, the reading must agree, or the piece is set aside."
         ],

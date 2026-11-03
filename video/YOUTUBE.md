@@ -1,6 +1,6 @@
 # YouTube upload
 
-**v2 to upload (3 Nov 2026):** **File:** `out/untorn-demo-v2.mp4` (2:26.5, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo-v2.srt`, English. It adds the people who asked for their files and the archive record (Muse Wonder) with a spoken note (Muse Voice Transcribe). **v1:** https://youtu.be/fwXAsfIqFug (1 Nov 2026, 2:07.6)
+**v3 to upload (3 Nov 2026):** **File:** `out/untorn-demo-v3.mp4` (2:34.1, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo-v3.srt`, English. v3 adds Meta's open weights (Muse Spark Open) under the hood. v2 (2:26.5, not uploaded) added the people who asked for their files and the archive record (Muse Wonder) with a spoken note (Muse Voice Transcribe). **v1:** https://youtu.be/fwXAsfIqFug (1 Nov 2026, 2:07.6)
 (the film also has them burned in). **Thumbnail:** `out/thumbnail-real.png` (the hand-torn page: its one photo, and the
 page whole again; `out/thumbnail.png` is the 1927-letter alternative).
 
@@ -16,7 +16,7 @@ Copy it with the copy button at the top right of the box (on GitHub), not by sel
 every line break, and YouTube needs each chapter on its own line to show chapters.
 
 ```text
-Untorn puts torn documents back together from one photo. Meta's SAM 3.1 cuts out every piece to the pixel, a geometry solver proposes joins from the shape of each tear, and Muse Spark reads the half-words across each tear to confirm them, then reads the rebuilt page back. Muse Wonder files the page for the archive (who wrote it, to whom, when and where, each quoted from the page and checked), and Muse Voice Transcribe writes down where it came from.
+Untorn puts torn documents back together from one photo. Meta's SAM 3.1 cuts out every piece to the pixel, a geometry solver proposes joins from the shape of each tear, and Muse Spark reads the half-words across each tear to confirm them, then reads the rebuilt page back. Every read can also run on Meta's open weights, Muse Spark Open, which an archive can host itself (on our tests it read 23 of 24 seams right; Muse Spark 22). Muse Wonder files the page for the archive (who wrote it, to whom, when and where, each quoted from the page and checked), and Muse Voice Transcribe writes down where it came from.
 
 Try it: https://untorn.vercel.app (free, no sign-up: tear a printed page into about 6 pieces, take one photo with your phone, and watch it rebuild live)
 How accurate is it: https://untorn.vercel.app/accuracy
@@ -41,8 +41,8 @@ Chapters
 0:58 Proof: the same shredded photos, read two ways
 1:12 Tear your own, live
 1:32 Under the hood
-1:52 Read whole again
-2:05 Filed for the archive
+1:59 Read whole again
+2:13 Filed for the archive
 
 Credits
 Narration: ElevenLabs library voice "Peter" (an AI voice).
@@ -51,16 +51,16 @@ Archive photos: Maximilian Schönherr, "Archivalien im Depot der Stasiunterlagen
 Letters (public domain): Franklin D. Roosevelt to Julian Goldman, 1927 (Science History Institute, via DPLA and Wikimedia Commons); C. W. Ayars to Esther E. Leonard, 1918 (Missouri History Museum, via Wikimedia Commons); Ho Chi Minh to the US Secretary of State, 22 October 1945, page 2 (Wikimedia Commons); Gustav Stresemann to Gustav Reimann, 1922 (Wikimedia Commons).
 The hand-torn page: a printed page of our own.
 Benchmark image: ShredBench official image news_041 (github.com/ythere-y/ShredBench, Apache-2.0).
-Built with Meta SAM 3.1, Muse Spark, Muse Wonder and Muse Voice Transcribe. Film made with Remotion.
+Built with Meta SAM 3.1, Muse Spark, Muse Spark Open, Muse Wonder and Muse Voice Transcribe. Film made with Remotion.
 ```
 
 ## Upload settings
 
-- **Video:** `out/untorn-demo-v2.mp4`. **Thumbnail:** `out/thumbnail-real.png` (YouTube asks for a verified account to
+- **Video:** `out/untorn-demo-v3.mp4`. **Thumbnail:** `out/thumbnail-real.png` (YouTube asks for a verified account to
   upload a custom thumbnail; verify by phone first if the option is greyed out).
 - **Title and description:** paste the two boxes above as they are. The chapter list must stay in the description,
   one chapter per line, starting at 0:00, for YouTube to show chapters.
-- **Subtitles:** upload `out/untorn-demo-v2.srt` as English.
+- **Subtitles:** upload `out/untorn-demo-v3.srt` as English.
 - **Audience:** "No, it's not made for kids".
 - **Altered or synthetic content:** YouTube asks this for realistic content that could pass for real: a real person
   shown saying or doing something they didn't, real footage altered, or a made-up scene that looks real. None of the
@@ -69,4 +69,4 @@ Built with Meta SAM 3.1, Muse Spark, Muse Wonder and Muse Voice Transcribe. Film
 - **Visibility:** Public (Unlisted also plays for judges; Public lets the launch posts share it).
 - **After upload:** put the link in the repository README ("Demo video") and in the submission form.
 
-Chapter times are the scene starts (from `scripts/tools/timeline.mts`) rounded up to the second; the film is 2:26.5.
+Chapter times are the scene starts (from `scripts/tools/timeline.mts`) rounded up to the second; the film is 2:34.1.

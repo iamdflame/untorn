@@ -41,6 +41,13 @@
       "label": "the Stasi began destroying files on a large scale in the autumn of 1989, tearing them by hand",
       "cite": "Bundesrechnungshof, Bundestag Drucksache 20/6530, 2023",
       "source": "docs/FACTS.md"
+    },
+    "openWeights": {
+      "display": "23 of 24",
+      "label": "test seams read right by Muse Spark Open, Meta's open weights",
+      "cite": "Untorn's eval, 3 Nov 2026: 24 simulated seams (half true); Muse Spark 1.3 on the same seams: 22 of 24",
+      "quote": "Seam reads: 24 simulated seams, half of them true (cw1) | 23 of 24 | 22 of 24 (docs/MODELS.md, Meta's open weights)",
+      "source": "docs/MODELS.md; scripts/eval/open-weights.ts; .apex/build/open-weights.json"
     }
   },
   "proof": [

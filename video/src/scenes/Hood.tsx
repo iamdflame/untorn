@@ -11,11 +11,13 @@ import { AbsoluteFill, Img, staticFile, useCurrentFrame } from "remotion";
 import scene from "../data/scene-fdr-1927.json";
 import { FrameCanvas, grain, type DrawFn } from "../lib/canvas";
 import { useImages } from "../lib/images";
+import numbers from "../data/numbers.json";
 import { clamp, easeIO, easeOut, lerp, noise1, smooth, smoother, soft, spring, settle } from "../lib/motion";
 import { C, F, FPS, H, W } from "../theme";
 
-export type HoodCues = { s1: number; s2: number; s3: number; s4: number; s5: number; end: number };
-export const HOOD_CUES: HoodCues = { s1: 0.2, s2: 4.6, s3: 8.4, s4: 11.2, s5: 16.2, end: 18.4 };
+/** `open`: the line that names Meta's open weights, which read the same seams (said over stage 3). */
+export type HoodCues = { s1: number; s2: number; s3: number; open: number; s4: number; s5: number; end: number };
+export const HOOD_CUES: HoodCues = { s1: 0.2, s2: 4.6, s3: 8.4, open: 10.6, s4: 16.6, s5: 21.6, end: 23.8 };
 
 type SP = (typeof scene.pieces)[number];
 const pieces = scene.pieces as SP[];
@@ -183,6 +185,9 @@ export const Hood: React.FC<{ cues?: HoodCues }> = ({ cues = HOOD_CUES }) => {
           <Img src={staticFile("kit/fdr/seam-pair_p7_p9_0.jpg")} style={{ width: 1680, height: 600, imageRendering: "pixelated", boxShadow: "0 18px 40px rgba(18,12,8,0.55)" }} />
           <div style={{ marginTop: 24, fontFamily: F.serif, fontWeight: 500, fontSize: 92, lineHeight: 1, color: C.violetLt, letterSpacing: "-0.01em" }}>
             {words.slice(0, Math.max(0, Math.ceil(words.length * wordsK))).join(" · ")}
+          </div>
+          <div style={{ marginTop: 18, fontFamily: F.serif, fontWeight: 500, fontSize: 46, lineHeight: 1.15, color: C.chalk2, opacity: smooth(cues.open, cues.open + 0.5, t), transform: `translateY(${(1 - smooth(cues.open, cues.open + 0.5, t)) * 14}px)` }}>
+            <span style={{ color: C.chalk }}>Muse Spark Open</span>, Meta’s open weights: {numbers.facts.openWeights.display} test seams read right
           </div>
         </div>
       )}

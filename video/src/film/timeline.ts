@@ -155,9 +155,10 @@ export function buildTimeline(): Timeline {
     s1: hood[0].start - 0.25,
     s2: hood.word("proposes") - 0.3,
     s3: hood[2].start - 0.2,
-    s4: hood[3].start - 0.2,
-    s5: hood[4].start - 0.5,
-    end: hood[4].end + 1.1,
+    open: hood[3].start - 0.1,
+    s4: hood[4].start - 0.2,
+    s5: hood[5].start - 0.5,
+    end: hood[5].end + 1.1,
   };
   scenes.push({ id: "hood", start: hS, dur: hoodCues.end + 0.2 });
 

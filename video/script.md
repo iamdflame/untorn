@@ -2,7 +2,7 @@
 
 Untorn is a project that puts torn documents back together from one photo, for archivists facing millions of hand-torn pages.
 
-Film: 1920×1080, 30 fps, 2:07.6. Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
+Film: 1920×1080, 30 fps, 2:26.5 (v2, 3 Nov 2026: the people who asked for their files, and the archive record). Narrator: Peter (ElevenLabs library voice, eleven_v4), chosen by evidence (`out/voice-auditions/README.md`). Captions are burned in from the narration's own timestamps, and the same text ships as `out/untorn-demo.srt`.
 
 **Spoken vs shown.** The narrator reads numbers as words; the captions and the screen show figures. Every figure on screen carries its source or its label (simulated tear, recorded run, live run, real tear, benchmark). Numbers about the Stasi files come only from `docs/FACTS.md`; measured numbers come only from `src/data/numbers.json`, which names the report each one comes from.
 
@@ -12,9 +12,10 @@ Label: *Simulated tear of a real 1927 letter, recorded run.*
 
 > Untorn puts torn documents back together from a single photo. Meta's SAM 3.1 cuts out every piece, and Muse reads the half-words across each tear, like a crossword.
 
-## 2 · The sacks (0:11–0:28)
-The rebuilt page pulls apart along its seams, and the archive shows through: the Stasi Records Archive's depot, two sacks on the floor. The counts are set in type: about 16,000 sacks, then about 15,400 still in pieces. A beat of silence. Then 847 years, alone.
+## 2 · The people, then the sacks (0:13–0:40)
+The rebuilt page pulls apart along its seams, and the archive shows through: the Stasi Records Archive's depot, two sacks on the floor. First the people: 3,499,663 set in type, "people have asked to see the files the Stasi kept on them", with its source. Then the counts: about 16,000 sacks, then about 15,400 still in pieces. A beat of silence. Then 847 years, alone.
 
+> Three and a half million people have asked to see the files the Stasi kept on them.
 > In 1989, the Stasi began tearing up its files by hand: about sixteen thousand sacks. About fifteen thousand four hundred are still in pieces.
 > At this pace, Germany's auditors say it would take about eight hundred and forty-seven years.
 
@@ -51,13 +52,22 @@ Back to the sacks. End card: the wordmark, one line, the address and the credits
 
 > Ten pieces, whole again, and read: “I am starting a Patients' Aid Fund to help these poor children.”
 > It reads German too, the language of the Stasi's files.
+
+Then the German letter is filed: the column beside it becomes its archive record, the recorded run's own record by Muse Wonder, row by row as the narrator names them (From: Gustav Stresemann, "DR. GUSTAV STRESEMANN"; To: Gustav Reimann; Date: 11 May 1922, "11. Mai 1922"; Written at: Berlin), and the page's words under each name light violet on "quoted". A microphone, and a spoken note types in: "A scan from Wikimedia Commons, letter of May 1922. The tear is simulated." (a synthetic voice sent through the live site's POST /api/notes on 3 Nov 2026, written down by Muse Voice Transcribe in 1.7 s).
+Label: *Every field quotes the page; the app checked each quote against the transcript.*
+
+> Then Muse Wonder files it for the archive: who wrote it, to whom, when and where, each quoted from the page.
+> And Muse Voice Transcribe writes down where it came from.
 > About fifteen thousand four hundred sacks are still waiting. Untorn reads across the tears.
 
-End card: **Untorn** · Reads across the tears. · https://untorn.vercel.app · Built with Meta SAM 3.1 and Muse Spark. Archive photo: Maximilian Schönherr, CC BY-SA 4.0, cropped and reprojected. Letters: public domain (Science History Institute; Missouri History Museum; Missouri Historical Society; Wikimedia Commons).
+End card: **Untorn** · Reads across the tears. · https://untorn.vercel.app · Built with Meta SAM 3.1, Muse Spark, Muse Wonder and Muse Voice Transcribe. Archive photo: Maximilian Schönherr, CC BY-SA 4.0, cropped and reprojected. Letters: public domain (Science History Institute; Missouri History Museum; Missouri Historical Society; Wikimedia Commons).
 
 ## Fact check (each spoken claim, and where it comes from)
 | Claim | Source |
 |---|---|
+| 3.5 million people have asked to see the files the Stasi kept on them (on screen: 3,499,663) | `docs/FACTS.md`: Bundesarchiv, "Das Stasi-Unterlagen-Archiv in Zahlen": 3,499,663 citizens have asked to see their files, as of 31 Dec 2025 |
+| Muse Wonder files it: who wrote it, to whom, when and where, each quoted from the page (on screen: the record's rows and quotes) | The recorded run's record, `public/samples/stresemann-1922/result.json` (`catalogs`), made by the app's record step (`src/lib/server/catalog.ts`, `record.ts`: every quote checked against the transcript); copied verbatim to `src/data/record-stresemann.json` |
+| Muse Voice Transcribe writes down where it came from (on screen: the note and 1.7 s) | POST https://untorn.vercel.app/api/notes, 3 Nov 2026, with a synthetic-voice WAV of that sentence: the answer, word for word, in 1,679 ms (`src/data/record-stresemann.json`) |
 | The Stasi began tearing its files by hand in (autumn) 1989 | `docs/FACTS.md`: Bundesrechnungshof, Drucksache 20/6530: "Im Herbst 1989 begann die Stasi damit, in großem Umfang Unterlagen zu vernichten. Sie lagerte das von Hand zerrissene Material in etwa 16 000 Säcken." |
 | About 16,000 sacks; about 15,400 not yet reconstructed ("still in pieces") | `docs/FACTS.md`: Drucksache 21/6550 (17 Jun 2026): "rund 16.000 Behältnisse (meist Säcke)" … "circa 15.400 Behältnissen (Säcken) noch nicht rekonstruierter Unterlagen" |
 | At this pace, about 847 years | `docs/FACTS.md`: Bundesrechnungshof, Drucksache 20/6530: "Bei diesem Arbeitstempo wären die Unterlagen erst in rund 847 Jahren wiederhergestellt." |

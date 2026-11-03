@@ -77,6 +77,9 @@ export function sfxCues(tl: Timeline): { cues: Cue[]; sections: Section[]; silen
   cues.push({ t: k + tl.peak.german - 0.35, kind: "lift", gain: 0.45, pan: 0.3 });
   cues.push({ t: k + tl.peak.german + 0.12, kind: "settle", gain: 0.6, pan: 0.3 });
   cues.push({ t: k + tl.peak.german + 0.5, kind: "tick", gain: 0.6, pan: 0.3 });
+  // filed: a soft tick as each row of the record lands, and one as the spoken note is written down
+  for (const r of [tl.peak.rFrom, tl.peak.rTo, tl.peak.rWhen, tl.peak.rWhere]) cues.push({ t: k + r, kind: "tick", gain: 0.4, pan: -0.3 });
+  cues.push({ t: k + tl.peak.note + 0.9, kind: "tick", gain: 0.5, pan: -0.3 });
   cues.push({ t: k + tl.peak.sacks, kind: "swell", gain: 0.6, dur: 1.4 });
   cues.push({ t: k + tl.peak.seat - 0.05, kind: "settle", gain: 1.0 });
 

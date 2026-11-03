@@ -1,6 +1,7 @@
-// 0:11 The sacks. A real camera move inside Maximilian Schönherr's 360° photograph of the Stasi Records Archive's
-// depot (CC BY-SA 4.0): from the shelves with the numbered paper sacks down to a clear sack of hand-torn paper. The
-// counts are set in type from docs/FACTS.md. A beat of silence; then 847 years, alone on the room.
+// 0:11 The people, then the sacks. A real camera move inside Maximilian Schönherr's 360° photograph of the Stasi
+// Records Archive's depot (CC BY-SA 4.0): from the shelves with the numbered paper sacks down to a clear sack of
+// hand-torn paper. First the people who have asked to see their files, then the counts, set in type from
+// docs/FACTS.md. A beat of silence; then 847 years, alone on the room.
 
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
@@ -10,8 +11,8 @@ import { Panorama } from "../components/Panorama";
 import { clamp, easeOut, lerp, noise1, smooth, smoother, soft } from "../lib/motion";
 import { C, F, FPS, H, W } from "../theme";
 
-export type SacksCues = { sixteen: number; fifteen: number; dim: number; years: number; end: number };
-export const SACKS_CUES: SacksCues = { sixteen: 4.9, fifteen: 7.6, dim: 10.2, years: 14.6, end: 17.5 };
+export type SacksCues = { people: number; line: number; sixteen: number; fifteen: number; dim: number; years: number; end: number };
+export const SACKS_CUES: SacksCues = { people: 0.6, line: 6.4, sixteen: 10.4, fifteen: 13.1, dim: 15.7, years: 20.1, end: 23.0 };
 
 const f = numbers.facts;
 
@@ -30,6 +31,9 @@ export const Sacks: React.FC<{ cues?: SacksCues }> = ({ cues = SACKS_CUES }) => 
     vignette: 0.5,
   };
   const textA = easeOut(clamp((t - cues.sixteen) / 0.45)) * (1 - smooth(cues.dim - 0.2, cues.dim + 0.5, t));
+  // the people who asked, before the sacks: in, held while it is said, out as "In 1989" begins
+  const peopleA = easeOut(clamp((t - cues.people) / 0.5)) * (1 - smooth(cues.line - 0.25, cues.line + 0.45, t));
+  const shade = Math.max(textA, peopleA);
   const second = smooth(cues.fifteen - 0.1, cues.fifteen + 0.5, t);
   const yearsA = easeOut(clamp((t - cues.years) / 0.35));
   const yearsY = 18 * (1 - soft(t - cues.years, 6));
@@ -37,7 +41,15 @@ export const Sacks: React.FC<{ cues?: SacksCues }> = ({ cues = SACKS_CUES }) => 
     <AbsoluteFill style={{ backgroundColor: C.room }}>
       <Panorama src="archival/stasi-depot-1-360.jpg" view={view} />
       {/* a quiet shade on the left so the type reads on the photograph */}
-      <AbsoluteFill style={{ background: `linear-gradient(90deg, rgba(43,37,33,${0.82 * textA + 0.1}) 0%, rgba(43,37,33,${0.55 * textA}) 34%, rgba(43,37,33,0) 62%)` }} />
+      <AbsoluteFill style={{ background: `linear-gradient(90deg, rgba(43,37,33,${0.82 * shade + 0.1}) 0%, rgba(43,37,33,${0.55 * shade}) 34%, rgba(43,37,33,0) 62%)` }} />
+      {peopleA > 0.01 && (
+        <div style={{ position: "absolute", left: 150, top: 330, opacity: peopleA, transform: `translateY(${10 * (1 - peopleA)}px)` }}>
+          <Numeral from={f.people.display} to={f.people.display} t={t} t0={cues.people} size={210} />
+          <div style={{ marginTop: 6, fontFamily: F.serif, fontWeight: 500, fontSize: 48, color: C.chalk }}>people have asked to see the files</div>
+          <div style={{ fontFamily: F.serif, fontWeight: 500, fontSize: 48, color: C.chalk }}>the Stasi kept on them</div>
+          <div style={{ marginTop: 26, fontFamily: F.sans, fontSize: 20, color: C.chalk3, letterSpacing: "0.005em" }}>{f.people.cite}</div>
+        </div>
+      )}
       {textA > 0.01 && (
         <div style={{ position: "absolute", left: 150, top: 300, opacity: textA }}>
           <div style={{ fontFamily: F.sans, fontWeight: 500, fontSize: 30, letterSpacing: "0.01em", color: C.chalk2, marginBottom: 6 }}>about</div>

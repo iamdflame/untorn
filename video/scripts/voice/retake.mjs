@@ -42,8 +42,10 @@ if (arg === "--use") {
   const count = Number(arg ?? 1);
   fs.mkdirSync(dir, { recursive: true });
   const have = fs.readdirSync(dir).filter((f) => f.endsWith(".mp3")).length;
-  const prev = i > 0 ? sentences(textOf(nar.scenes[i - 1])).slice(-1)[0] : undefined;
-  const next = i + 1 < nar.scenes.length ? sentences(textOf(nar.scenes[i + 1]))[0] : undefined;
+  // the sentences either side, for the voice's prosody: the neighbouring scenes', unless PREV / NEXT say otherwise (a
+  // scene the timeline plays inside another, like "filed")
+  const prev = process.env.PREV ?? (i > 0 ? sentences(textOf(nar.scenes[i - 1])).slice(-1)[0] : undefined);
+  const next = process.env.NEXT ?? (i + 1 < nar.scenes.length ? sentences(textOf(nar.scenes[i + 1]))[0] : undefined);
   for (let k = have + 1; k <= have + count; k++) {
     const r = await tts({ id: String(k), text: textOf(nar.scenes[i]), voice: voice.NARRATOR, settings: voice.settings, prev, next, audioDir: dir, alignDir: dir, purpose: `retake ${id}` });
     console.log(`${id} take ${k}: billed ${r.billed}`);

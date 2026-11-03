@@ -28,9 +28,14 @@ export type Timeline = {
 export function buildTimeline(): Timeline {
   const clips: Clip[] = [];
   const scenes: Placed[] = [];
-  /** Place a scene's chunks: `at` is the scene-local time of chunk 0's first word; `beats` add silence before chunks. */
-  const place = (id: SceneId, sceneStart: number, lead: number, beats: Record<number, number> = {}) => {
-    const ch = chunkTimes(id);
+  /**
+   * Place a scene's chunks: `lead` is the scene-local time of the first placed chunk's first word; `beats` add silence
+   * before chunks; `range` places only chunks [from, to] (indices into the scene; beats and the result count from
+   * `from`), so another scene's narration can play between two of them.
+   */
+  const place = (id: SceneId, sceneStart: number, lead: number, beats: Record<number, number> = {}, range?: [number, number]) => {
+    const all = chunkTimes(id);
+    const ch = range ? all.slice(range[0], range[1] + 1) : all;
     let shift = 0;
     const local: { start: number; end: number }[] & { word?: (word: string, nth?: number) => number } = [];
     ch.forEach((c, i) => {
@@ -73,10 +78,13 @@ export function buildTimeline(): Timeline {
   ];
   scenes.push({ id: "cold", start: 0, dur: coldEnd + 1.0 });
 
-  // 2 · the sacks (overlaps the cold open's pull-apart by 1 s)
+  // 2 · the people who asked for their files, then the sacks (overlaps the cold open's pull-apart by 1 s)
   const sS = coldEnd - 0.2;
-  const sacks = place("sacks", sS, 0.75, { 3: 0.95 });
+  const people = place("people", sS, 0.75);
+  const sacks = place("sacks", sS, people[0].end + 0.85, { 3: 0.95 });
   const sacksCues: SacksCues = {
+    people: people[0].start - 0.15,
+    line: sacks[0].start - 0.1,
     sixteen: sacks.word("sixteen") - 0.05,
     fifteen: sacks.word("fifteen") - 0.05,
     dim: sacks[2].end + 0.15,
@@ -155,16 +163,27 @@ export function buildTimeline(): Timeline {
 
   // 7 · read whole again, the sacks, the end card
   const kS = hS + hoodCues.end;
-  // the quote, then the German letter read and translated ("the language of the Stasi's files"), the sacks, the card
-  const peak = place("peak", kS, 0.5, { 2: 0.4, 3: 0.4, 4: 0.3 });
+  // the quote, then the German letter read and translated ("the language of the Stasi's files"), filed (its archive
+  // record and a spoken note: the "filed" scene's narration, between the peak's third and fourth chunks), the sacks,
+  // the card
+  const peak = place("peak", kS, 0.5, { 2: 0.4 }, [0, 2]);
+  const filed = place("filed", kS, peak[2].end + 0.85);
+  const tail = place("peak", kS, filed[1].end + 0.8, { 1: 0.3 }, [3, 4]);
   const peakCues: PeakCues = {
     quote0: peak[1].start,
     quote1: peak[1].end,
     german: Math.max(peak[1].end + 0.3, peak[2].start - 0.45),
-    sacks: Math.max(peak[2].end + 0.45, peak[3].start - 0.7),
-    card: peak[4].start - 0.6,
-    seat: peak[4].start + 0.35,
-    end: peak[4].end + 2.0,
+    record: filed[0].start - 0.45,
+    rFrom: filed.word("wrote") - 0.15,
+    rTo: filed.word("whom") - 0.15,
+    rWhen: filed.word("when") - 0.1,
+    rWhere: filed.word("where") - 0.1,
+    rQuote: filed.word("quoted") - 0.15,
+    note: filed[1].start - 0.3,
+    sacks: Math.max(filed[1].end + 0.45, tail[0].start - 0.7),
+    card: tail[1].start - 0.6,
+    seat: tail[1].start + 0.35,
+    end: tail[1].end + 2.0,
   };
   scenes.push({ id: "peak", start: kS, dur: peakCues.end });
 

@@ -14,17 +14,21 @@ import voice from "../data/voice.json";
 /** The narration plays at this tempo (scripts/audio/tempo.mjs), so its timestamps shrink by the same factor. */
 const TEMPO = (voice as { tempo?: number }).tempo ?? 1;
 
-export type SceneId = "cold" | "sacks" | "twins" | "proof" | "golden" | "hood" | "peak";
+/** "people" plays at the head of the sacks scene and "filed" inside the peak scene (src/film/timeline.ts). */
+export type SceneId = "cold" | "people" | "sacks" | "twins" | "proof" | "golden" | "hood" | "peak" | "filed";
 export type Word = { w: string; start: number; end: number };
 export type Align = { words: Word[]; duration: number; audio: string };
 
 const norm = (s: string) => s.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9']+/g, "");
 
 type ScratchJson = { words: { t: number; w: string }[] };
-const SCRATCH: Record<SceneId, ScratchJson> = { cold: sCold, sacks: sSacks, twins: sTwins, proof: sProof, golden: sGolden, hood: sHood, peak: sPeak } as unknown as Record<SceneId, ScratchJson>;
+// the scenes added after the scratch pass have final takes only
+const SCRATCH: Partial<Record<SceneId, ScratchJson>> = { cold: sCold, sacks: sSacks, twins: sTwins, proof: sProof, golden: sGolden, hood: sHood, peak: sPeak } as unknown as Partial<Record<SceneId, ScratchJson>>;
 
 function fromScratch(id: SceneId): Align {
-  const ws = [...SCRATCH[id].words].sort((a, b) => a.t - b.t);
+  const scratch = SCRATCH[id];
+  if (!scratch) throw new Error(`no scratch narration for ${id}: it has a final take only`);
+  const ws = [...scratch.words].sort((a, b) => a.t - b.t);
   const words = ws.map((w, i) => ({ w: w.w, start: w.t, end: i + 1 < ws.length ? Math.max(w.t + 0.12, ws[i + 1].t - 0.04) : w.t + 0.55 }));
   return { words, duration: (words[words.length - 1]?.end ?? 0) + 0.2, audio: `audio/scratch/${id}.wav` };
 }

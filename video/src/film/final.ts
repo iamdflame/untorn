@@ -6,6 +6,8 @@ import proof from "../data/narration/proof.json";
 import golden from "../data/narration/golden.json";
 import hood from "../data/narration/hood.json";
 import peak from "../data/narration/peak.json";
+import people from "../data/narration/people.json";
+import filed from "../data/narration/filed.json";
 
 export const FINAL_READY = true;
-export const FINAL: Record<string, unknown> = { cold, sacks, twins, proof, golden, hood, peak };
+export const FINAL: Record<string, unknown> = { cold, people, sacks, twins, proof, golden, hood, peak, filed };

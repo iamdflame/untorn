@@ -1,0 +1,52 @@
+{
+  "note": "The recorded run of the German letter (public/samples/stresemann-1922/result.json): its archive record by Muse Wonder, checked against the transcript by the app (src/lib/server/record.ts), and a spoken note sent through the live site POST /api/notes on 3 Nov 2026 (synthetic voice) and written down by Muse Voice Transcribe.",
+  "model": "muse-wonder-1.0",
+  "ms": 7851,
+  "dropped": 0,
+  "record": {
+    "kind": "letter",
+    "date": {
+      "quote": "11. Mai 1922",
+      "iso": "1922-05-11"
+    },
+    "place": {
+      "name": "Berlin",
+      "quote": "Berlin"
+    },
+    "from": {
+      "name": "Gustav Stresemann",
+      "quote": "DR. GUSTAV STRESEMANN"
+    },
+    "to": {
+      "name": "Gustav Reimann",
+      "quote": "Gustav R e i m a n n"
+    },
+    "people": [],
+    "places": [
+      {
+        "name": "Deutschland",
+        "quote": "Deutschland"
+      },
+      {
+        "name": "Elberfeld",
+        "quote": "Elberfeld"
+      }
+    ],
+    "organisations": [
+      {
+        "name": "Reichstags",
+        "quote": "REICHSTAGS"
+      },
+      {
+        "name": "Boeddinghaus & Reimann",
+        "quote": "Boeddinghaus & Reimann"
+      }
+    ],
+    "summary": "Stresemann denies saying Germany had an absolute monarchy, clarifying that he regretted Germany's failure to adopt a constitutional monarchy on the English model in time."
+  },
+  "spoken": {
+    "text": "A scan from Wikimedia Commons, letter of May 1922. The tear is simulated.",
+    "ms": 1679,
+    "voice": "Windows speech synthesis"
+  }
+}

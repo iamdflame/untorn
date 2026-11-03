@@ -1,5 +1,5 @@
 {
-  "note": "The narration, scene by scene. Each chunk is [spoken, shown]: the narrator reads `spoken` (numbers as words); the captions show `shown` (figures), timed by the voice's own character timestamps for that chunk. scripts/voice/narrate.mjs generates one file per scene; a changed scene re-generates alone. Heteronyms: \"tear\" (a rip) is spoken as \"tare\" so the voice never reads it as a teardrop; the captions keep \"tear\".",
+  "note": "The narration, scene by scene. Each chunk is [spoken, shown]: the narrator reads `spoken` (numbers as words); the captions show `shown` (figures), timed by the voice's own character timestamps for that chunk. scripts/voice/narrate.mjs generates one file per scene; a changed scene re-generates alone. Heteronyms: \"tear\" (a rip) is spoken as \"tare\" so the voice never reads it as a teardrop; the captions keep \"tear\". Two scenes play inside others: \"people\" opens the sacks scene, and \"filed\" plays between the peak scene's third and fourth chunks (src/film/timeline.ts); re-take them with PREV/NEXT set to the sentences around them.",
   "scenes": [
     {
       "id": "cold",
@@ -15,6 +15,15 @@
         [
           "and Muse reads the half-words across each tare, like a crossword.",
           "and Muse reads the half-words across each tear, like a crossword."
+        ]
+      ]
+    },
+    {
+      "id": "people",
+      "chunks": [
+        [
+          "Three and a half million people have asked to see the files the Stasi kept on them.",
+          "3.5 million people have asked to see the files the Stasi kept on them."
         ]
       ]
     },
@@ -149,6 +158,19 @@
         [
           "Untorn reads across the tares.",
           "Untorn reads across the tears."
+        ]
+      ]
+    },
+    {
+      "id": "filed",
+      "chunks": [
+        [
+          "Then Muse Wonder files it for the archive: who wrote it, to whom, when and where, each quoted from the page.",
+          "Then Muse Wonder files it for the archive: who wrote it, to whom, when and where, each quoted from the page."
+        ],
+        [
+          "And Muse Voice Transcribe writes down where it came from.",
+          "And Muse Voice Transcribe writes down where it came from."
         ]
       ]
     }

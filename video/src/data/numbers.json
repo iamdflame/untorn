@@ -1,6 +1,14 @@
 {
   "note": "Every number the film shows or says. Each entry names its source (a path relative to the repo root, or to the main checkout for .apex reports). The proof scene renders the entries in `proof` whose `enabled` is true, in order (the benchmark comparison first, then the recorded-run tiles); set `enabled` and fill `stats` for the real-tear (S7) and ShredBench (S5) entries when their reports are final, update the scene's `narration`, re-generate that scene's voice (scripts/voice/narrate.mjs proof) and re-render.",
   "facts": {
+    "people": {
+      "display": "3,499,663",
+      "label": "people have asked to see their files",
+      "spoken": "three and a half million people",
+      "cite": "Bundesarchiv, the Stasi Records Archive in figures, as of 31 Dec 2025",
+      "quote": "3,499,663 citizens have asked to see their files, out of 7,561,665 requests in total since 1990, as of 31 Dec 2025 (docs/FACTS.md, from the Bundesarchiv page)",
+      "source": "docs/FACTS.md"
+    },
     "sacks": {
       "display": "16,000",
       "prefix": "about",

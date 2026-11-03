@@ -521,5 +521,143 @@
     "accountUsedAfter": 30913,
     "accountDelta": 0,
     "requestId": "DIK4ErbROAafHI76xmuC"
+  },
+  {
+    "at": "2026-11-03T05:03:23.936Z",
+    "purpose": "retake people",
+    "id": "1",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 83,
+    "billed": 33,
+    "header": 33,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31111,
+    "accountUsedAfter": 31111,
+    "accountDelta": 0,
+    "requestId": "v0MmeW3ePEvLQ3khW7mB"
+  },
+  {
+    "at": "2026-11-03T05:03:29.778Z",
+    "purpose": "retake people",
+    "id": "2",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 83,
+    "billed": 33,
+    "header": 33,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31111,
+    "accountUsedAfter": 31144,
+    "accountDelta": 33,
+    "requestId": "94R0NO9hZnbfjj0CFNRq"
+  },
+  {
+    "at": "2026-11-03T05:03:37.997Z",
+    "purpose": "retake filed",
+    "id": "1",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 166,
+    "billed": 66,
+    "header": 66,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31144,
+    "accountUsedAfter": 31144,
+    "accountDelta": 0,
+    "requestId": "f3fgINS6PJZ5nSrCbEEZ"
+  },
+  {
+    "at": "2026-11-03T05:03:45.244Z",
+    "purpose": "retake filed",
+    "id": "2",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 166,
+    "billed": 66,
+    "header": 66,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31144,
+    "accountUsedAfter": 31144,
+    "accountDelta": 0,
+    "requestId": "cLj9PR8SvJx50QxSRXmA"
+  },
+  {
+    "at": "2026-11-03T05:05:58.781Z",
+    "purpose": "retake filed",
+    "id": "5",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 166,
+    "billed": 66,
+    "header": 66,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31309,
+    "accountUsedAfter": 31309,
+    "accountDelta": 0,
+    "requestId": "MwosDABVubQuCGdkZHEW"
+  },
+  {
+    "at": "2026-11-03T05:06:05.834Z",
+    "purpose": "retake filed",
+    "id": "6",
+    "model": "eleven_v4",
+    "voice": "ZthjuvLPty3kTMaNKVKb",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1
+    },
+    "format": "mp3_44100_128",
+    "chars": 166,
+    "billed": 66,
+    "header": 66,
+    "headerNames": [
+      "character-cost"
+    ],
+    "accountUsedBefore": 31309,
+    "accountUsedAfter": 31309,
+    "accountDelta": 0,
+    "requestId": "vBbyBHPtfkmzuFfxa3fg"
   }
 ]

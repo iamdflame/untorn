@@ -12,7 +12,10 @@ type Phase = { kind: "idle" } | { kind: "creating" } | { kind: "waiting"; sessio
 
 export const POLL_MS = 1500;
 
-/** `others`: links to the other samples (a real tear, another language), under "Run the sample live". */
+/**
+ * `others`: links to the other samples (a real tear, another language), under "Run the sample live".
+ * `reader`: the choice to read on Meta's open weights alone, where the server offers it.
+ */
 export function TearYourOwn({
   onPhoto,
   onFile,
@@ -20,6 +23,7 @@ export function TearYourOwn({
   others,
   disabled,
   paused,
+  reader,
   footer,
 }: {
   onPhoto: (photoId: string) => void;
@@ -29,6 +33,7 @@ export function TearYourOwn({
   disabled?: boolean;
   /** Meta's API refused our key: live runs can't start until it accepts it again. */
   paused?: boolean;
+  reader?: { open: boolean; onChange: (open: boolean) => void };
   footer?: React.ReactNode;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -188,6 +193,14 @@ export function TearYourOwn({
                 </p>
               ))}
             </div>
+          )}
+          {reader && (
+            <label className="reader-line">
+              <input type="checkbox" checked={reader.open} onChange={(e) => reader.onChange(e.target.checked)} disabled={disabled} />
+              <span>
+                <strong>Read on open weights only.</strong> Every read goes to Muse Spark Open, the Meta model whose weights an archive can run on its own servers. SAM&nbsp;3.1 still cuts out the pieces through Meta&rsquo;s API.
+              </span>
+            </label>
           )}
           <p className="privacy-line">Photos are deleted within 24 hours and never used for training.</p>
         </div>

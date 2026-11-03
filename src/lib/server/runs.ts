@@ -11,13 +11,23 @@ import { isPhotoId, randomId } from "./ids";
 import { normalisePhoto } from "./intake";
 import { catalogRun } from "./catalog";
 import { acquireSlot, admitRun, settleRun } from "./limits";
-import { liveDeps } from "./live";
+import { liveDeps, openWeightsReady, type Reader } from "./live";
 import { clearPause, pauseAge, PAUSE_FAIL_FAST_MS, readPause, setPause } from "./live-status";
 import { runPipeline, type PipelineDeps } from "./pipeline";
 import { fileUrl, type Store } from "./store";
 
-/** `tilt`: the camera's tilt when the photo recorded it (src/lib/run/tilt.ts); the pipeline straightens the photo. */
-export type RunInput = { bytes: Uint8Array; source: RunSource; sample?: string; caption?: string; tilt?: CameraTilt | null };
+/**
+ * `tilt`: the camera's tilt when the photo recorded it (src/lib/run/tilt.ts); the pipeline straightens the photo.
+ * `reader`: "open" keeps every read on Meta's open weights (live.ts); absent, both hosts read.
+ */
+export type RunInput = { bytes: Uint8Array; source: RunSource; sample?: string; caption?: string; tilt?: CameraTilt | null; reader?: Reader };
+
+/** The visitor's choice of reader, when it is one this server can honour. */
+function readerOf(v: unknown): Reader | undefined {
+  if (v !== "open") return undefined;
+  if (!openWeightsReady()) throw new RunError("bad-type", "Open-weights reading isn't set up on this server.");
+  return "open";
+}
 
 export async function readSample(name: string): Promise<{ bytes: Uint8Array; caption: string }> {
   const s = SAMPLES[name];
@@ -55,9 +65,9 @@ export async function readRunRequest(req: Request, store: Store): Promise<RunInp
     const photo = await normalisePhoto(new Uint8Array(await file.arrayBuffer()));
     // a browser that re-encoded the photo dropped its EXIF, and sends the tilt it read first
     const tilt = photo.tilt ?? parseTilt(jsonOrNull(form.get("tilt")));
-    return { bytes: photo.bytes, source: form.get("source") === "phone" ? "phone" : "upload", tilt };
+    return { bytes: photo.bytes, source: form.get("source") === "phone" ? "phone" : "upload", tilt, reader: readerOf(form.get("reader")) };
   }
-  let body: { photoId?: unknown; sample?: unknown };
+  let body: { photoId?: unknown; sample?: unknown; reader?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -65,14 +75,14 @@ export async function readRunRequest(req: Request, store: Store): Promise<RunInp
   }
   if (typeof body.sample === "string") {
     const s = await readSample(body.sample);
-    return { bytes: s.bytes, source: "sample", sample: body.sample, caption: s.caption };
+    return { bytes: s.bytes, source: "sample", sample: body.sample, caption: s.caption, reader: readerOf(body.reader) };
   }
   if (typeof body.photoId === "string") {
     if (!isPhotoId(body.photoId)) throw new RunError("not-found");
     const f = await store.get(`photos/${body.photoId}`);
     if (!f) throw new RunError("not-found", "That photo has expired or was never sent. Take it again.");
     const t = await store.get(`photos/${body.photoId}.tilt.json`).catch(() => null);
-    return { bytes: f.bytes, source: "phone", tilt: t ? parseTilt(jsonOrNull(new TextDecoder().decode(t.bytes))) : null };
+    return { bytes: f.bytes, source: "phone", tilt: t ? parseTilt(jsonOrNull(new TextDecoder().decode(t.bytes))) : null, reader: readerOf(body.reader) };
   }
   throw new RunError("bad-type", "Send a photo, a photo id or a sample name.");
 }
@@ -111,7 +121,7 @@ export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; r
           await store.put(key, bytes, contentType);
           return fileUrl(key);
         };
-        const deps = ctx.deps ?? liveDeps(putAsset);
+        const deps = ctx.deps ?? liveDeps(putAsset, { reader: input.reader });
         const result = await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, signal: abort.signal, meter }, write);
         await clearPause(store).catch(() => {});
         // the page is on screen: now the archive records, streamed after done (a failure there is a note, not an error)

@@ -40,7 +40,7 @@ export const USER_AGENT = "rejoin/0.1";
 export type MuseModel = "muse-spark-1.3" | "muse-wonder-1.0" | "muse-spark-open";
 /** Where the open-weights model is served, and its id there (the hackathon's Baseten deployment by default). */
 export const OPEN_API_BASE = process.env.OPEN_API_BASE ?? "https://inference.baseten.co/v1";
-export const OPEN_MODEL_ID = process.env.OPEN_MODEL_ID ?? "meta-models/muse-spark-open-1026";
+export const OPEN_MODEL_ID = process.env.OPEN_MODEL_ID ?? "meta-models/muse-spark-open"; // the id Baseten serves (the event guide's "-1026" returns 404)
 /** The archive record's model (scripts/eval/catalog.ts measured both on the samples' transcripts). */
 export const CATALOG_MODEL: MuseModel = "muse-wonder-1.0";
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -61,8 +61,8 @@ export type Usage = { inputTokens: number; cachedTokens: number; outputTokens: n
 export const PRICES: Record<MuseModel, { input: number; cached: number; output: number }> = {
   "muse-spark-1.3": { input: 1.25, cached: 0.15, output: 4.25 },
   "muse-wonder-1.0": { input: 4.0, cached: 0.2, output: 20.0 },
-  // an estimate for the spend meter (OPEN_PRICE_IN / OPEN_PRICE_OUT override it): the host's list price, not Meta's
-  "muse-spark-open": { input: Number(process.env.OPEN_PRICE_IN ?? 0.5), cached: Number(process.env.OPEN_PRICE_IN ?? 0.5), output: Number(process.env.OPEN_PRICE_OUT ?? 4.5) },
+  // the host's list price, not Meta's (baseten.co/pricing, 23 Oct 2026); OPEN_PRICE_IN / _CACHED / _OUT override it
+  "muse-spark-open": { input: Number(process.env.OPEN_PRICE_IN ?? 1.25), cached: Number(process.env.OPEN_PRICE_CACHED ?? 0.15), output: Number(process.env.OPEN_PRICE_OUT ?? 4.25) },
 };
 
 export function costUsd(model: MuseModel, u: Usage): number {
@@ -134,6 +134,11 @@ export type MuseOptions = {
   deadlineMs?: number;
   /** Start a second identical request when the first has not answered after this long (0: never). */
   hedgeAfterMs?: number;
+  /**
+   * The model the second request goes to: the same question on another of Meta's hosts (Muse Spark Open, the open
+   * weights on Baseten, beside Muse Spark on Meta's API). A host that refuses the call then hands it over at once.
+   */
+  altModel?: MuseModel;
   maxAttempts?: number;
   signal?: AbortSignal;
   /** Called after every attempt. Defaults to one compact console line; pass () => {} to silence. */
@@ -320,19 +325,23 @@ const ZERO: Usage = { inputTokens: 0, cachedTokens: 0, outputTokens: 0, reasonin
  * second identical one starts beside it and the first good answer wins. Exported for the bench's prompt variants.
  */
 export async function museCall<T>(req: StructuredRequest<T>, opts: MuseOptions = {}): Promise<MuseOutcome<T>> {
-  const hedgeAfterMs = opts.hedgeAfterMs ?? req.defaults.hedgeAfterMs;
+  const deadlineMs = opts.deadlineMs ?? req.defaults.deadlineMs;
+  const alt = opts.altModel && opts.altModel !== (opts.model ?? req.defaults.model) ? opts.altModel : undefined;
+  // with a second host, a call that is never hedged still moves there when the first host refuses it
+  const hedgeAfterMs = (opts.hedgeAfterMs ?? req.defaults.hedgeAfterMs) || (alt ? deadlineMs : 0);
   if (!hedgeAfterMs) return museCallOnce(req, opts);
   const t0 = Date.now();
-  const deadlineMs = opts.deadlineMs ?? req.defaults.deadlineMs;
   try {
     const h = await hedge(
-      (signal, lane) => museCallOnce(req, { ...opts, signal, deadlineMs: Math.max(1, deadlineMs - (Date.now() - t0)), ...(lane ? { onLog: opts.onLog ?? defaultLog } : {}) }),
+      (signal, lane) =>
+        museCallOnce(req, { ...opts, ...(lane && alt ? { model: alt } : {}), signal, deadlineMs: Math.max(1, deadlineMs - (Date.now() - t0)), ...(lane ? { onLog: opts.onLog ?? defaultLog } : {}) }),
       {
         afterMs: hedgeAfterMs,
         lanes: 2,
         signal: opts.signal,
         ok: (r) => r.ok,
-        final: (r) => !r.ok && !r.error.retryable,
+        // one host's refusal (a key, a quota, a request it can't take) says nothing about the other's answer
+        final: (r) => !r.ok && !r.error.retryable && !alt,
       },
     );
     const costUsd = h.results.reduce((s, r) => s + r.meta.costUsd, 0);

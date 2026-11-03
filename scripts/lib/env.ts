@@ -2,12 +2,14 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-/** Load MODEL_API_KEY from the worktree's .env without printing it. */
+/** Load MODEL_API_KEY (and BASETEN_API_KEY, the open-weights host, when present) from the worktree's .env without printing them. */
 export function loadEnv(): void {
   const p = join(process.cwd(), ".env");
-  if (!process.env.MODEL_API_KEY && existsSync(p)) {
-    const m = /^MODEL_API_KEY=(.*)$/m.exec(readFileSync(p, "utf8"));
-    if (m) process.env.MODEL_API_KEY = m[1].trim().replace(/^["']|["']$/g, "");
+  const text = existsSync(p) ? readFileSync(p, "utf8") : "";
+  for (const key of ["MODEL_API_KEY", "BASETEN_API_KEY"]) {
+    if (process.env[key]) continue;
+    const m = new RegExp(`^${key}=(.*)$`, "m").exec(text);
+    if (m) process.env[key] = m[1].trim().replace(/^["']|["']$/g, "");
   }
   if (!process.env.MODEL_API_KEY) throw new Error("MODEL_API_KEY missing (.env)");
 }

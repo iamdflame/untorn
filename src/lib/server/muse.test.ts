@@ -144,7 +144,7 @@ describe("the open-weights model (Muse Spark Open, chat completions)", () => {
     const call = f.calls[0];
     expect(call.url).toBe("https://inference.baseten.co/v1/chat/completions");
     expect(new Headers(call.init.headers).get("authorization")).toBe("Bearer test-key");
-    expect(call.body.model).toBe("meta-models/muse-spark-open-1026");
+    expect(call.body.model).toBe("meta-models/muse-spark-open");
     expect(call.body.reasoning_effort).toBe("low");
     expect((call.body.response_format as { json_schema: { strict: boolean } }).json_schema.strict).toBe(true);
     const content = (call.body.messages as { content: { type: string }[] }[])[0].content;
@@ -164,6 +164,62 @@ describe("the open-weights model (Muse Spark Open, chat completions)", () => {
     const none = await verifySeam(img, { ...opts({ fetchImpl: fakeFetch([chat(seam)]).impl, model: "muse-spark-open" }).o, apiKey: undefined });
     if (prev !== undefined) process.env.BASETEN_API_KEY = prev;
     expect(!none.ok && none.error.code).toBe("config");
+  });
+});
+
+describe("two hosts: Muse Spark Open beside Muse Spark", () => {
+  // routes each request by host: Baseten (the open weights) or Meta's API
+  function twoHosts(meta: Step[] | (() => Promise<Response>), open: Step[]) {
+    const a = Array.isArray(meta) ? fakeFetch(meta) : null;
+    const b = fakeFetch(open);
+    const metaCalls: string[] = [];
+    const impl = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).includes("baseten")) return b.impl(url, init);
+      metaCalls.push(String(url));
+      return a ? a.impl(url, init) : (meta as () => Promise<Response>)();
+    }) as unknown as typeof fetch;
+    return { impl, metaCalls, openCalls: b.calls };
+  }
+  const chatAnswer = (obj: unknown) =>
+    new Response(JSON.stringify({ id: "chatcmpl_test", choices: [{ finish_reason: "stop", message: { content: JSON.stringify(obj) } }], usage: { prompt_tokens: 300, completion_tokens: 120 } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+  it("a slow first host hands the same question to the second, and the answer says which model gave it", async () => {
+    const h = twoHosts(["hang"], [chatAnswer(seam)]);
+    const r = await verifySeam(img, opts({ fetchImpl: h.impl, model: "muse-spark-1.3", altModel: "muse-spark-open", hedgeAfterMs: 20 }).o);
+    expect(r.ok && r.value.same_place).toBe(false);
+    expect(r.meta.model).toBe("muse-spark-open");
+    expect(r.meta.lanes).toBe(2);
+    expect(h.metaCalls).toHaveLength(1);
+    expect(h.openCalls[0].body.model).toBe("meta-models/muse-spark-open");
+  });
+
+  it("a host that refuses the key hands the call over at once, without waiting for the hedge", async () => {
+    const h = twoHosts([answer(seam)], [httpError(401, "invalid api key")]);
+    const t0 = Date.now();
+    const r = await verifySeam(img, opts({ fetchImpl: h.impl, model: "muse-spark-open", altModel: "muse-spark-1.3", hedgeAfterMs: 60_000 }).o);
+    expect(r.ok).toBe(true);
+    expect(r.meta.model).toBe("muse-spark-1.3");
+    expect(Date.now() - t0).toBeLessThan(5_000);
+    expect(h.openCalls).toHaveLength(1);
+  });
+
+  it("the second host's refusal never settles a call the first is still answering", async () => {
+    const slow = () => new Promise<Response>((resolve) => setTimeout(() => resolve(answer(seam)), 80));
+    const h = twoHosts(slow, [httpError(401, "invalid api key")]);
+    const r = await verifySeam(img, opts({ fetchImpl: h.impl, model: "muse-spark-1.3", altModel: "muse-spark-open", hedgeAfterMs: 10 }).o);
+    expect(r.ok).toBe(true);
+    expect(r.meta.model).toBe("muse-spark-1.3");
+    expect(h.openCalls).toHaveLength(1);
+  });
+
+  it("with a second host, a call that is never hedged still moves there when the first refuses it", async () => {
+    const h = twoHosts([httpError(403, "forbidden")], [chatAnswer(seam)]);
+    const r = await verifySeam(img, opts({ fetchImpl: h.impl, model: "muse-spark-1.3", altModel: "muse-spark-open", hedgeAfterMs: 0 }).o);
+    expect(r.ok).toBe(true);
+    expect(r.meta.model).toBe("muse-spark-open");
   });
 });
 

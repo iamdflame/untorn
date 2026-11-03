@@ -24,7 +24,9 @@ const REAL_SAMPLE = "hand-torn-6";
 // below the fold: its code loads when it is needed
 const ResultSection = dynamic(() => import("./result/ResultSection").then((m) => m.ResultSection), { ssr: false });
 
-export function FirstScreen({ sample: initial }: { sample: Sample }) {
+/** `openWeights`: the server can read on Meta's open weights, so the visitor may ask for that alone. */
+export function FirstScreen({ sample: initial, openWeights = false }: { sample: Sample; openWeights?: boolean }) {
+  const [openOnly, setOpenOnly] = useState(false);
   const run = useRun();
   const { state } = run;
   const reduced = usePrefersReducedMotion();
@@ -82,7 +84,8 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
   }, [recorded, playRecorded]);
 
   const goLive = useCallback(
-    (input: LiveInput) => {
+    (asked: LiveInput) => {
+      const input: LiveInput = openWeights && openOnly ? { ...asked, reader: "open" } : asked;
       started.current = true; // a late-loading recording must not replace a live run
       lastInput.current = input;
       setLiveSample("sample" in input);
@@ -91,7 +94,7 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
       document.getElementById("top")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
       void live(input);
     },
-    [live, reduced],
+    [live, reduced, openWeights, openOnly],
   );
   const onPhoto = useCallback((photoId: string) => goLive({ photoId }), [goLive]);
   const onFile = useCallback((file: File) => goLive({ file }), [goLive]);
@@ -211,6 +214,7 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
         ]}
         disabled={busy}
         paused={pausedNow}
+        reader={openWeights ? { open: openOnly, onChange: setOpenOnly } : undefined}
         footer={
           <footer className="foot">
             <p>

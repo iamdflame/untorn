@@ -360,7 +360,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     if (req.kind === "pair") {
       const out = await deps.verifySeam(image, { ...callOpts, effort: opts.readEffort ?? DEFAULT_READ_EFFORT, prompt: opts.seamPrompt });
       museCost(out);
-      read = { ...base, kind: "pair", pieces: [req.a, req.b], candidates: [req.candidate], ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started };
+      read = { ...base, kind: "pair", pieces: [req.a, req.b], candidates: [req.candidate], ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started, model: out.meta.model };
       if (out.ok) {
         const v = out.value;
         // no letter crosses the tear (seam v3): the read is no clue either way, and the join rests on its shape and lines
@@ -373,7 +373,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
       const out = await deps.chooseContinuation(image, req.candidates.length, sheet === "joined" ? { ...callOpts, prompt: "joined" } : callOpts);
       museCost(out);
       const partners = req.candidates.map((id) => partnerOf(prep, id, req.anchor));
-      read = { ...base, kind: "choice", pieces: [req.anchor, ...partners], candidates: req.candidates, ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started };
+      read = { ...base, kind: "choice", pieces: [req.anchor, ...partners], candidates: req.candidates, ok: out.ok, same: null, choice: null, confidence: 0, words: [], reason: "", ms: now() - started, model: out.meta.model };
       if (out.ok) {
         const v = out.value;
         const index = Number.isInteger(v.index) ? v.index : v.choice ? v.choice.toUpperCase().charCodeAt(0) - 65 : -1;
@@ -493,10 +493,10 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
       const out = await deps.readPage({ data: jpeg, mime: "image/jpeg" }, { signal, onLog: quietLog, effort: opts.transcribeEffort ?? DEFAULT_TRANSCRIBE_EFFORT, hedgeAfterMs: 15_000, prompt: DEFAULT_PROMPT.read });
       museCost(out);
       let tr: TranscriptOut;
-      if (!out.ok) tr = { page: p.id, ok: false, text: "", language: "und", uncertain: [], translation: null, error: out.error.code };
+      if (!out.ok) tr = { page: p.id, ok: false, text: "", language: "und", uncertain: [], translation: null, model: out.meta.model, error: out.error.code };
       else {
         const v = out.value;
-        tr = { page: p.id, ok: true, text: v.text, language: v.language, uncertain: v.uncertain, translation: null };
+        tr = { page: p.id, ok: true, text: v.text, language: v.language, uncertain: v.uncertain, translation: null, model: out.meta.model };
         if (v.text.trim() && !sameLanguage(v.language, to)) {
           const t = await deps.translate(v.text, to, { signal, onLog: quietLog });
           museCost(t);

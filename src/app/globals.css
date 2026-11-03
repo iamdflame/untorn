@@ -2089,3 +2089,29 @@ h2 {
     animation: none !important;
   }
 }
+
+/* "Read on open weights only": a quiet choice under the ways in, on the room */
+.reader-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--chalk-2);
+  cursor: pointer;
+}
+.reader-line input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--chalk);
+}
+.reader-line strong {
+  color: var(--chalk);
+  font-weight: 600;
+}
+.key .why .ow {
+  color: var(--ink-2);
+}

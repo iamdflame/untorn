@@ -73,6 +73,8 @@ export type ReadOut = {
   /** The image Muse read (JPEG data URL). */
   image: string | null;
   ms: number;
+  /** The model whose answer this is ("muse-spark-open": Meta's open weights); absent in runs recorded before it. */
+  model?: string;
   error?: string;
 };
 
@@ -115,6 +117,8 @@ export type TranscriptOut = {
   language: string;
   uncertain: string[];
   translation: { to: string; text: string } | null;
+  /** The model that read the page (as on ReadOut). */
+  model?: string;
   error?: string;
 };
 

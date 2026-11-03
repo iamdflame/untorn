@@ -3,6 +3,7 @@
 //   pnpm tsx scripts/record-run.ts [sample=chouteau-1903] [--photo FILE] [--out DIR] [--events FILE]
 //                                  [--strategy all|tree] [--sheet stacked|joined] [--window WxH] [--read-deadline MS] [--concurrency N]
 //                                  [--seam-prompt v2|v3] [--lines-floor N|off] [--assemble JSON] [--no-straighten] [--no-line-tilt]
+//                                  [--reader open]   (every read on Meta's open weights, as the site's switch does)
 //
 // Runs the same pipeline as POST /api/runs with the real models (about $0.10 for a 10-piece page), and writes DIR
 // (default public/samples/<sample>/) with photo.jpg, page-N.png and result.json; asset URLs point at /samples/<sample>/.
@@ -41,7 +42,7 @@ async function main() {
     writeFileSync(path.join(out, file), bytes);
     return urlBase ? `${urlBase}/${file}` : file;
   };
-  const deps = liveDeps(putAsset);
+  const deps = liveDeps(putAsset, { reader: opt("--reader") === "open" ? "open" : "both" });
   const runId = `rec-${name}-${randomBytes(3).toString("hex")}`;
   const t0 = Date.now();
   const log = (e: RunEvent) => {

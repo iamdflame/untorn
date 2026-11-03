@@ -1,7 +1,8 @@
 // The archive record, measured: each sample page's recorded transcript catalogued by the models compared, every
 // record checked against the page (record.ts), and scored against an answer key read off the transcripts by hand.
 //   pnpm tsx --env-file=.env scripts/eval/catalog.ts [models=muse-spark-1.3,muse-wonder-1.0] [repeats=1] [effort]
-// Paid: one call per page, model and repeat (about $0.01 to $0.05 each). Writes .apex/build/catalog-eval.json.
+// Paid: one call per page, model and repeat (about $0.01 to $0.05 each). Writes .apex/build/catalog-eval.json
+// (catalog-eval-<models>.json when models are given).
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -89,7 +90,9 @@ async function main() {
     }
   }
   mkdirSync(".apex/build", { recursive: true });
-  writeFileSync(`.apex/build/catalog-eval${effort ? "-" + effort : ""}.json`, JSON.stringify({ at: new Date().toISOString(), models, repeats, totals, rows }, null, 1));
+  // another model list gets its own file, so it never overwrites the default comparison
+  const tag = process.argv[2] ? "-" + models.join("+") : "";
+  writeFileSync(`.apex/build/catalog-eval${tag}${effort ? "-" + effort : ""}.json`, JSON.stringify({ at: new Date().toISOString(), models, repeats, totals, rows }, null, 1));
   for (const [m, t] of Object.entries(totals)) {
     const ms = [...t.ms].sort((a, b) => a - b);
     console.log(

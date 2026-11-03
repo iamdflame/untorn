@@ -10,7 +10,8 @@ import { eventsFromResult, playEvents } from "@/lib/run/replay";
 import { initialRunState, reduceRun } from "@/lib/run/state";
 import type { RunEvent, RunResult } from "@/lib/run/types";
 
-export type LiveInput = { file: File } | { photoId: string } | { sample: string };
+/** `reader: "open"`: every read on Meta's open weights (POST /api/runs, src/lib/server/live.ts). */
+export type LiveInput = ({ file: File } | { photoId: string } | { sample: string }) & { reader?: "open" };
 
 /** No progress for this long while running: show the calm "taking longer" state. */
 const SLOW_AFTER_MS = 18_000;
@@ -61,6 +62,7 @@ export function useRun() {
           const form = new FormData();
           form.set("photo", blob, "photo");
           if (tilt) form.set("tilt", JSON.stringify(tilt));
+          if (input.reader) form.set("reader", input.reader);
           res = await fetch("/api/runs", { method: "POST", body: form, signal: ctrl.signal });
         } else {
           res = await fetch("/api/runs", { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json" }, signal: ctrl.signal });

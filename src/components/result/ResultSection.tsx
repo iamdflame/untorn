@@ -11,6 +11,7 @@ import { buildScene, splitWords, statedSplit, type Scene, type SceneSeam } from 
 import type { CatalogOut, RunResult, SpokenNote } from "@/lib/run/types";
 import { dublinCore, KIND_LABEL, recordDate } from "@/lib/run/record-view";
 import { RecordCard } from "./RecordCard";
+import { modelName, OPEN_MODEL, readersLine } from "@/lib/run/models";
 import { languageName } from "@/lib/client/language";
 import { pagesPdf } from "@/lib/client/pdf";
 import { cutoutKey, makeCutouts, readPoint, sharedCutouts, type Cutout } from "../hero/cutouts";
@@ -326,6 +327,7 @@ export function ResultSection({ result, catalogs, photoSrc, J, setJ }: { result:
         `${simulated ? "A simulated tear of a sample letter, rebuilt" : "Rebuilt"} by Untorn from one photo${day ? ` on ${day}` : ""}.`,
         `${result.pieces.length - setAside} pieces placed on ${pages.length === 1 ? "one page" : `${pages.length} pages`}${setAside ? `; ${setAside} set aside, never forced` : ""}.`,
         `${result.joins.length} joins: ${confirmed} confirmed by Muse reading across the tear, the rest by the shape of the torn edges.`,
+        ...(readersLine(result) ? [readersLine(result)] : []),
         ...(recording || result.source === "sample" ? [] : [`The run, with every seam and its clues: ${location.origin}/r/${result.runId}`]),
         ...(record
           ? [
@@ -372,7 +374,10 @@ export function ResultSection({ result, catalogs, photoSrc, J, setJ }: { result:
         <>
           <span className="sw">{s.read.word ? <SplitWord word={s.read.word} split={s.read.split} /> : null}</span>
           <span className="ok">{s.read.words.join(", ")}</span>
-          <span className="why">Muse: “{esc(s.read.reason)}”</span>
+          <span className="why">
+            {modelName(s.read.model)}
+            {s.read.model === OPEN_MODEL ? <span className="ow"> (open weights)</span> : null}: “{esc(s.read.reason)}”
+          </span>
           <span className="dec">
             {s.join.decidedBy === "content" ? "Reading broke a tie between edges that fit alike." : "Joined on shape and reading."} {tokens.length && !tokens.some((t) => statedSplit(t, s.read!.reason)) ? "Muse didn’t say where the tear cuts each word." : ""}
           </span>
@@ -521,7 +526,8 @@ export function ResultSection({ result, catalogs, photoSrc, J, setJ }: { result:
               <p className="r-note">Muse couldn’t read this page this time.</p>
             )}
             <p className="r-note">
-              Read from the rebuilt page by Muse Spark. Line breaks follow the page; gaps where paper is missing are marked […], never filled in.
+              Read from the rebuilt page by {modelName(transcript?.model)}
+              {transcript?.model === OPEN_MODEL ? ", Meta’s open weights" : ""}. Line breaks follow the page; gaps where paper is missing are marked […], never filled in.
               {transcript?.uncertain.length ? ` Uncertain: ${transcript.uncertain.join(", ")}.` : ""}
             </p>
             {catalog && <RecordCard catalog={catalog} note={note} onNote={setNote} />}
@@ -535,7 +541,9 @@ export function ResultSection({ result, catalogs, photoSrc, J, setJ }: { result:
         <div className="key">
           <div className="key-h">
             <h3>Join map</h3>
-            <p>Every place two pieces meet, with both clues. The shape clue is the two real edges, A and B, and their sum: true joins mirror, so the sum lies flat; the solver logs how far the edges fit and how far they miss. The word clue is the real pixels across the tear and what Muse read there.</p>
+            <p>
+              Every place two pieces meet, with both clues. The shape clue is the two real edges, A and B, and their sum: true joins mirror, so the sum lies flat; the solver logs how far the edges fit and how far they miss. The word clue is the real pixels across the tear and what Muse read there. {readersLine(result)}
+            </p>
           </div>
           <ol className="key-list">
             <li className="key-sub">Read across the tear ({readFirst.length})</li>

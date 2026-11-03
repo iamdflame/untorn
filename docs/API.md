@@ -10,6 +10,10 @@ Runs the full pipeline: SAM 3.1 segmentation → edge matching → Muse reads ac
 - `{ "photoId": "<id>" }`, a photo already uploaded from a phone session;
 - `{ "sample": "<sampleId>" }`, the first screen's sample photo.
 
+Optional, with any of these: `reader: "open"` (a form field, or a JSON key) sends every read, the transcript and the
+record to Muse Spark Open, Meta's open weights; the server answers `bad-type` when it has no open-weights host
+(`BASETEN_API_KEY`). Without it, Muse Spark reads first and Muse Spark Open answers the reads it is slow on.
+
 **Response:** `application/x-ndjson`, one `RunEvent` per line, in order (types in `src/lib/run/types.ts`):
 
 | Event | Meaning |
@@ -20,7 +24,7 @@ Runs the full pipeline: SAM 3.1 segmentation → edge matching → Muse reads ac
 | `stage` | a stage became active or finished (`segment`, `match`, `read`, `assemble`, `transcribe`), with its duration |
 | `segment` | every piece SAM 3.1 found: outline, box, confidence |
 | `match` | candidate joins from edge geometry, and the questions that will go to Muse |
-| `read` | one Muse answer as it lands: the seam image it read, its verdict, confidence, the words read across the tear and its reason |
+| `read` | one Muse answer as it lands: the seam image it read, its verdict, confidence, the words read across the tear, its reason and the model that gave it (`muse-spark-1.3` or `muse-spark-open`) |
 | `assemble` | pages with each piece's pose, the accepted joins (with which clue decided), unplaced pieces |
 | `transcribe` | Muse's reading of each rebuilt page, with gaps marked `[…]` and uncertain words listed |
 | `warning` | a non-fatal problem (e.g. blur), with what to do |

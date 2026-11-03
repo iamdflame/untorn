@@ -1,11 +1,12 @@
 # Untorn's model layer
 
-Untorn puts torn documents back together from one photo. Four Meta models do the work in the live app: SAM 3.1 finds the pieces, Muse Spark reads across the tears and reads the page, Muse Wonder writes the page's archive record, and Muse Voice Transcribe writes down a spoken provenance note. The server modules live in `src/lib/server/`, and route handlers call them.
+Untorn puts torn documents back together from one photo. Five Meta models do the work in the live app: SAM 3.1 finds the pieces, Muse Spark reads across the tears and reads the page, Muse Spark Open (Meta's open weights) answers the reads Muse Spark is slow on and can take every read, Muse Wonder writes the page's archive record, and Muse Voice Transcribe writes down a spoken provenance note. The server modules live in `src/lib/server/`, and route handlers call them.
 
 | Model | Job in Untorn | Module |
 |---|---|---|
 | **SAM 3.1** (`sam-3.1`) | Finds every fragment in the photo and cuts it out to the pixel | `segment.ts` → `segmentFragments` |
 | **Muse Spark** (`muse-spark-1.3`) | Reads half-letters across a candidate seam, like a crossword, to decide which pieces belong together. When pages were torn as a stack, outlines repeat and the reading decides. It also transcribes and translates the finished page. | `muse.ts` → `verifySeam`, `chooseContinuation`, `readPage`, `translate` |
+| **Muse Spark Open** (`meta-models/muse-spark-open`, Meta's open weights, on Baseten) | The same reads as Muse Spark, with the same prompts and schemas. By default it answers the reads Muse Spark hasn't answered within 9 s (the hedge goes to the other host) and any read Meta's API refuses; with "Read on open weights only" it takes every read, the transcript and the record. Measured against Muse Spark below | `muse.ts` → `museCall` (`altModel`), `chatBody`, `fromChat`; `live.ts` → `readHosts` |
 | **Muse Wonder** (`muse-wonder-1.0`) | Writes the archive record of each rebuilt page from its transcript, after the page is shown: kind, date, place, sender, recipient, and the people, places and organisations named, every one quoting the page. (A second client sorts a mixed pile into pages; measured once, not in the live pipeline.) | `muse.ts` → `catalogPage`; `record.ts` → `verifyRecord`; `catalog.ts`; `sortFragments` |
 | **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`) | Writes down the archivist's spoken note of where a page was found, into the record (`POST /api/notes`; the audio isn't kept) | `voice.ts` → `transcribeNote` |
 
@@ -212,6 +213,56 @@ date or recipient. Field checks: kind, date (ISO), place, sender, recipient.
   came back word for word in 6.3 s from the API; through the browser path (fake microphone, Opus, WAV at 16 kHz) on the
   live site in 2.3–5.2 s, with small slips on the synthetic voice. Cost: $0.18 per hour of audio.
 
+## Meta's open weights: Muse Spark Open (`scripts/eval/open-weights.ts`, `scripts/eval/real-reads.ts`)
+
+Muse Spark Open is Meta's open-weights Muse Spark. This site calls it on Baseten's Model APIs
+(`meta-models/muse-spark-open`; the `-1026` id in the event guide answers 404) through chat completions, with the same
+prompts and the same strict JSON schemas as Muse Spark (`muse.ts` → `chatBody`, `fromChat`). Any server that speaks
+chat completions with these weights works the same: set `OPEN_API_BASE`. Baseten lists it at $1.25 in, $0.15 cached and
+$4.25 out per 1M tokens (pricing page, 23 Oct 2026), the same as Muse Spark on Meta's API.
+
+**The same tests as Muse Spark 1.3, one run each (3 Nov 2026):**
+
+| Test | Muse Spark Open | Muse Spark 1.3 |
+|---|---|---|
+| Seam reads: 24 simulated seams, half of them true (cw1) | **23 of 24** | 22 of 24 |
+| Stacks: 12 three-way choices between identical outlines (cw3) | 11 of 12 | **12 of 12** |
+| Transcribing 5 rebuilt sample pages: character errors per page | 0.0, 2.1, 0.2, 4.6, 5.2% (mean 2.4%) | 1.6, 0.0, 0.2, 6.0, 5.4% (mean 2.6%) |
+| Median time per call over these 41 calls | **10.4 s** | 15.5 s |
+| The archive record, 7 pages × 3 rounds (minimal effort) | 80 of 84 field checks; 8 quotes not on the page, left out by the check; 71 of 78 names | Muse Wonder (in the app): 81 of 84 over the same 3 rounds; 0 quotes off the page |
+
+- **On real paper:** every seam read from 10 runs of the whole pipeline on the real 10-piece hand tear, scored against
+  the pieces' true neighbours (a lower bound: a true neighbour shown misaligned is rightly "not the same place"):
+  Muse Spark 1.3 answered 120 (84 right, 20 wrong of which 2 a false "same", 16 no clue; median 15.7 s); Muse Spark Open
+  answered 63 (37 right, 14 wrong of which 0 a false "same", 12 no clue; median 11.1 s). It never joined a wrong
+  neighbour; it turned down true ones somewhat more often.
+- The page transcriptions vary from run to run on both models (the first run of this eval had the German letter at
+  0.7% for Spark Open and 14.7% for Spark 1.3); the pages are scored against the reference they match best, since a
+  stack's pages come back in any order.
+
+**The whole pipeline, run four ways on the same photos** (3 Nov 2026, `scripts/record-run.ts` on our machine, the
+site's code; `scripts/eval/real.ts score` and `scripts/score-sample.ts`):
+
+| Readers | The 6-piece real tear: whole page | The 10-piece real tear (pieces touching): placed correctly, misplaced | The 1927 letter (simulated): placed |
+|---|---|---|---|
+| Muse Spark alone (the site until now) | 2 of 3 runs (60–65 s) | 6, 7, 7, 9 of 10; 2 misplaced in 4 runs | 10/10 twice |
+| **Muse Spark first, the open weights for its slow reads (the site's default now)** | **3 of 3 runs (53–59 s)** | 5, 8, 5, 6, 8 of 10; 6 misplaced in 5 runs | not run |
+| The open weights first, Muse Spark for their slow reads | 1 of 3 runs (45–53 s) | 5, 6, 9 of 10; 2 misplaced in 3 runs | 10/10 twice |
+| The open weights only (the site's switch "Read on open weights only") | 1 of 1 (63 s); a second run lost its reads to this machine's connection (below) | not run | 10/10, transcript 1.6% errors; the 1922 German letter 9 of 10, none misplaced, transcript 2.1%, translated |
+
+- **Why this default:** on the page closest to what a visitor tears (about 6 pieces, laid apart), Muse Spark with the
+  open weights answering its slow reads came back whole every time, and a little faster. Putting the open weights
+  first was the fastest but left a piece out more often. The 10-piece photo is the hard case (its pieces touch, against
+  the capture advice); there every setup varies from run to run. Most misplaced pieces are true neighbours set
+  5–56 px or 1–3° off on curled paper, and both models confirmed such joins, in proportion to the reads each answered. Each cell
+  is 1–5 runs: differences of one run are within the noise.
+- **If the open-weights host fails** (no credit, down, slow), the hedge simply has nothing to add: a refusal from one
+  host never settles a call the other is still answering (`muse.test.ts`, "two hosts").
+- Two open-weights-only runs lost their seam reads to this machine's connection (two runs at once, about 30 seam
+  images in flight over a slow uplink: requests failed to connect within 10 s, the limit noted for Meta's API under
+  Reliability). The letter still came back 10 of 10 on its edges alone; the 6-piece page came back 5 of 6, one piece
+  set aside. Neither is counted in the table. The site runs on a well-connected host.
+
 ## Reliability
 
 | Function | Retries | Hedge after | Per-attempt timeout | Deadline |
@@ -227,7 +278,8 @@ date or recipient. Field checks: kind, date (ISO), place, sender, recipient.
 
 - **Retried:** network errors, timeouts, 429 (with Retry-After), 5xx, empty output, unparseable output, and output cut off by the token budget.
 - **In the live pipeline (S7):** seam reads run at low effort, hedged after 9 s, 16 at a time, and the read stage stops
-  at 30 s.
+  at 45 s. The hedge goes to the other host: a read Muse Spark hasn't answered in 9 s is also asked of Muse Spark Open,
+  and the first good answer wins (`READ_FIRST=meta-only` keeps both lanes on Meta's API).
   - **Effort:** on the real tear's 15 seams, minimal effort was right 10, 11 and 11 times in three trials, against 11
     and 9 at low effort, in half the time. Live, though, it said "same" to a chance fit (p5–p8) in two runs of three,
     and the piece was misplaced; low effort reads that seam "not the same".

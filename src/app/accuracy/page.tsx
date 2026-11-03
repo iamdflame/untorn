@@ -211,6 +211,36 @@ export default function AccuracyPage() {
           />
         </Section>
 
+        <Section
+          id="open-weights"
+          title="Meta’s open weights"
+          label="Real model calls: simulated seams, sample pages, real tears"
+          intro="Muse Spark Open is Meta’s open-weights Muse Spark, served here by Baseten. It gets the same questions as Muse Spark, with the same prompts. The site asks Muse Spark first and Muse Spark Open when a read is slow; the switch “Read on open weights only” sends every read, the transcript and the record to it."
+        >
+          <Table
+            caption="The same tests, one run each (3 Nov 2026)"
+            head={["Test", "Muse Spark Open", "Muse Spark 1.3"]}
+            rows={[
+              ["Seam reads, 24 simulated seams (half true)", "23 of 24", "22 of 24"],
+              ["Stacks, 12 choices between identical outlines", "11 of 12", "12 of 12"],
+              ["Transcripts of 5 rebuilt pages, mean character errors", "2.4%", "2.6%"],
+              ["Median time per call", "10.4 s", "15.5 s"],
+            ]}
+            note="On the real 10-piece tear’s seams, over 10 runs: Muse Spark Open never called a wrong neighbour the same place (0 of 63 reads), and turned down true ones somewhat more often than Muse Spark. Source: docs/MODELS.md, scripts/eval/open-weights.ts and scripts/eval/real-reads.ts."
+          />
+          <Table
+            caption="The whole pipeline, run with each choice of readers on the same photos (our machine, the site’s code)"
+            head={["Readers", "6-piece real tear: whole page", "10-piece real tear (pieces touching): placed correctly"]}
+            rows={[
+              ["Muse Spark alone (until now)", "2 of 3 runs, 60–65 s", "6, 7, 7, 9 of 10; 2 misplaced in 4 runs"],
+              ["Muse Spark, open weights for slow reads (now)", "3 of 3 runs, 53–59 s", "5, 8, 5, 6, 8 of 10; 6 misplaced in 5 runs"],
+              ["Open weights first, Muse Spark for slow reads", "1 of 3 runs, 45–53 s", "5, 6, 9 of 10; 2 misplaced in 3 runs"],
+              ["Open weights only (the switch)", "1 of 1 run, 63 s", "not run"],
+            ]}
+            note="Each cell is 1 to 5 runs, so a difference of one run is within the noise. On the 10-piece photo every choice varies; most misplaced pieces are true neighbours set a few pixels or degrees off on curled paper, confirmed by both models in proportion to the reads each gave. Every read on the open weights also rebuilt the 1927 letter 10 of 10 and the German letter 9 of 10, none misplaced. Two runs that lost their reads to our machine’s connection are left out."
+          />
+        </Section>
+
         <Section id="live" title="The health-check letter, recorded" label="Recorded run of the live pipeline" intro="A simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. The health check reruns it on the live site every 12 hours.">
           <Table
             caption="The recorded run, scored against the answer key"

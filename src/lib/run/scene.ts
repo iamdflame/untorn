@@ -46,6 +46,8 @@ export type SeamRead = {
   /** The word shown for this read, and where the tear splits it when Muse said so ("r|espected" → ["r", "espected"]). */
   word: string | null;
   split: [string, string] | null;
+  /** The model that read it (ReadOut.model), when the run recorded one. */
+  model?: string;
 };
 
 export type SceneSeam = {
@@ -344,7 +346,7 @@ export function seamRead(join: JoinOut, reads: ReadOut[]): SeamRead | null {
     }
   }
   if (!word) word = [...tokens].sort((a, b) => b.length - a.length)[0] ?? null;
-  return { id: jr.id, kind: src?.kind ?? (jr.id.startsWith("choice") ? "choice" : "pair"), confidence: jr.confidence, words: jr.words, reason: jr.reason, word, split };
+  return { id: jr.id, kind: src?.kind ?? (jr.id.startsWith("choice") ? "choice" : "pair"), confidence: jr.confidence, words: jr.words, reason: jr.reason, word, split, ...(src?.model ? { model: src.model } : {}) };
 }
 
 /**

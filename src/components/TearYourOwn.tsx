@@ -178,7 +178,7 @@ export function TearYourOwn({
           {onSample && (
             <div className="way">
               <h3>No torn page to hand?</h3>
-              <p>Run this sample through the live pipeline now; it takes under a minute.</p>
+              <p>Run this sample through the live pipeline now; it takes about a minute.</p>
               <button type="button" className="btn" onClick={onSample} disabled={disabled}>
                 Run the sample live
               </button>

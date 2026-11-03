@@ -245,8 +245,8 @@ site's code; `scripts/eval/real.ts score` and `scripts/score-sample.ts`):
 
 | Readers | The 6-piece real tear: whole page | The 10-piece real tear (pieces touching): placed correctly, misplaced | The 1927 letter (simulated): placed |
 |---|---|---|---|
-| Muse Spark alone (the site until now) | 2 of 3 runs (60–65 s) | 6, 7, 7, 9 of 10; 2 misplaced in 4 runs | 10/10 twice |
-| **Muse Spark first, the open weights for its slow reads (the site's default now)** | **3 of 3 runs (53–59 s)** | 5, 8, 5, 6, 8 of 10; 6 misplaced in 5 runs | not run |
+| Muse Spark alone (what the site does while Baseten refuses our key) | 2 of 3 runs (60–65 s) | 6, 7, 7, 9 of 10; 2 misplaced in 4 runs | 10/10 twice |
+| **Muse Spark first, the open weights for its slow reads (the site's default when Baseten answers)** | **3 of 3 runs (53–59 s)** | 5, 8, 5, 6, 8 of 10; 6 misplaced in 5 runs | not run |
 | The open weights first, Muse Spark for their slow reads | 1 of 3 runs (45–53 s) | 5, 6, 9 of 10; 2 misplaced in 3 runs | 10/10 twice |
 | The open weights only (the site's switch "Read on open weights only") | 1 of 1 (63 s); a second run lost its reads to this machine's connection (below) | not run | 10/10, transcript 1.6% errors; the 1922 German letter 9 of 10, none misplaced, transcript 2.1%, translated |
 

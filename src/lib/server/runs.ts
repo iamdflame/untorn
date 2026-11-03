@@ -20,8 +20,12 @@ import { fileUrl, type Store } from "./store";
 /**
  * `tilt`: the camera's tilt when the photo recorded it (src/lib/run/tilt.ts); the pipeline straightens the photo.
  * `reader`: "open" keeps every read on Meta's open weights (live.ts); absent, both hosts read.
+ * `lane`: "judges" for a run started from the judges' link (src/lib/client/lane.ts): it draws on the share of the day's
+ * spend cap kept for judges (limits.ts).
  */
-export type RunInput = { bytes: Uint8Array; source: RunSource; sample?: string; caption?: string; tilt?: CameraTilt | null; reader?: Reader };
+export type RunInput = { bytes: Uint8Array; source: RunSource; sample?: string; caption?: string; tilt?: CameraTilt | null; reader?: Reader; lane?: "judges" };
+
+const laneOf = (v: unknown): "judges" | undefined => (v === "judges" ? "judges" : undefined);
 
 /** The visitor's choice of reader, when it is one this server can honour. */
 function readerOf(v: unknown): Reader | undefined {
@@ -66,9 +70,9 @@ export async function readRunRequest(req: Request, store: Store): Promise<RunInp
     const photo = await normalisePhoto(new Uint8Array(await file.arrayBuffer()));
     // a browser that re-encoded the photo dropped its EXIF, and sends the tilt it read first
     const tilt = photo.tilt ?? parseTilt(jsonOrNull(form.get("tilt")));
-    return { bytes: photo.bytes, source: form.get("source") === "phone" ? "phone" : "upload", tilt, reader: readerOf(form.get("reader")) };
+    return { bytes: photo.bytes, source: form.get("source") === "phone" ? "phone" : "upload", tilt, reader: readerOf(form.get("reader")), lane: laneOf(form.get("lane")) };
   }
-  let body: { photoId?: unknown; sample?: unknown; reader?: unknown };
+  let body: { photoId?: unknown; sample?: unknown; reader?: unknown; lane?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -76,14 +80,14 @@ export async function readRunRequest(req: Request, store: Store): Promise<RunInp
   }
   if (typeof body.sample === "string") {
     const s = await readSample(body.sample);
-    return { bytes: s.bytes, source: "sample", sample: body.sample, caption: s.caption, reader: readerOf(body.reader) };
+    return { bytes: s.bytes, source: "sample", sample: body.sample, caption: s.caption, reader: readerOf(body.reader), lane: laneOf(body.lane) };
   }
   if (typeof body.photoId === "string") {
     if (!isPhotoId(body.photoId)) throw new RunError("not-found");
     const f = await store.get(`photos/${body.photoId}`);
     if (!f) throw new RunError("not-found", "That photo has expired or was never sent. Take it again.");
     const t = await store.get(`photos/${body.photoId}.tilt.json`).catch(() => null);
-    return { bytes: f.bytes, source: "phone", tilt: t ? parseTilt(jsonOrNull(new TextDecoder().decode(t.bytes))) : null, reader: readerOf(body.reader) };
+    return { bytes: f.bytes, source: "phone", tilt: t ? parseTilt(jsonOrNull(new TextDecoder().decode(t.bytes))) : null, reader: readerOf(body.reader), lane: laneOf(body.lane) };
   }
   throw new RunError("bad-type", "Send a photo, a photo id or a sample name.");
 }
@@ -173,6 +177,6 @@ export async function startRun(input: RunInput, ctx: { store: Store; ip: string;
   const metaRefused = await refusedWithin(ctx.store, "meta", PAUSE_FAIL_FAST_MS).catch(() => false);
   const openUsable = openWeightsReady() && !(await refusedWithin(ctx.store, "open", PAUSE_FAIL_FAST_MS).catch(() => false));
   const runId = randomId();
-  const { ipKey } = await admitRun(ctx.store, ctx.ip, runId);
+  const { ipKey } = await admitRun(ctx.store, ctx.ip, runId, { reserved: input.lane === "judges" });
   return streamRun(input, { store: ctx.store, ipKey, runId, signal: ctx.signal, deps: ctx.deps, metaRefused, openUsable });
 }

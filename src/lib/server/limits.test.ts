@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { admitRun, dailyCapFor, settleRun } from "./limits";
+import { admitRun, dailyCapFor, publicShareFor, settleRun } from "./limits";
 import { memoryStore } from "./store";
 
 describe("dailyCapFor", () => {
@@ -36,5 +36,27 @@ describe("admitRun", () => {
     const { ipKey } = await admitRun(store, "203.0.113.9", "run-a");
     await settleRun(store, ipKey, "run-a", 0.4);
     await expect(admitRun(store, "203.0.113.10", "run-b")).rejects.toMatchObject({ code: "daily-cap" });
+  });
+
+  it("stops visitors at the public share of the cap; runs from the judges' link may use the rest", async () => {
+    vi.stubEnv("DAILY_SPEND_CAP_USD", "1");
+    vi.stubEnv("PUBLIC_CAP_SHARE", "0.5");
+    const store = memoryStore();
+    const { ipKey } = await admitRun(store, "203.0.113.20", "run-p");
+    await settleRun(store, ipKey, "run-p", 0.35);
+    // $0.35 spent and a run's $0.20 estimate: past the public half, within the whole cap
+    await expect(admitRun(store, "203.0.113.21", "run-q")).rejects.toMatchObject({ code: "daily-cap" });
+    await expect(admitRun(store, "203.0.113.21", "run-r", { reserved: true })).resolves.toBeTruthy();
+    // the 12-hourly health run is ours: it may use the whole cap too
+    await expect(admitRun(store, "health", "run-h")).resolves.toBeTruthy();
+  });
+});
+
+describe("publicShareFor", () => {
+  it("keeps half of each judging day's cap for the judges' link, and none on the other days", () => {
+    expect(publicShareFor("2026-11-03")).toBe(1);
+    expect(publicShareFor("2026-11-04")).toBe(0.5);
+    expect(publicShareFor("2026-11-09")).toBe(0.5);
+    expect(publicShareFor("2026-11-10")).toBe(1);
   });
 });

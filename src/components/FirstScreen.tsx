@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { rememberLane } from "@/lib/client/lane";
 import type { Recovery } from "@/lib/run/errors";
 import { DEFAULT_SAMPLE, SAMPLES, STACKS, type Sample } from "@/lib/run/samples";
 import type { RunResult } from "@/lib/run/types";
@@ -56,6 +57,7 @@ export function FirstScreen({ sample: initial, openWeights = false }: { sample: 
   // warm the functions, then load the recording
   useEffect(() => {
     let cancelled = false;
+    rememberLane();
     fetch("/api/health?warm=1", { cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<{ live?: string; openWeights?: boolean }>) : null))
       .then((j) => {

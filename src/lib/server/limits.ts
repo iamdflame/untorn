@@ -6,6 +6,8 @@
 //   SESSIONS_PER_IP_PER_HOUR  phone codes one address may make per hour (default 30)
 //   NOTES_PER_IP_PER_HOUR     spoken provenance notes one address may send per hour (default 20)
 //   DAILY_SPEND_CAP_USD       model spend per UTC day across all runs (default: dailyCapFor, below)
+//   PUBLIC_CAP_SHARE          the share of that cap open to every visitor (default: publicShareFor, below); the rest is
+//                             kept for runs from the judges' link (?for=judges, in the submission and the README)
 //   MAX_CONCURRENT_RUNS       pipelines one server instance runs at once; the rest queue (default 4)
 //   MAX_QUEUE                 runs that may wait per instance before "busy" (default 12)
 
@@ -29,12 +31,21 @@ export function dailyCapFor(d: string): number {
   return d >= JUDGING_DAYS.from && d <= JUDGING_DAYS.to ? 4 : 1.5;
 }
 
+/**
+ * The share of a day's cap open to every visitor: half on judging days, so a busy day elsewhere (a post that travels)
+ * can't use up a judge's live run; runs from the judges' link may use the whole cap. All of it on the other days.
+ */
+export function publicShareFor(d: string): number {
+  return d >= JUDGING_DAYS.from && d <= JUDGING_DAYS.to ? 0.5 : 1;
+}
+
 export const limits = () => ({
   runsPerIpPerHour: num("RUNS_PER_IP_PER_HOUR", 12),
   runsPerIpPerDay: num("RUNS_PER_IP_PER_DAY", 6),
   sessionsPerIpPerHour: num("SESSIONS_PER_IP_PER_HOUR", 30),
   notesPerIpPerHour: num("NOTES_PER_IP_PER_HOUR", 20),
   dailyCapUsd: num("DAILY_SPEND_CAP_USD", dailyCapFor(day())),
+  publicShare: Math.min(1, num("PUBLIC_CAP_SHARE", publicShareFor(day()))),
   maxConcurrent: Math.max(1, num("MAX_CONCURRENT_RUNS", 4)),
   maxQueue: num("MAX_QUEUE", 12),
   /** Counted for a run until its real cost is known. */
@@ -103,14 +114,16 @@ export async function spendToday(store: Store): Promise<{ usd: number; runs: num
 
 /**
  * Admit a live run, or throw "rate-limited" / "daily-cap". Writes a started record that counts towards both limits
- * until settleRun replaces it with the real cost. Health runs pass ip "health" and skip the per-IP limit.
+ * until settleRun replaces it with the real cost. Health runs pass ip "health" and skip the per-IP limit. `reserved`:
+ * a run from the judges' link, which may use the whole cap; every other run stops at the public share.
  */
-export async function admitRun(store: Store, ip: string, runId: string): Promise<{ ipKey: string }> {
+export async function admitRun(store: Store, ip: string, runId: string, { reserved = false }: { reserved?: boolean } = {}): Promise<{ ipKey: string }> {
   const L = limits();
   const ipKey = ip === "health" ? "health" : ipHash(ip);
   if (ipKey !== "health" && !hit(`r:${ipKey}`, L.runsPerIpPerHour, 3600_000)) throw new RunError("rate-limited");
   const today = await spendToday(store);
-  if (today.usd + L.estimateUsd > L.dailyCapUsd) throw new RunError("daily-cap");
+  const cap = reserved || ipKey === "health" ? L.dailyCapUsd : L.dailyCapUsd * L.publicShare;
+  if (today.usd + L.estimateUsd > cap) throw new RunError("daily-cap");
   if (ipKey !== "health") {
     const mine = today.byIp.get(ipKey) ?? [];
     if (mine.length >= L.runsPerIpPerDay)

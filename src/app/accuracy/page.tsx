@@ -239,8 +239,8 @@ export default function AccuracyPage() {
             caption="The whole pipeline, run with each choice of readers on the same photos (our machine, the site’s code)"
             head={["Readers", "6-piece real tear: whole page", "10-piece real tear (pieces touching): placed correctly"]}
             rows={[
-              ["Muse Spark alone (until now)", "2 of 3 runs, 60–65 s", "6, 7, 7, 9 of 10; 2 misplaced in 4 runs"],
-              ["Muse Spark, open weights for slow reads (now)", "3 of 3 runs, 53–59 s", "5, 8, 5, 6, 8 of 10; 6 misplaced in 5 runs"],
+              ["Muse Spark alone (the site while Baseten refuses our key)", "2 of 3 runs, 60–65 s", "6, 7, 7, 9 of 10; 2 misplaced in 4 runs"],
+              ["Muse Spark, open weights for slow reads (the site’s default)", "3 of 3 runs, 53–59 s", "5, 8, 5, 6, 8 of 10; 6 misplaced in 5 runs"],
               ["Open weights first, Muse Spark for slow reads", "1 of 3 runs, 45–53 s", "5, 6, 9 of 10; 2 misplaced in 3 runs"],
               ["Open weights only (the switch)", "1 of 1 run, 63 s", "not run"],
             ]}
@@ -307,7 +307,7 @@ export default function AccuracyPage() {
             <li>Straight cuts give little shape to match: 87.7% placed on pages with 35% straight cuts.</li>
             <li>Blank pieces can only be placed by shape.</li>
             <li>Stacks need many reads: a median of about 95 choice sheets for a 3-page stack.</li>
-            <li>Real hand-torn paper is harder than our simulations. A page torn into 6 pieces came back whole in 5 of 5 live runs; pages torn into 10 small pieces, with curl and pieces touching, put 6 to 8 and 2 to 5 of 10 in the right place. The rest are set aside, and some runs set a piece just past the tolerance or turned on a short seam.</li>
+            <li>Real hand-torn paper is harder than our simulations. A page torn into 6 pieces came back whole in 5 of 5 live runs on the site (12 of 15 counting our own runs of it, every reader setup); pages torn into 10 small pieces, with curl and pieces touching, put 6 to 8 and 2 to 5 of 10 in the right place. The rest are set aside, and some runs set a piece just past the tolerance or turned on a short seam.</li>
             <li>A curled piece bends its own edges and text lines. On a short seam the reading can&apos;t see a turn of a few degrees, so the piece can land turned.</li>
             <li>Pieces that touch in the photo lose the edges between them; so do photos shrunk by a messaging app (the same page at 1920 px: 5 of 10).</li>
             <li>A live run on a real photo takes 45–65 s; most of it is Muse reading across the tears.</li>

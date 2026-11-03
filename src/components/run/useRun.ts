@@ -4,6 +4,7 @@
 // Both fold events through the same reducer, so the screens can't tell them apart except by `state.mode`.
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { lane } from "@/lib/client/lane";
 import { PhotoError, preparePhoto, readTilt, responseError } from "@/lib/client/photo";
 import { ERRORS } from "@/lib/run/errors";
 import { eventsFromResult, playEvents } from "@/lib/run/replay";
@@ -57,15 +58,19 @@ export function useRun() {
       let finished = false;
       try {
         let res: Response;
+        // a tab that came in through the judges' link runs on the share of the day's cap kept for them
+        const via = lane();
         if ("file" in input) {
           const [blob, tilt] = await Promise.all([preparePhoto(input.file), readTilt(input.file)]);
           const form = new FormData();
           form.set("photo", blob, "photo");
           if (tilt) form.set("tilt", JSON.stringify(tilt));
           if (input.reader) form.set("reader", input.reader);
+          if (via) form.set("lane", via);
           res = await fetch("/api/runs", { method: "POST", body: form, signal: ctrl.signal });
         } else {
-          res = await fetch("/api/runs", { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json" }, signal: ctrl.signal });
+          const body = JSON.stringify(via ? { ...input, lane: via } : input);
+          res = await fetch("/api/runs", { method: "POST", body, headers: { "content-type": "application/json" }, signal: ctrl.signal });
         }
         if (!res.ok || !res.body) throw await responseError(res);
         const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();

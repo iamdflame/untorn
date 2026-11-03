@@ -14,7 +14,8 @@ Optional, with any of these: `reader: "open"` (a form field, or a JSON key) send
 record to Muse Spark Open, Meta's open weights; the server answers `bad-type` when it has no open-weights host
 (`BASETEN_API_KEY`). A read that host turns away for our account (no credit left there, say) goes to Muse Spark,
 and the run warns `open-refused` with how many reads Muse Spark gave. Without it, Muse Spark reads first and Muse
-Spark Open answers the reads it is slow on.
+Spark Open answers the reads it is slow on. `lane: "judges"` (a form field, or a JSON key; the first screen sends it
+when opened from the judges' link, `?for=judges`) lets the run draw on the share of the day's spend cap kept for judges.
 
 **Response:** `application/x-ndjson`, one `RunEvent` per line, in order (types in `src/lib/run/types.ts`):
 
@@ -35,7 +36,7 @@ Spark Open answers the reads it is slow on.
 | `catalog` | after `done`: each transcribed page's archive record by Muse Wonder, first `pending`, then `done` (only the fields whose quotes are on the page, and how many were left out) or `failed`; the stored run is rewritten with them (`catalogs`) |
 | `error` | a designed error code and a plain message |
 
-**Limits** (env-configurable): runs per IP per hour (`RUNS_PER_IP_PER_HOUR`, default 12) and per UTC day (`RUNS_PER_IP_PER_DAY`, default 6), a daily model-spend cap across all runs (`DAILY_SPEND_CAP_USD`; by default $4 a day on the judging days, 4–9 Nov 2026, and $1.50 on other days, so the remaining model credit lasts to 10 Nov), concurrent pipelines per instance (`MAX_CONCURRENT_RUNS`, default 4) with a queue (`MAX_QUEUE`, default 12), and at most 120 pieces per photo. `maxDuration` is 300 s.
+**Limits** (env-configurable): runs per IP per hour (`RUNS_PER_IP_PER_HOUR`, default 12) and per UTC day (`RUNS_PER_IP_PER_DAY`, default 6), a daily model-spend cap across all runs (`DAILY_SPEND_CAP_USD`; by default $4 a day on the judging days, 4–9 Nov 2026, and $1.50 on other days, so the remaining model credit lasts to 10 Nov), of which a visitor's run may use the public share (`PUBLIC_CAP_SHARE`; by default half on the judging days, all of it on other days) and a run sent with `lane: "judges"` (from the judges' link, `?for=judges`) the whole cap, concurrent pipelines per instance (`MAX_CONCURRENT_RUNS`, default 4) with a queue (`MAX_QUEUE`, default 12), and at most 120 pieces per photo. `maxDuration` is 300 s.
 
 **Example:**
 ```bash

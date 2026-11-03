@@ -141,6 +141,20 @@ describe("POST /api/runs", () => {
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe("daily-cap");
   });
 
+  it("keeps a share of the day's cap for runs from the judges' link", async () => {
+    vi.stubEnv("DAILY_SPEND_CAP_USD", "0.3");
+    vi.stubEnv("PUBLIC_CAP_SHARE", "0.5");
+    const sample = (lane?: string) =>
+      postRun(new Request("http://localhost/api/runs", { method: "POST", body: JSON.stringify({ sample: "chouteau-1903", ...(lane ? { lane } : {}) }), headers: { "content-type": "application/json" } }));
+    // a run's estimate ($0.20) is past the public half of $0.30, and within the whole cap
+    const visitor = await sample();
+    expect(visitor.status).toBe(429);
+    expect(((await visitor.json()) as { error: { code: string } }).error.code).toBe("daily-cap");
+    const judge = await sample("judges");
+    expect(judge.status).toBe(200);
+    expect((await readEvents(judge)).at(-1)?.type).toBe("done");
+  });
+
   it("sends a designed error event, never a stack trace, when SAM fails mid-stream", async () => {
     fake.opts = { segment: "fail" };
     const scene = await fakeScene();

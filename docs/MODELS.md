@@ -1,12 +1,13 @@
 # Untorn's model layer
 
-Untorn puts torn documents back together from one photo. Two Meta models do the work in the live app: SAM 3.1 and Muse Spark. A client for a third, Muse Wonder, sorts a mixed pile into pages; it was measured once and is not in the live pipeline. The server modules live in `src/lib/server/`, and route handlers call them.
+Untorn puts torn documents back together from one photo. Four Meta models do the work in the live app: SAM 3.1 finds the pieces, Muse Spark reads across the tears and reads the page, Muse Wonder writes the page's archive record, and Muse Voice Transcribe writes down a spoken provenance note. The server modules live in `src/lib/server/`, and route handlers call them.
 
 | Model | Job in Untorn | Module |
 |---|---|---|
 | **SAM 3.1** (`sam-3.1`) | Finds every fragment in the photo and cuts it out to the pixel | `segment.ts` → `segmentFragments` |
 | **Muse Spark** (`muse-spark-1.3`) | Reads half-letters across a candidate seam, like a crossword, to decide which pieces belong together. When pages were torn as a stack, outlines repeat and the reading decides. It also transcribes and translates the finished page. | `muse.ts` → `verifySeam`, `chooseContinuation`, `readPage`, `translate` |
-| **Muse Wonder** (`muse-wonder-1.0`) | Sorts a mixed pile of fragments into pages (client and one measured call; not in the live pipeline) | `muse.ts` → `sortFragments` |
+| **Muse Wonder** (`muse-wonder-1.0`) | Writes the archive record of each rebuilt page from its transcript, after the page is shown: kind, date, place, sender, recipient, and the people, places and organisations named, every one quoting the page. (A second client sorts a mixed pile into pages; measured once, not in the live pipeline.) | `muse.ts` → `catalogPage`; `record.ts` → `verifyRecord`; `catalog.ts`; `sortFragments` |
+| **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`) | Writes down the archivist's spoken note of where a page was found, into the record (`POST /api/notes`; the audio isn't kept) | `voice.ts` → `transcribeNote` |
 
 The model measurements below were made on **simulated tears**: the spike's `tear.py` applied to a public-domain 1903 letter and to synthetic typed and handwritten pages, plus 5 ShredBench renders. Seam reads and the transcription prompt were also measured on real hand-torn photos (below). Results of the whole pipeline on real hand-torn paper are in the README and on [untorn.vercel.app/accuracy](https://untorn.vercel.app/accuracy).
 
@@ -182,6 +183,35 @@ The new client answered every one of its 120 Spark bench calls. Its retries took
 
 ShredBench keeps its own prompts (`markdown`, `parts`), so its numbers stand.
 
+## The archive record (`scripts/eval/catalog.ts`, through the client)
+
+Each sample page's recorded transcript is catalogued, every answer goes through the same check the live app uses
+(`record.ts`: each name and date must quote the transcript as whole words, a name must be the quote's own words, and a
+date's ISO form must agree with the numbers written), and the checked record is scored against an answer key read off
+the transcripts by hand. 7 pages: the letters of 1903, 1927 (twice: whole, and with gaps from the stack run), 1918 and
+1922 (German), a page from the middle of a Vietnamese government letter, and a printed thesis page with no sender,
+date or recipient. Field checks: kind, date (ISO), place, sender, recipient.
+
+| Model, effort | Rounds | Field checks right | Quotes not on the page (left out) | Names found | Median time | Cost a page |
+|---|---|---|---|---|---|---|
+| Muse Wonder, minimal | 4 | **108 / 112** | **0** | 102 / 104 | 6–7 s | $0.015 |
+| Muse Spark 1.3, minimal | 3 | 83 / 84 | 1 | 75 / 78 | 10–11 s | $0.005 |
+| Muse Wonder, low | 1 | 27 / 28 | 0 | 18 / 26 | 17 s | $0.042 |
+| Muse Spark 1.3, low | 1 | 28 / 28 | 1 | 25 / 26 | 25 s | $0.012 |
+
+- **Chosen: Muse Wonder at minimal effort.** It was the fastest, found the most names, and never wrote a quote that
+  isn't on the page. Its one repeated miss calls the Vietnamese mid-letter page (no date, no salutation) "other"
+  rather than a letter. Spark was as accurate on the fields at a third of the price; Wonder's speed matters because the
+  record arrives while the visitor reads the page.
+- **What the check caught:** Spark twice quoted words that weren't in the transcript; the record left those fields out.
+  The first prompt also turned "Gustav R e i m a n n" (letter-spaced, as typed in 1922) and "Dear Julian" into
+  names; the check now closes up letter spacing, and the prompt asks for the name alone.
+- All rows use the current field wording (`PROMPTS_VERSION` 2026-11-03.1); the summary was capped at 30 words before
+  the last Wonder round. An earlier round on a first wording (names with greetings, nationalities as people) is not counted.
+- **Voice notes:** a synthetic 11.4 s note ("Box twelve, folder three. Found in the attic of the house in Leipzig…")
+  came back word for word in 6.3 s from the API; through the browser path (fake microphone, Opus, WAV at 16 kHz) on the
+  live site in 2.3–5.2 s, with small slips on the synthetic voice. Cost: $0.18 per hour of audio.
+
 ## Reliability
 
 | Function | Retries | Hedge after | Per-attempt timeout | Deadline |
@@ -192,6 +222,8 @@ ShredBench keeps its own prompts (`markdown`, `parts`), so its numbers stand.
 | readPage | 4 | 45 s | 90 s | 150 s |
 | translate | 4 | 30 s | 60 s | 120 s |
 | sortFragments | 4 | 60 s | 90 s | 150 s |
+| catalogPage | 4 | 12 s | 30 s | 60 s |
+| transcribeNote (voice) | 1 | – | 30 s | 30 s |
 
 - **Retried:** network errors, timeouts, 429 (with Retry-After), 5xx, empty output, unparseable output, and output cut off by the token budget.
 - **In the live pipeline (S7):** seam reads run at low effort, hedged after 9 s, 16 at a time, and the read stage stops
@@ -211,6 +243,7 @@ ShredBench keeps its own prompts (`markdown`, `parts`), so its numbers stand.
 - SAM: $2.50 per 1,000 images.
 - Spark: $1.25 in / $4.25 out per 1M tokens.
 - Wonder: $4 in / $20 out per 1M tokens.
+- Voice Transcribe: $0.18 per hour of audio.
 
 Reasoning tokens bill as output.
 
@@ -222,6 +255,8 @@ Reasoning tokens bill as output.
 | readPage, Spark low, full letter | $0.013 |
 | translate, Spark minimal | $0.002 |
 | sortFragments, Wonder low, 4 crops | $0.04 |
+| catalogPage, Wonder minimal, one page | $0.015 |
+| transcribeNote, a one-minute note | $0.003 |
 
 **Example.** A 12-piece demo run is 1 SAM call, about 10 seam checks and one readPage: about $0.10.
 
@@ -233,6 +268,7 @@ pnpm tsx scripts/bench/reading-bench.mts cw1 binary muse-spark-1.3 low v2
 pnpm tsx scripts/bench/reading-bench.mts cw3 kway muse-wonder-1.0 low
 pnpm tsx scripts/bench/shred-bench.mts <dir with data_8/> auto        # RECORD=1 / REPLAY=1 to tune offline
 pnpm tsx scripts/live/models-smoke.ts                                  # one real call per function, ~$0.08
+pnpm tsx --env-file=.env scripts/eval/catalog.ts muse-spark-1.3,muse-wonder-1.0 1 minimal   # the record eval, ~$0.15
 python scripts/gen/tear.py <page> <out> 12 11 [--canvas 4000x3000] [--stack p2 p3]
 python scripts/gen/seams.py binary|kway <page> <out> [--win 640x220] [--seam flush]
 ```

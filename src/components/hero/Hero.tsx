@@ -153,7 +153,7 @@ export function Hero({
           <div className="intro">
             {lead ?? (
               <p className="deck">
-                <span className="dk">Untorn rebuilds a torn page from one photo: SAM&nbsp;3.1 cuts out every piece, and Muse reads the half-letters across each tear.</span>
+                <span className="dk">Untorn rebuilds a torn page from one photo: SAM&nbsp;3.1 cuts out every piece, and Muse reads the half-letters across each tear. Built for the 15,400 sacks of Stasi files still in pieces.</span>
                 <span className="dp">SAM&nbsp;3.1 cuts the pieces. Muse reads across the tears.</span>
               </p>
             )}

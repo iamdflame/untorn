@@ -183,8 +183,10 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
         <p className="why-k" id="whyh">
           Why it matters
         </p>
-        <p className="why-big">In 30 years, about 600 of 16,000 sacks of hand-torn Stasi files have been rebuilt by hand.</p>
-        <p className="why-sm">The federal auditors put the finish at 847 years at this pace. The law asks that victims get their files back in their lifetime. At this pace, they won’t.</p>
+        <p className="why-big">3.5 million people have asked to read their Stasi files. 15,400 sacks of those files are still in pieces.</p>
+        <p className="why-sm">
+          The Stasi tore them up by hand in 1989 and 1990. In 30 years, about 600 sacks have been pieced back together by hand; at that pace, the federal auditors say, the rest would take 847 years. Since 2021 the law has made it the Federal Archives’ task, in the hope that victims get their files in their lifetime.
+        </p>
       </section>
 
       <div ref={resultRef} />

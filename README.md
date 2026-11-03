@@ -1,5 +1,7 @@
 # Untorn
 
+[![CI](https://github.com/iamdflame/untorn/actions/workflows/ci.yml/badge.svg)](https://github.com/iamdflame/untorn/actions/workflows/ci.yml)
+
 **Untorn puts torn documents back together from one photo.** Meta's SAM 3.1 cuts out every piece to the pixel, and Muse Spark reads the half-letters across each tear, like a crossword, to decide which pieces belong together. When a stack of pages is torn at once, the pieces share the very same edges and shape can't decide. Reading does.
 
 ![A page torn by hand into 6 pieces, rebuilt live on untorn.vercel.app: SAM 3.1 finds the pieces, Muse reads across a tear, the page closes and Muse reads it back (a live run, waits cut)](docs/media/untorn-real.gif)
@@ -8,14 +10,24 @@
 
 **Try it:** https://untorn.vercel.app (free, no sign-up) · **Demo video:** [youtu.be/fwXAsfIqFug](https://youtu.be/fwXAsfIqFug) · **Accuracy:** [untorn.vercel.app/accuracy](https://untorn.vercel.app/accuracy) · **Verify it yourself:** [below](#verify-it-yourself)
 
+*Meta Global AI Developer Hackathon 2026 · Indie Developer track · Theme: Push the Frontier · [For judges: the four criteria](#for-judges-the-four-criteria)*
+
 ## At a glance
 - **Real paper:** a printed page torn by hand into 6 pieces came back whole in **5 of 5** live runs, in 48–61 s, its transcript running on line by line across every tear.
 - **A published benchmark:** on the [ShredBench](docs/SHREDBENCH.md) protocol (Findings of ACL 2026), Untorn makes **8× fewer text errors** than Muse Spark alone on the same photos (normalised edit distance 0.050 against 0.404).
 - **Stacks:** where pages were torn together and outlines repeat, Muse picked the right piece in **22 of 22** readings (chance: 1 in 3).
-- **Meta's models do the key work:** SAM 3.1 finds and outlines every piece in one call; Muse Spark reads every seam, picks between identical outlines, turns pages upright, transcribes and translates. A run makes about one SAM 3.1 call and ten Muse Spark calls, and costs about $0.08–0.21 (measured on the live runs below).
+- **Four Meta models, each with a measured job:** SAM 3.1 finds and outlines every piece in one call; Muse Spark reads every seam, picks between identical outlines, turns pages upright, transcribes and translates; Muse Wonder catalogues the rebuilt page for the archive (kind, date, place, sender, recipient, names), every field quoted from the page and checked against it; Muse Voice Transcribe writes down the archivist's spoken note of where the page was found. A run makes about one SAM 3.1 call and ten Muse Spark calls, and costs about $0.08–0.21 (measured on the live runs below); the record adds about $0.015 a page.
 - **Honest by design:** two clues or no join. Pieces that don't fit are set aside, never forced; gaps in the transcript stay marked as gaps.
 
-Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026).
+Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026). Every line was written during the event, from the first commit on 26 Oct 2026 at 17:52 UTC ([pre-existing vs new](#pre-existing-vs-new-this-event)).
+
+## For judges: the four criteria
+| Criterion | What to look at |
+|---|---|
+| **Impact (30%)** | 3.5 million people have asked to read their Stasi files, and 15,400 sacks of those files are still in pieces, torn up by hand in 1989–90. At the current pace the rest takes about 847 years; since 2021 the law has made it the Federal Archives' task, in the hope that victims get their files in their lifetime ([sources](docs/FACTS.md)). Rebuilding torn and shredded paper is an old hard problem: in 2011 DARPA offered $50,000 to rebuild five shredded documents, and nearly 9,000 teams entered. Untorn does it from one phone photo, for an archive, a disaster-recovery team or a family with a torn letter, and hands back the page, a searchable PDF, a transcript, a translation and an archive record ready to file (Dublin Core). |
+| **Use of Meta AI tooling (25%)** | Four Meta models, each with a job it was measured on. **SAM 3.1** outlines every piece within 0.42 px of the true edge (a concept prompt for the whole photo, then box and point prompts for unsure pieces): 2,592 of 2,592 pieces found on the benchmark. **Muse Spark** reads the half-letters across each tear, picks between identical outlines (22 of 22), turns pages upright, transcribes and translates; with SAM 3.1 it makes 8× fewer text errors than Muse Spark alone on the same ShredBench photos. **Muse Wonder** writes the page's archive record, and every name and date must quote the page: on the 7 sample pages against an answer key, 108 of 112 field checks right over 4 rounds, no quote that isn't on the page, 6–7 s (chosen over Spark on that test for speed and completeness). **Muse Voice Transcribe** takes the archivist's spoken note of where the page was found. Details and every measured choice: [docs/MODELS.md](docs/MODELS.md). |
+| **Technical depth (20%)** | A deterministic geometry solver (subpixel outlines, torn edges told from straight ones, edge fitting) under a two-clue rule; a ShredBench replica, simulated tears with answer keys and three real hand-torn pages ([/accuracy](https://untorn.vercel.app/accuracy)); 232 automated tests on every push; on the live site, a health check, rate limits, a daily spend cap, hedged model calls and an honest pause if the model API ever refuses the key. |
+| **Demo (25%)** | The first screen is the product working. **Run it live** sends the same photo through the whole pipeline (about a minute); **Tear your own** takes a phone photo by QR code; **A real tear** replays a hand-torn page; every result has a join map, a searchable PDF and an archive record you can add a spoken note to. [Demo video, 2:07](https://youtu.be/fwXAsfIqFug). |
 
 ## Why
 In 1989–90 the Stasi tore its files apart by hand. About 16,000 sacks of scraps were saved, and some 15,400 are still untouched. A federal computer project rebuilt 23 of 400 contracted sacks before it was ended in 2023, and Germany's federal auditors put the finish at about 847 years at the current pace. In a 2023 market survey, no vendor could offer a system that already did this job in production. Sources: [`docs/FACTS.md`](docs/FACTS.md).
@@ -29,14 +41,18 @@ flowchart LR
   S --> G[Geometry: torn edges that fit]
   G -->|seam images| M[Muse Spark: reads across each tear]
   M --> A[Two-clue assembly]
-  A --> R[Muse: reads the rebuilt page]
-  R --> O[Page, transcript, join map]
+  A --> R[Muse Spark: reads the rebuilt page]
+  R --> W[Muse Wonder: the archive record, every field quoted]
+  N[A spoken note] --> V[Muse Voice Transcribe]
+  W --> O[Page, transcript, record, join map]
+  V --> O
 ```
 - **SAM 3.1** segments every piece in one call: a low-resolution pass finds the pieces, then each outline is snapped at full resolution.
 - **Geometry** (deterministic TypeScript, `src/lib/rejoin`) traces subpixel outlines, separates straight page edges from torn ones, and fits torn edges together.
 - **Muse Spark** looks at the rendered seam and reads across it: do the half-letters complete each other, and do the words continue? When several pieces share one outline, Muse picks the one that reads.
 - **The two-clue rule:** a join needs two clues that agree: the edges fit and the words continue across the tear. Where no letters cross a tear, the second clue is the page itself: a strong fit whose text lines run on in step, or, between two halves of a page, its straight border lining up. Untorn never forces a join; unplaced pieces stay unplaced.
 - **Muse** transcribes the rebuilt page, marks gaps as `[…]` and never fills them in.
+- **Muse Wonder** catalogues the page from its transcript once it is on screen (the run takes no longer): kind, date, where it was written, sender, recipient, and the people, places and organisations it names. Every name and date must quote the transcript; code checks each quote (whole words) and leaves out what isn't there. **Muse Voice Transcribe** writes the archivist's spoken note of where the page was found into the record; the audio isn't kept.
 
 ![Untorn rebuilding a torn 1927 letter: the pieces lift and come together, and Muse reads the words hope and go across a tear (a simulated tear, recorded run)](docs/media/untorn-hero.gif)
 
@@ -55,6 +71,7 @@ Every number was measured, and each row says what kind of test it is: a real tea
 | A German typed letter of 1922, 10 pieces, the full live pipeline, 2 runs (one on the live site) | 10/10 placed and 16/16 joins both times; German transcript CER 0.0% and 1.4%, translated into English; 32–39 s, $0.13–0.14 | simulated tear |
 | Three letters torn as one stack, 24 pieces | 18/24 placed, 0 misplaced; 22 of 22 readings chose the right piece among identical outlines | simulated stack tear |
 | Shape only, single pages of 8–12 pieces (24 held-out cases) | 99.5% placed correctly; join precision 100%; 0 misplaced of 938 pieces across six families | simulated (Bench-S) |
+| The archive record (Muse Wonder), the 7 sample pages against an answer key read off their transcripts, 4 rounds | 108 of 112 field checks right (kind, date, place, sender, recipient); 0 quotes not on the page; 102 of 104 named people, places and organisations found; 6–7 s and about $0.015 a page. Muse Spark on the same test: 83 of 84 over 3 rounds, one quote not on the page (left out by the check), about 10 s | sample transcripts |
 | SAM 3.1 segmentation | every piece found: 2,592 of 2,592 in the ShredBench replica, 10 of 10 on the real photo; median edge error 0.42 px on a 4800×3600 photo | replica, real, simulated |
 | Full live run on the sample letter (the health check) | 10/10 pieces, 17/17 joins, 34–59 s, about $0.11–0.15 | simulated tear |
 
@@ -71,9 +88,9 @@ pnpm dev
 ```
 
 ## Built vs integrated
-- **Built for this project:** the solver (outlines, edge matching, two-clue assembly), the two-pass segmentation, the seam renders and reading prompts, the streaming pipeline, the phone handoff, the searchable PDF writer, the app and its design, and the benchmark generator.
+- **Built for this project:** the solver (outlines, edge matching, two-clue assembly), the two-pass segmentation, the seam renders and reading prompts, the streaming pipeline, the phone handoff, the searchable PDF writer, the archive record's quote checker and Dublin Core export, the in-browser WAV recorder, the app and its design, and the benchmark generator.
 - **Integrated:**
-  - Meta Model API: SAM 3.1 and Muse Spark (reading seams, choosing between twins, turning pages upright, transcribing, translating);
+  - Meta Model API: SAM 3.1; Muse Spark (reading seams, choosing between twins, turning pages upright, transcribing, translating); Muse Wonder (the archive record); Muse Voice Transcribe (spoken notes);
   - `@meta-sam/parser` (SAM License);
   - Next.js, `sharp`, Vercel Blob;
   - fonts: Gambetta (Fontshare), Schibsted Grotesk and IBM Plex Mono (OFL).
@@ -87,7 +104,10 @@ pnpm dev
   - pages in other languages: Muse reads them and translates them into English (the German sample: `/?sample=stresemann-1922`);
   - advice when pieces are left out (pieces touching, writing too small for the photo);
   - a tilted photo straightened before the pieces are fitted: from the tilt an iPhone records, or, when the photo has no such reading, from the spacing of the pieces' text lines (it acts only when one tilt explains nearly every piece; it left all 4 samples, 5 flat real photos and 56 benchmark photos untouched, and straightened both tilted real photos);
-  - a health check that rebuilds a known sample every 12 hours, a daily spend cap, and a daily limit of live runs per address.
+  - a real hand-torn page as a recorded live run (`/?sample=hand-torn-6`), linked beside every simulated sample;
+  - an archive record for every rebuilt page (Muse Wonder, every field quoted from the page and checked), downloadable as Dublin Core, with a spoken provenance note (Muse Voice Transcribe);
+  - a health check that rebuilds a known sample every 12 hours, a daily spend cap, and a daily limit of live runs per address;
+  - an honest pause: if Meta's model API refuses the key (no credit left, say), the first screen says live runs are paused before anyone tears a page, and the recorded runs stay available.
 - **Limits:**
   - Real hand-torn paper is harder than simulations. A page torn into 6 pieces came back whole in 5 of 5 live runs; two pages torn into 10 small pieces put 6–8 and 2–5 of 10 in the right place. Some runs set a piece just past the tolerance or turned on a short seam, and the rest are set aside. Fewer, larger pieces laid flat and apart do best. A live run takes 45–65 s. Pieces that touch, curled pieces, and photos shrunk by a messaging app lose the edge detail the fits need. The run says which applies.
   - Very large stacks can end with some twins unplaced, because reading is capped per run.

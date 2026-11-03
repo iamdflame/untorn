@@ -26,6 +26,7 @@ Runs the full pipeline: SAM 3.1 segmentation → edge matching → Muse reads ac
 | `warning` | a non-fatal problem (e.g. blur), with what to do |
 | `tick` | keep-alive |
 | `done` | the full `RunResult` |
+| `catalog` | after `done`: each transcribed page's archive record by Muse Wonder, first `pending`, then `done` (only the fields whose quotes are on the page, and how many were left out) or `failed`; the stored run is rewritten with them (`catalogs`) |
 | `error` | a designed error code and a plain message |
 
 **Limits** (env-configurable): runs per IP per hour (`RUNS_PER_IP_PER_HOUR`, default 12) and per UTC day (`RUNS_PER_IP_PER_DAY`, default 6), a daily model-spend cap across all runs (`DAILY_SPEND_CAP_USD`; by default $4 a day on the judging days, 4–9 Nov 2026, and $1.50 on other days, so the remaining model credit lasts to 10 Nov), concurrent pipelines per instance (`MAX_CONCURRENT_RUNS`, default 4) with a queue (`MAX_QUEUE`, default 12), and at most 120 pieces per photo. `maxDuration` is 300 s.
@@ -35,6 +36,15 @@ Runs the full pipeline: SAM 3.1 segmentation → edge matching → Muse reads ac
 curl -N -X POST https://untorn.vercel.app/api/runs \
   -H 'content-type: application/json' -d '{"sample":"chouteau-1903"}'
 ```
+
+## `POST /api/notes`: a spoken provenance note
+Muse Voice Transcribe writes down a short spoken note (where a page was found) for its archive record. The page keeps
+the note and writes it into the record's downloads; the server stores neither the audio nor the text.
+
+**Body:** `multipart/form-data` with `audio`: a mono 16-bit PCM WAV at 16 or 24 kHz, at most a minute (the browser
+records, then converts). **Response:** `{ text, audioMs, ms, costUsd, model }`. **Limits:** notes per IP per hour
+(`NOTES_PER_IP_PER_HOUR`, default 20); notes count towards the daily spend cap (about $0.003 a minute) but never
+towards a visitor's live runs.
 
 ## `GET /api/runs/{runId}`: a stored run
 Returns the stored result of a finished run (the same data `/r/{runId}` replays). `404` if unknown or expired.

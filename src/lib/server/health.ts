@@ -60,9 +60,10 @@ export async function runHealthCheck(store: Store, deps?: PipelineDeps): Promise
       const onEvent = (e: RunEvent) => {
         if (e.type === "stage" && e.status === "done" && e.ms !== undefined) stages[e.stage] = e.ms;
       };
-      const result = await runPipeline(bytes, deps ?? liveDeps(async () => null), { runId, source: "health", sample, caption, meter }, onEvent);
+      const refused = new Set<string>();
+      const result = await runPipeline(bytes, deps ?? liveDeps(async () => null, { onRefused: (m) => refused.add(m) }), { runId, source: "health", sample, caption, meter }, onEvent);
       // what this run learnt about each host (live-status.ts); refused, it went on with the paper finder
-      await notePauses(store, result, `health ${runId}`);
+      await notePauses(store, result, `health ${runId}`, { openRefused: refused.has("muse-spark-open") });
       const openWeightsRun = hostsSeen(result).metaRefused;
       const score = scoreRun(result, key);
       const bar = healthBar();

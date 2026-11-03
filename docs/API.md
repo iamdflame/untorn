@@ -12,7 +12,9 @@ Runs the full pipeline: SAM 3.1 segmentation → edge matching → Muse reads ac
 
 Optional, with any of these: `reader: "open"` (a form field, or a JSON key) sends every read, the transcript and the
 record to Muse Spark Open, Meta's open weights; the server answers `bad-type` when it has no open-weights host
-(`BASETEN_API_KEY`). Without it, Muse Spark reads first and Muse Spark Open answers the reads it is slow on.
+(`BASETEN_API_KEY`). A read that host turns away for our account (no credit left there, say) goes to Muse Spark,
+and the run warns `open-refused` with how many reads Muse Spark gave. Without it, Muse Spark reads first and Muse
+Spark Open answers the reads it is slow on.
 
 **Response:** `application/x-ndjson`, one `RunEvent` per line, in order (types in `src/lib/run/types.ts`):
 
@@ -62,6 +64,6 @@ Returns the stored result of a finished run (the same data `/r/{runId}` replays)
 Serves stored run images (photos, seam crops) from the private store, by allow-listed key only.
 
 ## Health and housekeeping
-- **`GET /api/health`**: how live runs go (`live`: `ok`; or, when Meta's model API refused our key, `open-weights` (runs outlined by the paper finder and read by Muse Spark Open) or `outlines-only` (placed by their edges alone), with `pausedSince`; `openWeights`: whether the open-weights host answers), and the last successful sample run, its accuracy against the answer key and its age. With `?warm`, it returns `{ ok: true, live }` (a warm-up ping the first screen sends; on `paused` the page says so before anyone tears a page).
+- **`GET /api/health`**: how live runs go (`live`: `ok`; or, when Meta's model API refused our key, `open-weights` (runs outlined by the paper finder and read by Muse Spark Open) or `outlines-only` (placed by their edges alone), with `pausedSince`; `openWeights`: whether the open-weights host is set up and hasn't turned our key away in the last 13 hours, or has answered since; the first screen shows the switch only then), and the last successful sample run, its accuracy against the answer key and its age. With `?warm`, it returns `{ ok: true, live, openWeights }` (a warm-up ping the first screen sends; on `paused` the page says so before anyone tears a page).
 - **`GET|POST /api/health/run`**: runs the fixed sample through the full pipeline and scores it against its answer key. Cron only (`CRON_SECRET`); `200` when it passes, `503` when it doesn't.
 - **`GET /api/cleanup`**: deletes uploaded photos, runs and phone sessions older than 23 h, and old ledger and health records. Cron only.

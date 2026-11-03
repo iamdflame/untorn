@@ -4,7 +4,7 @@
 
 import { lastHealth } from "@/lib/server/health";
 import { openWeightsReady } from "@/lib/server/live";
-import { pauseAge, PAUSE_FAIL_FAST_MS, PAUSE_SHOW_MS, readPause, refusedWithin } from "@/lib/server/live-status";
+import { pauseAge, PAUSE_SHOW_MS, readPause, refusedWithin } from "@/lib/server/live-status";
 import { getStore } from "@/lib/server/store";
 
 const HEADERS = { "Cache-Control": "no-store" };
@@ -13,8 +13,10 @@ export async function GET(request: Request) {
   const store = getStore();
   const pause = await readPause(store).catch(() => null);
   // Meta's API refused the key: runs go on with the paper finder, read by the open weights when their host answers
-  // ("open-weights") or placed by their edges alone ("outlines-only"); the first screen says which
-  const openWeights = openWeightsReady() && !(await refusedWithin(store, "open", PAUSE_FAIL_FAST_MS).catch(() => false));
+  // ("open-weights") or placed by their edges alone ("outlines-only"); the first screen says which. The open-weights
+  // switch stays hidden while their host turns our key away: runs ask it again after a few minutes, and its first
+  // answer lifts the record
+  const openWeights = openWeightsReady() && !(await refusedWithin(store, "open", PAUSE_SHOW_MS).catch(() => false));
   const live = pause && pauseAge(pause) < PAUSE_SHOW_MS ? (openWeights ? "open-weights" : "outlines-only") : "ok";
   if (new URL(request.url).searchParams.has("warm")) return Response.json({ ok: true, live, openWeights }, { headers: HEADERS });
   const { last, lastOk } = await lastHealth(store).catch(() => ({ last: null, lastOk: null }));

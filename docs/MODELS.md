@@ -257,7 +257,11 @@ site's code; `scripts/eval/real.ts score` and `scripts/score-sample.ts`):
   5–56 px or 1–3° off on curled paper, and both models confirmed such joins, in proportion to the reads each answered. Each cell
   is 1–5 runs: differences of one run are within the noise.
 - **If the open-weights host fails** (no credit, down, slow), the hedge simply has nothing to add: a refusal from one
-  host never settles a call the other is still answering (`muse.test.ts`, "two hosts").
+  host never settles a call the other is still answering (`muse.test.ts`, "two hosts"). Each refusal is still
+  reported (`onRefused`) and recorded, so the switch hides while the host turns our key away.
+- **With "Read on open weights only"**, a read their host turns away for our account (Baseten answered 402, "please
+  check your current payment status", on 3 Nov 2026) goes to Muse Spark at once, and the run says how many reads Muse
+  Spark gave (`open-refused`); a slow read stays with the open weights (`live.test.ts`).
 - Two open-weights-only runs lost their seam reads to this machine's connection (two runs at once, about 30 seam
   images in flight over a slow uplink: requests failed to connect within 10 s, the limit noted for Meta's API under
   Reliability). The letter still came back 10 of 10 on its edges alone; the 6-piece page came back 5 of 6, one piece
@@ -282,7 +286,8 @@ still goes on, and says so:
   two blobs set aside (the finder had found one stray blob besides the 6 pieces).
 - **Each host's refusal is recorded** (`live/paused.json`, `live/open-refused.json`): runs skip a refusing host for
   10 minutes, the first screen says how runs go meanwhile ("open-weights" or "outlines-only" in `/api/health`), and
-  the next run SAM 3.1 answers lifts the record. The "Read on open weights only" switch hides while their host refuses.
+  the next run SAM 3.1 answers lifts the record. The "Read on open weights only" switch stays hidden for up to 13 hours
+  after the open-weights host last refused, until a run's read on the open weights answers again.
 
 ## Reliability
 

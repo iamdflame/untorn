@@ -1,6 +1,6 @@
 # YouTube upload
 
-**v3 to upload (3 Nov 2026):** **File:** `out/untorn-demo-v3.mp4` (2:34.1, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo-v3.srt`, English. v3 adds Meta's open weights (Muse Spark Open) under the hood. v2 (2:26.5, not uploaded) added the people who asked for their files and the archive record (Muse Wonder) with a spoken note (Muse Voice Transcribe). **v1:** https://youtu.be/fwXAsfIqFug (1 Nov 2026, 2:07.6)
+**v3, uploaded 3 Nov 2026:** https://youtu.be/PC_j0_HwPjg (public, English captions uploaded). **File:** `out/untorn-demo-v3.mp4` (2:34.1, 1920x1080, 30 fps, stereo 48 kHz). **Captions:** `out/untorn-demo-v3.srt`, English. v3 adds Meta's open weights (Muse Spark Open) under the hood. v2 (2:26.5, not uploaded) added the people who asked for their files and the archive record (Muse Wonder) with a spoken note (Muse Voice Transcribe). **v1:** https://youtu.be/fwXAsfIqFug (1 Nov 2026, 2:07.6)
 (the film also has them burned in). **Thumbnail:** `out/thumbnail-real.png` (the hand-torn page: its one photo, and the
 page whole again; `out/thumbnail.png` is the 1927-letter alternative).
 

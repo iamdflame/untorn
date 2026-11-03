@@ -53,6 +53,14 @@ describe("runPipeline (mocked models)", async () => {
     await expect(runPipeline(scene.photo, fakeDeps(put, { segment: "empty" }), { runId: "t4", source: "upload" }, () => {})).rejects.toBeInstanceOf(RunError);
   });
 
+  it("when every read was asked of the open weights, says how many Muse Spark gave instead", async () => {
+    // the fake reader answers as Muse Spark, as live.ts does for a read the open weights' host turned away
+    const result = await runPipeline(scene.photo, fakeDeps(put), { runId: "t-open", source: "upload", readsOn: "muse-spark-open" }, () => {});
+    const w = result.warnings.find((x) => x.code === "open-refused");
+    expect(w?.message).toMatch(/so Muse Spark gave every read instead/);
+    expect(result.reads.filter((r) => r.ok).length).toBeGreaterThan(0);
+  });
+
   it("keeps going on shape alone when every Muse read fails", async () => {
     const events: RunEvent[] = [];
     const result = await runPipeline(scene.photo, fakeDeps(put, { museFails: true }), { runId: "t5", source: "upload" }, (e) => events.push(e));

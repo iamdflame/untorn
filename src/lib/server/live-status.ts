@@ -1,8 +1,8 @@
 // What the model hosts are doing. When Meta's model API turns our key itself away (no credit left, the key revoked),
 // no retry helps, but a run still goes on: the paper finder outlines the pieces (paper.ts) and the reads go to Meta's
-// open weights when their host answers. A refusal is recorded per host: the first screen says how runs go meanwhile,
-// runs skip a refusing host for a few minutes and then ask it again, and the next run that gets through (a visitor's
-// or the 12-hourly health run) lifts the record.
+// open weights when their host answers. A refusal is recorded per host: the first screen says how runs go meanwhile
+// (and hides the open-weights switch), runs skip a refusing host for a few minutes and then ask it again, and the next
+// run that gets through (a visitor's or the 12-hourly health run) lifts the record.
 
 import type { Store } from "./store";
 import { getJson } from "./store";
@@ -68,12 +68,15 @@ export function hostsSeen(result: { warnings: { code: string }[]; reads: { ok: b
   };
 }
 
-/** Record what a finished run learnt about both hosts. */
-export async function notePauses(store: Store, result: Parameters<typeof hostsSeen>[0], why: string): Promise<void> {
+/**
+ * Record what a finished run learnt about both hosts. `openRefused`: the open-weights host turned a call away where
+ * the run's reads can't show it (a hedge's lane that Muse Spark answered, a read handed to Muse Spark).
+ */
+export async function notePauses(store: Store, result: Parameters<typeof hostsSeen>[0], why: string, also: { openRefused?: boolean } = {}): Promise<void> {
   const seen = hostsSeen(result);
   await (seen.metaRefused ? setPause(store, `${why}: SAM 3.1 refused the key`) : clearPause(store)).catch(() => {});
   if (seen.openAnswered) await clearPause(store, Date.now(), "open").catch(() => {});
-  else if (seen.openRefused) await setPause(store, `${why}: the open-weights host refused the key`, Date.now(), "open").catch(() => {});
+  else if (seen.openRefused || also.openRefused) await setPause(store, `${why}: the open-weights host refused the key`, Date.now(), "open").catch(() => {});
 }
 
 /** For tests: forget the cached pauses. */

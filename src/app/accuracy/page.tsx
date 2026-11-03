@@ -220,7 +220,7 @@ export default function AccuracyPage() {
           label="Real model calls: simulated seams, sample pages, real tears"
           intro={
             OPEN_WEIGHTS_LIVE
-              ? "Muse Spark Open is Meta’s open-weights Muse Spark, served here by Baseten. It gets the same questions as Muse Spark, with the same prompts. The site asks Muse Spark first and Muse Spark Open when a read is slow; the switch “Read on open weights only” sends every read, the transcript and the record to it."
+              ? "Muse Spark Open is Meta’s open-weights Muse Spark, served here by Baseten. It gets the same questions as Muse Spark, with the same prompts. The site asks Muse Spark first and Muse Spark Open when a read is slow; the switch “Read on open weights only” sends every read, the transcript and the record to it. Both run while Baseten takes our key: while it turns the key away, the switch is hidden and Muse Spark reads alone, and each read names the model that gave it."
               : "Muse Spark Open is Meta’s open-weights Muse Spark, served by Baseten. It gets the same questions as Muse Spark, with the same prompts. These runs used the site’s code on our machine; this deployment of the site reads on Meta’s API alone until its open-weights host is set up."
           }
         >

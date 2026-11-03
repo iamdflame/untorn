@@ -139,6 +139,8 @@ export type MuseOptions = {
    * weights on Baseten, beside Muse Spark on Meta's API). A host that refuses the call then hands it over at once.
    */
   altModel?: MuseModel;
+  /** Told when a host turns the call away for our account (no credit left there, a revoked key), whichever lane met it. */
+  onRefused?: (model: MuseModel) => void;
   maxAttempts?: number;
   signal?: AbortSignal;
   /** Called after every attempt. Defaults to one compact console line; pass () => {} to silence. */
@@ -329,7 +331,15 @@ export async function museCall<T>(req: StructuredRequest<T>, opts: MuseOptions =
   const alt = opts.altModel && opts.altModel !== (opts.model ?? req.defaults.model) ? opts.altModel : undefined;
   // with a second host, a call that is never hedged still moves there when the first host refuses it
   const hedgeAfterMs = (opts.hedgeAfterMs ?? req.defaults.hedgeAfterMs) || (alt ? deadlineMs : 0);
-  if (!hedgeAfterMs) return museCallOnce(req, opts);
+  // a refusal on the hedge's lane is hidden by the other host's answer: report each one (live runs record them)
+  const report = (r: MuseOutcome<T>) => {
+    if (!r.ok && (r.error.code === "billing" || r.error.code === "auth")) opts.onRefused?.(r.meta.model);
+  };
+  if (!hedgeAfterMs) {
+    const r = await museCallOnce(req, opts);
+    report(r);
+    return r;
+  }
   const t0 = Date.now();
   try {
     const h = await hedge(
@@ -344,6 +354,7 @@ export async function museCall<T>(req: StructuredRequest<T>, opts: MuseOptions =
         final: (r) => !r.ok && !r.error.retryable && !alt,
       },
     );
+    h.results.forEach(report);
     const costUsd = h.results.reduce((s, r) => s + r.meta.costUsd, 0);
     const usage = h.results.reduce((u, r) => addUsage(u, r.meta.usage), ZERO);
     return { ...h.result, meta: { ...h.result.meta, ms: Date.now() - t0, costUsd, usage, lanes: h.lanesStarted } } as MuseOutcome<T>;

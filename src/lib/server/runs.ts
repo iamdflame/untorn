@@ -5,6 +5,7 @@ import { parseTilt, type CameraTilt } from "@/lib/run/tilt";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ERRORS, RunError } from "@/lib/run/errors";
+import { OPEN_MODEL } from "@/lib/run/models";
 import { SAMPLES } from "@/lib/run/samples";
 import { MAX_UPLOAD_BYTES, type RunEvent, type RunSource } from "@/lib/run/types";
 import { isPhotoId, randomId } from "./ids";
@@ -127,10 +128,17 @@ export function streamRun(
           await store.put(key, bytes, contentType);
           return fileUrl(key);
         };
-        const deps = ctx.deps ?? liveDeps(putAsset, { reader: input.reader, metaRefused: ctx.metaRefused, openUsable: ctx.openUsable });
-        const result = await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, signal: abort.signal, meter }, write);
+        // the hosts that turned a call away for our account (on a hedge's lane, the other host's answer hides it)
+        const refused = new Set<string>();
+        const deps = ctx.deps ?? liveDeps(putAsset, { reader: input.reader, metaRefused: ctx.metaRefused, openUsable: ctx.openUsable, onRefused: (m) => refused.add(m) });
+        const result = await runPipeline(
+          input.bytes,
+          { ...deps, putAsset },
+          { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, readsOn: input.reader === "open" ? OPEN_MODEL : undefined, signal: abort.signal, meter },
+          write,
+        );
         // what this run learnt about each host: SAM 3.1 answered or refused, the open weights answered or refused
-        await notePauses(store, result, `run ${runId}`);
+        await notePauses(store, result, `run ${runId}`, { openRefused: refused.has(OPEN_MODEL) });
         // the page is on screen: now the archive records, streamed after done (a failure there is a note, not an error)
         if (deps.catalogPage)
           await catalogRun(result, { catalogPage: deps.catalogPage, putAsset }, { signal: abort.signal, meter, emit: write, t: () => Date.now() - t0 }).catch((e) => console.error(`[runs] ${runId} record failed`, e));
@@ -161,9 +169,9 @@ export function streamRun(
 /** Admit and start: the whole of POST /api/runs after parsing. */
 export async function startRun(input: RunInput, ctx: { store: Store; ip: string; signal?: AbortSignal; deps?: PipelineDeps }): Promise<Response> {
   // a host that refused our key minutes ago is skipped; the run goes on with the paper finder and what still answers
+  // (a visitor who asked for the open weights alone then gets Muse Spark's reads, and the run says so)
   const metaRefused = await refusedWithin(ctx.store, "meta", PAUSE_FAIL_FAST_MS).catch(() => false);
   const openUsable = openWeightsReady() && !(await refusedWithin(ctx.store, "open", PAUSE_FAIL_FAST_MS).catch(() => false));
-  if (input.reader === "open" && !openUsable) throw new RunError("model-error", "Meta's open weights aren't answering just now. Untick “Read on open weights only” and run it again.");
   const runId = randomId();
   const { ipKey } = await admitRun(ctx.store, ctx.ip, runId);
   return streamRun(input, { store: ctx.store, ipKey, runId, signal: ctx.signal, deps: ctx.deps, metaRefused, openUsable });

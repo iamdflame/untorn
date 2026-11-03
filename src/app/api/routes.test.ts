@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunEvent, RunResult } from "@/lib/run/types";
 import { fakeDeps, fakeScene } from "@/lib/server/__tests__/fake-run";
 import { resetLimits } from "@/lib/server/limits";
-import { resetPauseCache } from "@/lib/server/live-status";
+import { resetPauseCache, setPause } from "@/lib/server/live-status";
 import { resetSessions } from "@/lib/server/sessions";
 import { memoryStore, setStore, type Store } from "@/lib/server/store";
 
@@ -179,6 +179,22 @@ describe("POST /api/runs", () => {
     const scene = await fakeScene();
     expect((await readEvents(await postRun(uploadRequest(scene.photo)))).at(-1)?.type).toBe("done");
     expect(await warm()).toEqual({ ok: true, live: "open-weights", openWeights: true });
+  });
+
+  it("while the open weights' host turns our key away, the switch hides, and a visitor who asked for them still gets the page, read by Muse Spark, with a note", async () => {
+    vi.stubEnv("BASETEN_API_KEY", "test-open-key");
+    const warm = async () => (await getHealth(new Request("http://localhost/api/health?warm=1"))).json();
+    await setPause(store, "test: the open-weights host refused the key", Date.now() - 60_000, "open");
+    expect(await warm()).toEqual({ ok: true, live: "ok", openWeights: false });
+    // an hour later, still hidden: runs ask the host again, and its first answer lifts the record
+    await setPause(store, "test: the open-weights host refused the key", Date.now() - 3600_000, "open");
+    expect(await warm()).toEqual({ ok: true, live: "ok", openWeights: false });
+    await setPause(store, "test: the open-weights host refused the key", Date.now() - 60_000, "open");
+    const res = await postRun(new Request("http://localhost/api/runs", { method: "POST", body: JSON.stringify({ sample: "chouteau-1903", reader: "open" }), headers: { "content-type": "application/json" } }));
+    expect(res.status).toBe(200);
+    const done = (await readEvents(res)).at(-1) as Extract<RunEvent, { type: "done" }>;
+    expect(done.type).toBe("done");
+    expect(done.result.warnings.find((w) => w.code === "open-refused")?.message).toMatch(/Muse Spark gave every read instead/);
   });
 
   it("a refusal SAM's fake can't fall back from still ends in a designed error, and the record says the key was refused", async () => {

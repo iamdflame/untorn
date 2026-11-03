@@ -48,6 +48,8 @@ export const WARNINGS: Record<WarningCode, string> = {
   tilted: "The photo was taken at an angle. Untorn straightened it with the tilt the phone recorded in the photo.",
   "sam-refused":
     "Meta's model API isn't accepting our key just now, so SAM 3.1 couldn't outline the pieces: Untorn found them itself, by the paper's colour against the table. Each read in the join map names the model that gave it.",
+  "open-refused":
+    "Meta's open weights aren't answering us just now (their host isn't accepting our key), so Muse Spark read this page instead. Each read in the join map names the model that gave it.",
 };
 
 /** A typed failure the routes turn into a designed error event or JSON body (never a stack trace). */

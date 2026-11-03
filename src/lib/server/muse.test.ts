@@ -221,6 +221,21 @@ describe("two hosts: Muse Spark Open beside Muse Spark", () => {
     expect(r.ok).toBe(true);
     expect(r.meta.model).toBe("muse-spark-open");
   });
+
+  it("a refusal on the hedge's lane is reported, though the other host's answer settles the call", async () => {
+    const slow = () => new Promise<Response>((resolve) => setTimeout(() => resolve(answer(seam)), 80));
+    // Baseten's answer when the account has no credit left
+    const h = twoHosts(slow, [new Response(JSON.stringify({ error: "please check your current payment status." }), { status: 402 })]);
+    const refused: string[] = [];
+    const r = await verifySeam(img, opts({ fetchImpl: h.impl, model: "muse-spark-1.3", altModel: "muse-spark-open", hedgeAfterMs: 10, onRefused: (m) => refused.push(m) }).o);
+    expect(r.ok && r.meta.model).toBe("muse-spark-1.3");
+    expect(refused).toEqual(["muse-spark-open"]);
+    // a call that answers, or fails for another reason, reports nothing
+    const quiet: string[] = [];
+    await verifySeam(img, opts({ fetchImpl: fakeFetch([answer(seam)]).impl, onRefused: (m) => quiet.push(m) }).o);
+    await verifySeam(img, opts({ fetchImpl: fakeFetch([httpError(400, "bad image")]).impl, onRefused: (m) => quiet.push(m) }).o);
+    expect(quiet).toEqual([]);
+  });
 });
 
 describe("recorded answers from the live smoke run", () => {

@@ -103,6 +103,8 @@ export type PipelineOptions = {
   maxPagesRead?: number;
   /** Below this sharpness (intake.ts), warn that the photo looks blurred. */
   blurThreshold?: number;
+  /** The visitor asked for every read on this model (live.ts): the reads another model gave are counted in a warning. */
+  readsOn?: string;
   /** Updated with the model spend as it happens (so a failed run's cost is still counted). */
   meter?: { usd: number };
 };
@@ -510,6 +512,16 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     }),
   );
   stage("transcribe", "done");
+  // every read was asked of the open weights, and their host turned some away: say how many Muse Spark gave instead
+  if (opts.readsOn) {
+    const answered = [...reads, ...transcripts].filter((r) => r.ok && r.model);
+    const others = answered.filter((r) => r.model !== opts.readsOn).length;
+    if (others)
+      warn(
+        "open-refused",
+        `Meta's open weights aren't answering us just now (their host isn't accepting our key), so Muse Spark gave ${others === answered.length ? "every read" : `${others} of ${answered.length} reads`} instead. Each read in the join map names the model that gave it.`,
+      );
+  }
   await displayPhoto;
 
   timings.total = now() - t0;

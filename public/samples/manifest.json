@@ -1,5 +1,5 @@
 {
-  "note": "The fixed samples. The first screen replays `default`'s recorded run (switch with /?sample=<name>); the hourly health run checks `health` against its answer key. A sample needs data/samples/<name>/photo.jpg (server, live runs) and public/samples/<name>/ (recorded run: result.json, and result-lite.json for the first screen made by scripts/make-lite-recording.mjs; photos). `twins` names a stack trial for the twins beat.",
+  "note": "The fixed samples. The first screen replays `default`'s recorded run (switch with /?sample=<name>); the 12-hourly health run checks `health` against its answer key. A sample needs data/samples/<name>/photo.jpg (server, live runs) and public/samples/<name>/ (recorded run: result.json, and result-lite.json for the first screen made by scripts/make-lite-recording.mjs; photos). `twins` names a stack trial for the twins beat.",
   "default": "fdr-1927",
   "health": "chouteau-1903",
   "samples": {

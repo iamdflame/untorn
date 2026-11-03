@@ -1,5 +1,5 @@
 // The fixed samples, from public/samples/manifest.json: the first screen replays a recorded run of one; "Run it live"
-// sends the same photo through the real pipeline; the health run (every 3 hours) checks one against its answer key. A new
+// sends the same photo through the real pipeline; the health run (every 12 hours) checks one against its answer key. A new
 // sample drops in by adding its files and a manifest entry (see the manifest's note).
 
 import manifest from "../../../public/samples/manifest.json";

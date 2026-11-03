@@ -1,4 +1,4 @@
-// The live pipeline behind `POST /api/runs`, `scripts/record-run.ts` and the hourly health run:
+// The live pipeline behind `POST /api/runs`, `scripts/record-run.ts` and the 12-hourly health run:
 //   photo → SAM 3.1 outlines (segment) → torn-edge matching (match) → Muse Spark reads across candidate seams (read)
 //   → two-clue assembly (assemble) → Muse transcribes each rebuilt page (transcribe) → done.
 // Every stage emits a RunEvent the moment it happens; the same events, with their timing, end up in the RunResult's

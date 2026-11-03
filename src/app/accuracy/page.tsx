@@ -194,9 +194,9 @@ export default function AccuracyPage() {
           />
         </Section>
 
-        <Section id="live" title="This sample, recorded" label="Recorded run of the live pipeline" intro="The letter on the first screen: a simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. A health check reruns it every 3 hours.">
+        <Section id="live" title="The health-check letter, recorded" label="Recorded run of the live pipeline" intro="A simulated tear of a real 1903 letter, 10 pieces, run once through the whole live pipeline and scored against the tear's answer key. The health check reruns it on the live site every 12 hours.">
           <Table
-            caption="The recording the first screen plays"
+            caption="The recorded run, scored against the answer key"
             head={["Pieces placed correctly", "Joins right", "Joins confirmed by reading", "Photo to page", "Model cost"]}
             rows={[[`${score.placedCorrectly} of ${score.pieces}`, `${score.correctJoins} of ${score.joins}`, `${reads} of ${run.joins.length}`, `${(run.timings.total / 1000).toFixed(1)} s`, `$${run.cost.usd.toFixed(2)}`]]}
             note={`${placed} pieces on one page. The other joins rest on the edge: little text crosses those tears. Live status: /api/health.`}

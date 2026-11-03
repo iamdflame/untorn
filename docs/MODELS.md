@@ -263,6 +263,27 @@ site's code; `scripts/eval/real.ts score` and `scripts/score-sample.ts`):
   Reliability). The letter still came back 10 of 10 on its edges alone; the 6-piece page came back 5 of 6, one piece
   set aside. Neither is counted in the table. The site runs on a well-connected host.
 
+## When Meta's API refuses the key (`paper.ts`, `segment.ts` paperFallback, `live-status.ts`)
+
+The hackathon's model credit is "for development over a ten (10) day period". If Meta's API turns the key away, a run
+still goes on, and says so:
+- **SAM 3.1 is asked first, in every run.** If it refuses, the **paper finder** outlines the pieces: the table's colour
+  from the frame's edge, each pixel's CIELAB distance from it split by Otsu's threshold, specks opened away, each blob
+  closed on its own and taken as a piece. Our edge snapping then refines every outline at full resolution, as it does
+  SAM's. Against SAM 3.1's outlines on the recorded runs (`scripts/eval/paper-finder.ts`): the 54 pieces of the four
+  sample photos, 53 at IoU above 0.9 (medians 0.984 to 0.990); all 6 pieces of the real 6-piece tear above 0.95 (plus one
+  stray blob). Pieces that touch come out as one blob (the real 10-piece photo: 6 blobs), and a table as light as the
+  paper gives no split, so nothing is found.
+- **The reads** go to Muse Spark Open when its host answers (a refusal from Meta's API hands each read to the other
+  host at once), and the record too.
+- **Measured with a refused key** (3 Nov 2026, `scripts/record-run.ts` with an invalid key; the open-weights host was
+  refusing as well, so nothing was read): the 1927 letter and the 1922 German letter came back 10 of 10, none
+  misplaced, on their edges alone, in 8–12 s; the 6-piece real tear came back in two groups of 3 and 2 pieces, with
+  two blobs set aside (the finder had found one stray blob besides the 6 pieces).
+- **Each host's refusal is recorded** (`live/paused.json`, `live/open-refused.json`): runs skip a refusing host for
+  10 minutes, the first screen says how runs go meanwhile ("open-weights" or "outlines-only" in `/api/health`), and
+  the next run SAM 3.1 answers lifts the record. The "Read on open weights only" switch hides while their host refuses.
+
 ## Reliability
 
 | Function | Retries | Hedge after | Per-attempt timeout | Deadline |

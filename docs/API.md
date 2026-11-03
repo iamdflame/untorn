@@ -62,6 +62,6 @@ Returns the stored result of a finished run (the same data `/r/{runId}` replays)
 Serves stored run images (photos, seam crops) from the private store, by allow-listed key only.
 
 ## Health and housekeeping
-- **`GET /api/health`**: whether live runs can start (`live`: `ok`, or `paused` with `pausedSince` when Meta's model API refused our key), and the last successful sample run, its accuracy against the answer key and its age. With `?warm`, it returns `{ ok: true, live }` (a warm-up ping the first screen sends; on `paused` the page says so before anyone tears a page).
+- **`GET /api/health`**: how live runs go (`live`: `ok`; or, when Meta's model API refused our key, `open-weights` (runs outlined by the paper finder and read by Muse Spark Open) or `outlines-only` (placed by their edges alone), with `pausedSince`; `openWeights`: whether the open-weights host answers), and the last successful sample run, its accuracy against the answer key and its age. With `?warm`, it returns `{ ok: true, live }` (a warm-up ping the first screen sends; on `paused` the page says so before anyone tears a page).
 - **`GET|POST /api/health/run`**: runs the fixed sample through the full pipeline and scores it against its answer key. Cron only (`CRON_SECRET`); `200` when it passes, `503` when it doesn't.
 - **`GET /api/cleanup`**: deletes uploaded photos, runs and phone sessions older than 23 h, and old ledger and health records. Cron only.

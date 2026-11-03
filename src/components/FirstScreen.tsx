@@ -43,8 +43,11 @@ export function FirstScreen({ sample: initial, openWeights = false }: { sample: 
   const [seq, setSeq] = useState(0);
   const [J, setJ] = useState(0);
   const [liveSample, setLiveSample] = useState(false);
-  // Meta's API refused our key (no credit left, say): say so before anyone tears a page
+  // Meta's API refused our key (no credit left, say): live runs go on (the paper finder outlines the pieces, the open
+  // weights read them when their host answers: src/lib/server/live.ts), and the page says how before anyone tears a page
   const [livePaused, setLivePaused] = useState(false);
+  const [liveMode, setLiveMode] = useState<"ok" | "open-weights" | "outlines-only">("ok");
+  const [openAnswers, setOpenAnswers] = useState(true);
   const lastInput = useRef<LiveInput | null>(null);
   // the result is below the fold: build it once it's near, or once the page is idle
   const resultRef = useRef<HTMLDivElement>(null);
@@ -54,8 +57,13 @@ export function FirstScreen({ sample: initial, openWeights = false }: { sample: 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/health?warm=1", { cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<{ live?: string }>) : null))
-      .then((j) => !cancelled && j?.live === "paused" && setLivePaused(true))
+      .then((r) => (r.ok ? (r.json() as Promise<{ live?: string; openWeights?: boolean }>) : null))
+      .then((j) => {
+        if (cancelled || !j) return;
+        if (j.live === "paused") setLivePaused(true);
+        else if (j.live === "open-weights" || j.live === "outlines-only") setLiveMode(j.live);
+        if (j.openWeights === false) setOpenAnswers(false);
+      })
       .catch(() => {});
     fetch(sample.recorded)
       .then((r) => (r.ok ? (r.json() as Promise<RunResult>) : Promise.reject(new Error(String(r.status)))))
@@ -85,7 +93,7 @@ export function FirstScreen({ sample: initial, openWeights = false }: { sample: 
 
   const goLive = useCallback(
     (asked: LiveInput) => {
-      const input: LiveInput = openWeights && openOnly ? { ...asked, reader: "open" } : asked;
+      const input: LiveInput = openWeights && openAnswers && openOnly ? { ...asked, reader: "open" } : asked;
       started.current = true; // a late-loading recording must not replace a live run
       lastInput.current = input;
       setLiveSample("sample" in input);
@@ -94,7 +102,7 @@ export function FirstScreen({ sample: initial, openWeights = false }: { sample: 
       document.getElementById("top")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
       void live(input);
     },
-    [live, reduced, openWeights, openOnly],
+    [live, reduced, openWeights, openAnswers, openOnly],
   );
   const onPhoto = useCallback((photoId: string) => goLive({ photoId }), [goLive]);
   const onFile = useCallback((file: File) => goLive({ file }), [goLive]);
@@ -149,6 +157,13 @@ export function FirstScreen({ sample: initial, openWeights = false }: { sample: 
         <button type="button" className="linkish" onClick={() => goLive({ sample: sample.name })} disabled={busy}>
           Run it live
         </button>
+      )}
+      {liveMode !== "ok" && !pausedNow && (
+        <span className="paused-note">
+          {liveMode === "open-weights"
+            ? "Meta’s API isn’t taking our key just now: live runs find the pieces themselves and read them with Meta’s open weights."
+            : "Meta’s API isn’t taking our key just now: live runs find the pieces themselves and place them by their edges, without reading them."}
+        </span>
       )}
       {sample.name !== REAL_SAMPLE && SAMPLES[REAL_SAMPLE] && <a href={`/?sample=${REAL_SAMPLE}`}>A real tear</a>}
     </p>
@@ -214,7 +229,7 @@ export function FirstScreen({ sample: initial, openWeights = false }: { sample: 
         ]}
         disabled={busy}
         paused={pausedNow}
-        reader={openWeights ? { open: openOnly, onChange: setOpenOnly } : undefined}
+        reader={openWeights && openAnswers ? { open: openOnly, onChange: setOpenOnly } : undefined}
         footer={
           <footer className="foot">
             <p>

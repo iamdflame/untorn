@@ -11,6 +11,7 @@ import { memoryStore, setStore, type Store } from "@/lib/server/store";
 const fake = vi.hoisted(() => ({ opts: {} as Record<string, unknown> }));
 vi.mock("@/lib/server/live", () => ({
   liveDeps: (put: Parameters<typeof fakeDeps>[0]) => fakeDeps(put, fake.opts),
+  openWeightsReady: () => Boolean(process.env.BASETEN_API_KEY) && process.env.OPEN_WEIGHTS !== "off",
 }));
 
 import { POST as postRun } from "./runs/route";
@@ -150,28 +151,42 @@ describe("POST /api/runs", () => {
     expect(err.message).not.toMatch(/at .*\.ts:\d+/);
   });
 
-  it("pauses live runs when Meta's API refuses the key, fails the next run at once, and lifts the pause when one gets through", async () => {
+  it("a refused key doesn't stop live runs: the paper finder outlines the pieces, the run says so, and the first screen says how runs go", async () => {
+    const warm = async () => (await getHealth(new Request("http://localhost/api/health?warm=1"))).json();
+    fake.opts = { segment: "paper" };
+    const scene = await fakeScene();
+    const events = await readEvents(await postRun(uploadRequest(scene.photo)));
+    const done = events.at(-1) as Extract<RunEvent, { type: "done" }>;
+    expect(done.type).toBe("done");
+    expect(done.result.warnings.map((w) => w.code)).toContain("sam-refused");
+    // no open weights set up here: runs place the pieces by their edges until Meta's API takes the key again
+    expect(await warm()).toEqual({ ok: true, live: "outlines-only", openWeights: false });
+    const full = (await (await getHealth(new Request("http://localhost/api/health"))).json()) as { live: string; pausedSince?: string };
+    expect(full.pausedSince).toBeTruthy();
+
+    // the next run, minutes later, still starts, asks SAM 3.1 first, gets through, and the record lifts
+    fake.opts = {};
+    const next = await postRun(uploadRequest(scene.photo, "203.0.113.8"));
+    expect(next.status).toBe(200);
+    expect((await readEvents(next)).at(-1)?.type).toBe("done");
+    expect(await warm()).toEqual({ ok: true, live: "ok", openWeights: false });
+  });
+
+  it("with Meta's open weights set up, the first screen says the runs are read by them meanwhile", async () => {
+    vi.stubEnv("BASETEN_API_KEY", "test-open-key");
+    const warm = async () => (await getHealth(new Request("http://localhost/api/health?warm=1"))).json();
+    fake.opts = { segment: "paper" };
+    const scene = await fakeScene();
+    expect((await readEvents(await postRun(uploadRequest(scene.photo)))).at(-1)?.type).toBe("done");
+    expect(await warm()).toEqual({ ok: true, live: "open-weights", openWeights: true });
+  });
+
+  it("a refusal SAM's fake can't fall back from still ends in a designed error, and the record says the key was refused", async () => {
     const warm = async () => (await getHealth(new Request("http://localhost/api/health?warm=1"))).json();
     fake.opts = { segment: "refused" };
     const scene = await fakeScene();
-    const events = await readEvents(await postRun(uploadRequest(scene.photo)));
-    expect(events.at(-1)).toMatchObject({ type: "error", code: "paused" });
-    expect(await warm()).toEqual({ ok: true, live: "paused" });
-    const full = (await (await getHealth(new Request("http://localhost/api/health"))).json()) as { live: string; pausedSince?: string };
-    expect(full.live).toBe("paused");
-    expect(full.pausedSince).toBeTruthy();
-
-    // minutes later the API accepts the key again, but a run started now fails at once, before any model call
-    fake.opts = {};
-    const quick = await postRun(uploadRequest(scene.photo, "203.0.113.8"));
-    expect(quick.status).toBe(503);
-    expect(((await quick.json()) as { error: { code: string } }).error.code).toBe("paused");
-
-    // after the fail-fast window a run tries the API again; it gets through and the pause lifts
-    vi.useFakeTimers({ now: Date.now() + 11 * 60_000, toFake: ["Date"] });
-    const later = await readEvents(await postRun(uploadRequest(scene.photo, "203.0.113.9")));
-    expect(later.at(-1)?.type).toBe("done");
-    expect(await warm()).toEqual({ ok: true, live: "ok" });
+    expect((await readEvents(await postRun(uploadRequest(scene.photo)))).at(-1)).toMatchObject({ type: "error", code: "paused" });
+    expect(await warm()).toEqual({ ok: true, live: "outlines-only", openWeights: false });
   });
 
   it("says when no paper is found", async () => {
@@ -257,7 +272,7 @@ describe("ops", () => {
     const health = (await (await getHealth(new Request("http://localhost/api/health"))).json()) as { lastRun: { ok: boolean } | null; pipeline: string };
     expect(health.lastRun?.ok).toBe(false);
     expect(health.pipeline).toBe("unknown");
-    expect(await (await getHealth(new Request("http://localhost/api/health?warm=1"))).json()).toEqual({ ok: true, live: "ok" });
+    expect(await (await getHealth(new Request("http://localhost/api/health?warm=1"))).json()).toEqual({ ok: true, live: "ok", openWeights: false });
   });
 
   it("cleanup deletes photos and runs older than a day, and needs the cron secret", async () => {

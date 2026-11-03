@@ -45,7 +45,7 @@ import { isAccountRefusal } from "./refusal";
 import { UpstreamError } from "@/lib/sam/parse";
 
 export type PipelineDeps = {
-  segment: (jpeg: Uint8Array, opts: { signal?: AbortSignal }) => Promise<Pick<SegmentResult, "fragments" | "costUsd" | "samCalls">>;
+  segment: (jpeg: Uint8Array, opts: { signal?: AbortSignal }) => Promise<Pick<SegmentResult, "fragments" | "costUsd" | "samCalls"> & Partial<Pick<SegmentResult, "finder">>>;
   verifySeam: typeof verifySeam;
   chooseContinuation: typeof chooseContinuation;
   readPage: typeof readPage;
@@ -241,6 +241,8 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
     }
     spend(s.costUsd);
     cost.samCalls += s.samCalls;
+    // Meta's API turned the key away and the paper finder found the pieces (segment.ts, paperFallback)
+    if (s.finder === "paper") warn("sam-refused");
     if (!s.fragments.length) throw new RunError("no-pieces");
     if (s.fragments.length > MAX_PIECES) throw new RunError("too-many");
     if (s.fragments.length > 60) warn("many-pieces");

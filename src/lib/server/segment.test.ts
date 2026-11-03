@@ -33,6 +33,27 @@ function samFetch(rule: Rule = () => null) {
 
 const base: SegmentOptions = { apiKey: "test-key", hedgeAfterMs: 0 };
 
+describe("segmentFragments when Meta's API refuses the key", () => {
+  const refused = () => new Response(JSON.stringify({ error: { message: "Your credit balance is too low", code: "insufficient_credits" } }), { status: 402 });
+
+  it("goes on with the paper finder (paperFallback): the same 3 pieces, snapped to the paper's edge, no more SAM calls", async () => {
+    const f = samFetch(refused);
+    const r = await segmentFragments(await renderScene(), { ...base, paperFallback: true, fetchImpl: f.impl });
+    expect(r.finder).toBe("paper");
+    expect(r.fragments).toHaveLength(3);
+    expect(r.samCalls).toBe(0);
+    expect(f.texts).toHaveLength(1);
+    const ev = evaluateMasks(gt, r.fragments.map((x) => x.mask)).summary;
+    expect(ev.detected).toBe(3);
+    expect(ev.meanIoU).toBeGreaterThan(0.95);
+    expect(r.fragments.every((x) => x.method === "snap" && x.confidence === null)).toBe(true);
+  });
+
+  it("without it, the refusal stands (the run pauses, as before)", async () => {
+    await expect(segmentFragments(await renderScene(), { ...base, fetchImpl: samFetch(refused).impl })).rejects.toThrow(/credit/);
+  });
+});
+
 describe("segmentFragments on recorded SAM output", () => {
   it.each(["auto", "snap", "crops", "fullres-boxes"] as const)("%s: finds the 3 pieces with sub-pixel outlines", async (variant) => {
     const f = samFetch();

@@ -76,8 +76,8 @@ export function fakeScene(): Promise<FakeScene> {
 }
 
 export type FakeOptions = {
-  /** Make SAM fail, find nothing, or refuse the key (no credit left). */
-  segment?: "ok" | "fail" | "empty" | "refused";
+  /** Make SAM fail, find nothing, or refuse the key (no credit left), or refuse it with the paper finder standing in. */
+  segment?: "ok" | "fail" | "empty" | "refused" | "paper";
   /** Make every Muse seam call fail. */
   museFails?: boolean;
   /** Delay per Muse seam call (ms). */
@@ -107,6 +107,7 @@ export function fakeDeps(putAsset: PipelineDeps["putAsset"], o: FakeOptions = {}
       if (o.segment === "fail") throw new Error("SAM 503");
       if (o.segment === "refused") throw new UpstreamError("Your credit balance is too low", 402, "insufficient_credits");
       const scene = await fakeScene();
+      if (o.segment === "paper") return { fragments: scene.fragments, costUsd: 0, samCalls: 0, finder: "paper" as const };
       return { fragments: o.segment === "empty" ? [] : scene.fragments, costUsd: 0.0025, samCalls: 1 };
     },
     verifySeam: async (_img, opts) => {

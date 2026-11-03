@@ -10,7 +10,7 @@ import { scoreRun, type AnswerKey, type RunScore } from "./accuracy";
 import { randomId } from "./ids";
 import { admitRun, settleRun } from "./limits";
 import { liveDeps } from "./live";
-import { clearPause, setPause } from "./live-status";
+import { hostsSeen, notePauses, setPause } from "./live-status";
 import { runPipeline, type PipelineDeps } from "./pipeline";
 import { readSample } from "./runs";
 import { getJson, type Store } from "./store";
@@ -23,6 +23,8 @@ export type HealthRecord = {
   stages: Record<string, number>;
   score: RunScore | null;
   costUsd: number;
+  /** "open-weights": Meta's API refused the key, and the run went on with the paper finder and the open weights. */
+  mode?: "open-weights";
   /** What failed, when ok is false. */
   problem?: string;
 };
@@ -59,8 +61,9 @@ export async function runHealthCheck(store: Store, deps?: PipelineDeps): Promise
         if (e.type === "stage" && e.status === "done" && e.ms !== undefined) stages[e.stage] = e.ms;
       };
       const result = await runPipeline(bytes, deps ?? liveDeps(async () => null), { runId, source: "health", sample, caption, meter }, onEvent);
-      // the models answered: live runs are not paused
-      await clearPause(store).catch(() => {});
+      // what this run learnt about each host (live-status.ts); refused, it went on with the paper finder
+      await notePauses(store, result, `health ${runId}`);
+      const openWeightsRun = hostsSeen(result).metaRefused;
       const score = scoreRun(result, key);
       const bar = healthBar();
       const problems = [
@@ -77,6 +80,7 @@ export async function runHealthCheck(store: Store, deps?: PipelineDeps): Promise
         stages,
         score,
         costUsd: result.cost.usd,
+        ...(openWeightsRun ? { mode: "open-weights" as const } : {}),
         ...(problems.length ? { problem: problems.join("; ") } : {}),
       };
     } finally {

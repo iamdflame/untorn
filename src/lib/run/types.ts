@@ -162,7 +162,7 @@ export type SpokenNote = { text: string; audioMs: number; ms: number; costUsd: n
 
 export type Warning = { code: WarningCode; message: string };
 
-export type WarningCode = "blurry" | "small-photo" | "no-text" | "some-blank" | "slow-reading" | "reading-failed" | "partial" | "many-pieces" | "overlap" | "tilted";
+export type WarningCode = "blurry" | "small-photo" | "no-text" | "some-blank" | "slow-reading" | "reading-failed" | "partial" | "many-pieces" | "overlap" | "tilted" | "sam-refused";
 
 export type ErrorCode =
   | "bad-type"

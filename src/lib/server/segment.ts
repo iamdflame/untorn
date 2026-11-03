@@ -11,6 +11,8 @@
 //      or a snap that moved the outline a lot) to the "crops" refinement.
 // Each fragment comes back with a cleaned mask raster (largest component, holes filled), its outline polygon and
 // SAM's confidence. A piece whose refinement fails keeps its snapped pass-1 mask and says so (refined: false).
+// With `paperFallback`, a run whose pass 1 Meta's API refuses (no credit, the key revoked) goes on: the paper finder
+// (paper.ts) gives the rough masks, every piece is snapped as in "snap", and the result says so (finder: "paper").
 
 import type { Box } from "@/lib/sam/types";
 import { openSamStream, samFrames, META_API_BASE } from "@/lib/sam/client";
@@ -20,6 +22,7 @@ import { buildBoxPointImageRequest, buildConceptImageRequest, jpegDataUrl, MAX_O
 import { hedge } from "./hedge";
 import { isAccountRefusal } from "./refusal";
 import { cropJpeg, decodePhoto, resizeJpeg, type DecodedPhoto } from "./images";
+import { findPaper } from "./paper";
 import {
   cleanFragmentMask,
   interiorPoints,
@@ -73,6 +76,8 @@ export type SegmentResult = {
   width: number;
   height: number;
   variant: SegmentVariant;
+  /** Who found the pieces: SAM 3.1, or the paper finder when Meta's API refused the key (paperFallback). */
+  finder: "sam" | "paper";
   fragments: Fragment[];
   pass1: { concept: string | null; count: number; longSide: number; medianPieceSide: number; tiled: boolean; tileCount: number; afterTiles: number };
   timings: { decodeMs: number; pass1Ms: number; tilesMs: number; pass2Ms: number; outlineMs: number; totalMs: number };
@@ -106,6 +111,8 @@ export type SegmentOptions = {
   hedgeAfterMs?: number;
   attempts?: number;
   onCall?: (c: SamCallLog) => void;
+  /** When Meta's API refuses the key at pass 1, find the pieces with the paper finder instead of failing. */
+  paperFallback?: boolean;
 };
 
 /** One pass-1 detection: its coarse mask in a SAM frame, and how that frame maps onto the full-resolution photo. */
@@ -319,8 +326,20 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
   const fullScale = W / small.width;
   let concept: string | null = null;
   let dets: Detection[] = [];
+  let finder: SegmentResult["finder"] = "sam";
   for (const c of concepts) {
-    const objects = await samImage(ctx, `pass1:${c}`, buildConceptImageRequest(c, jpegDataUrl(Buffer.from(small.jpeg).toString("base64"))), opts.pass1TimeoutMs ?? 30_000, hedgeMs);
+    let objects: RawObject[];
+    try {
+      objects = await samImage(ctx, `pass1:${c}`, buildConceptImageRequest(c, jpegDataUrl(Buffer.from(small.jpeg).toString("base64"))), opts.pass1TimeoutMs ?? 30_000, hedgeMs);
+    } catch (e) {
+      if (!(opts.paperFallback && e instanceof UpstreamError && isAccountRefusal(e.status, e.code, e.message))) throw e;
+      // Meta's API turned the key away: the pieces are still on the photo
+      const pf = findPaper(photo.rgb, longSide);
+      dets = pf.masks.map((coarse) => ({ coarse, scale: pf.scale, ox: 0, oy: 0, confidence: null, full: cleanFragmentMask(toFullNearest(coarse, pf.scale, 0, 0, W, H)) }));
+      finder = "paper";
+      warnings.push(`SAM 3.1 refused (${e.status ?? "?"}): ${dets.length} pieces from the paper finder (split ${pf.split ?? "none"})`);
+      break;
+    }
     dets = mergeDetections(detectionsFrom(objects, small.width, fullScale, 0, 0, W, H, minConf));
     if (dets.length) {
       concept = c;
@@ -417,11 +436,11 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
   };
   let refined: Refined[];
   let sentToSam = 0;
-  if (variant === "snap" || variant === "auto") {
+  if (variant === "snap" || variant === "auto" || finder === "paper") {
     const snaps = dets.map((d) => snapped(photo, d));
     const agreement = snaps.map((sn, i) => maskIoU(sn.mask, dets[i].full));
     const unsure = snaps.map(
-      (sn, i) => variant === "auto" && (sn.separation === null || sn.separation < SNAP_MIN_SEPARATION || agreement[i] < SNAP_MIN_AGREEMENT),
+      (sn, i) => finder === "sam" && variant === "auto" && (sn.separation === null || sn.separation < SNAP_MIN_SEPARATION || agreement[i] < SNAP_MIN_AGREEMENT),
     );
     sentToSam = unsure.filter(Boolean).length;
     refined = await mapLimit(dets, concurrency, async (d, i): Promise<Refined> => {
@@ -486,6 +505,7 @@ export async function segmentFragments(photoBytes: Uint8Array, opts: SegmentOpti
     width: W,
     height: H,
     variant,
+    finder,
     fragments,
     pass1: { concept, count: pass1Count, longSide: Math.max(small.width, small.height), medianPieceSide: Math.round(medianSide), tiled: tileCount > 0, tileCount, afterTiles: dets.length },
     timings: { decodeMs: tDecode - T0, pass1Ms: tPass1 - tDecode, tilesMs: tTiles - tPass1, pass2Ms: tPass2 - tTiles, outlineMs: tEnd - tPass2, totalMs: tEnd - T0 },

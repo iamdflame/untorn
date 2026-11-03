@@ -12,7 +12,7 @@ import { normalisePhoto } from "./intake";
 import { catalogRun } from "./catalog";
 import { acquireSlot, admitRun, settleRun } from "./limits";
 import { liveDeps, openWeightsReady, type Reader } from "./live";
-import { clearPause, pauseAge, PAUSE_FAIL_FAST_MS, readPause, setPause } from "./live-status";
+import { notePauses, PAUSE_FAIL_FAST_MS, refusedWithin, setPause } from "./live-status";
 import { runPipeline, type PipelineDeps } from "./pipeline";
 import { fileUrl, type Store } from "./store";
 
@@ -93,8 +93,14 @@ export const NDJSON_HEADERS = {
   "X-Accel-Buffering": "no",
 };
 
-/** Stream one run. Admission (rate limit, spend cap) has already happened; `ipKey` settles the ledger. */
-export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; runId: string; signal?: AbortSignal; deps?: PipelineDeps }): Response {
+/**
+ * Stream one run. Admission (rate limit, spend cap) has already happened; `ipKey` settles the ledger. `metaRefused`,
+ * `openUsable`: what the hosts did lately (live-status.ts), so the run asks the ones that answer (live.ts).
+ */
+export function streamRun(
+  input: RunInput,
+  ctx: { store: Store; ipKey: string; runId: string; signal?: AbortSignal; deps?: PipelineDeps; metaRefused?: boolean; openUsable?: boolean },
+): Response {
   const { store, runId, ipKey } = ctx;
   const enc = new TextEncoder();
   const abort = new AbortController();
@@ -121,9 +127,10 @@ export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; r
           await store.put(key, bytes, contentType);
           return fileUrl(key);
         };
-        const deps = ctx.deps ?? liveDeps(putAsset, { reader: input.reader });
+        const deps = ctx.deps ?? liveDeps(putAsset, { reader: input.reader, metaRefused: ctx.metaRefused, openUsable: ctx.openUsable });
         const result = await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, signal: abort.signal, meter }, write);
-        await clearPause(store).catch(() => {});
+        // what this run learnt about each host: SAM 3.1 answered or refused, the open weights answered or refused
+        await notePauses(store, result, `run ${runId}`);
         // the page is on screen: now the archive records, streamed after done (a failure there is a note, not an error)
         if (deps.catalogPage)
           await catalogRun(result, { catalogPage: deps.catalogPage, putAsset }, { signal: abort.signal, meter, emit: write, t: () => Date.now() - t0 }).catch((e) => console.error(`[runs] ${runId} record failed`, e));
@@ -153,10 +160,11 @@ export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; r
 
 /** Admit and start: the whole of POST /api/runs after parsing. */
 export async function startRun(input: RunInput, ctx: { store: Store; ip: string; signal?: AbortSignal; deps?: PipelineDeps }): Promise<Response> {
-  // the key was refused minutes ago: say so at once rather than spend the visitor's wait (and their rate limit)
-  const pause = await readPause(ctx.store).catch(() => null);
-  if (pause && pauseAge(pause) < PAUSE_FAIL_FAST_MS) throw new RunError("paused");
+  // a host that refused our key minutes ago is skipped; the run goes on with the paper finder and what still answers
+  const metaRefused = await refusedWithin(ctx.store, "meta", PAUSE_FAIL_FAST_MS).catch(() => false);
+  const openUsable = openWeightsReady() && !(await refusedWithin(ctx.store, "open", PAUSE_FAIL_FAST_MS).catch(() => false));
+  if (input.reader === "open" && !openUsable) throw new RunError("model-error", "Meta's open weights aren't answering just now. Untick “Read on open weights only” and run it again.");
   const runId = randomId();
   const { ipKey } = await admitRun(ctx.store, ctx.ip, runId);
-  return streamRun(input, { store: ctx.store, ipKey, runId, signal: ctx.signal, deps: ctx.deps });
+  return streamRun(input, { store: ctx.store, ipKey, runId, signal: ctx.signal, deps: ctx.deps, metaRefused, openUsable });
 }

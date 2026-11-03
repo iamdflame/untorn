@@ -261,7 +261,9 @@ site's code; `scripts/eval/real.ts score` and `scripts/score-sample.ts`):
   reported (`onRefused`) and recorded, so the switch hides while the host turns our key away.
 - **With "Read on open weights only"**, a read their host turns away for our account (Baseten answered 402, "please
   check your current payment status", on 3 Nov 2026) goes to Muse Spark at once, and the run says how many reads Muse
-  Spark gave (`open-refused`); a slow read stays with the open weights (`live.test.ts`).
+  Spark gave (`open-refused`); a slow read stays with the open weights (`live.test.ts`). On the live site, 3 Nov 2026, with
+  Baseten refusing: an open-weights-only run of the 1927 letter got all 13 reads from Muse Spark and came back 10 of 10
+  placed correctly, transcript 0.0% character errors, in 84.9 s for $0.138 (`scripts/score-sample.ts`).
 - Two open-weights-only runs lost their seam reads to this machine's connection (two runs at once, about 30 seam
   images in flight over a slow uplink: requests failed to connect within 10 s, the limit noted for Meta's API under
   Reliability). The letter still came back 10 of 10 on its edges alone; the 6-piece page came back 5 of 6, one piece

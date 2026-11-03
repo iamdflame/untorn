@@ -22,6 +22,12 @@ export const ERRORS: Record<ErrorCode, ErrorInfo> = {
   "daily-cap": { title: "Today's live runs are used up", message: "We cap the model spend per day. The recorded run shows the whole pipeline.", recover: ["recorded"], status: 429 },
   busy: { title: "Untorn is busy right now", message: "Several runs are going at once. Try again in a minute.", recover: ["retry", "recorded"], status: 503 },
   "model-error": { title: "The models didn't answer", message: "Meta's model API returned errors after several retries. Try again in a moment.", recover: ["retry", "recorded"], status: 502 },
+  paused: {
+    title: "Live runs are paused",
+    message: "Meta's model API isn't accepting our key just now, so a live run can't start. The recorded runs replay real runs, step by step.",
+    recover: ["recorded"],
+    status: 503,
+  },
   timeout: { title: "This is taking too long", message: "The models are slow right now. Try again, or watch the recorded run.", recover: ["retry", "recorded"], status: 504 },
   "not-found": { title: "Nothing here", message: "This run or code doesn't exist. Runs and photos are deleted after 24 hours.", recover: ["recorded"], status: 404 },
   expired: { title: "This code has expired", message: "Codes last 20 minutes. Make a new one on the laptop.", recover: ["phone"], status: 410 },

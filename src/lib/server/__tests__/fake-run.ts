@@ -1,6 +1,7 @@
 // A torn synthetic page photographed on a desk, with mocked models, for pipeline and route tests (no network).
 // SAM is mocked by the pieces' true masks; Muse answers every seam "same place" and reads a fixed page.
 
+import { UpstreamError } from "@/lib/sam/parse";
 import sharp from "sharp";
 import { gridTear, scatterPage } from "@/lib/rejoin/__tests__/synth";
 import type { CallMeta, MuseOutcome } from "../muse";
@@ -75,8 +76,8 @@ export function fakeScene(): Promise<FakeScene> {
 }
 
 export type FakeOptions = {
-  /** Make SAM fail, or find nothing. */
-  segment?: "ok" | "fail" | "empty";
+  /** Make SAM fail, find nothing, or refuse the key (no credit left). */
+  segment?: "ok" | "fail" | "empty" | "refused";
   /** Make every Muse seam call fail. */
   museFails?: boolean;
   /** Delay per Muse seam call (ms). */
@@ -102,6 +103,7 @@ export function fakeDeps(putAsset: PipelineDeps["putAsset"], o: FakeOptions = {}
     segment: async () => {
       calls.segment++;
       if (o.segment === "fail") throw new Error("SAM 503");
+      if (o.segment === "refused") throw new UpstreamError("Your credit balance is too low", 402, "insufficient_credits");
       const scene = await fakeScene();
       return { fragments: o.segment === "empty" ? [] : scene.fragments, costUsd: 0.0025, samCalls: 1 };
     },

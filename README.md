@@ -59,7 +59,7 @@ Every number was measured, and each row says what kind of test it is: a real tea
 | Full live run on the sample letter (the health check) | 10/10 pieces, 17/17 joins, 34–59 s, about $0.11–0.15 | simulated tear |
 
 ## Verify it yourself
-1. Open https://untorn.vercel.app. The first screen replays a recorded run of the real pipeline; press **Run it live** to send the same photo through it again.
+1. Open https://untorn.vercel.app. The first screen replays a recorded run of the real pipeline; press **Run it live** to send the same photo through it again. **A real tear** (`/?sample=hand-torn-6`) replays the live run in the GIF above: a page torn by hand, photographed with a phone.
 2. **Tear your own:** tear a printed page into about 6 pieces (fewer, larger pieces do best), lay them text-side up on something dark, not touching, scan the QR code with your phone and take one photo from above.
 3. Every result has a **join map**: for each seam you see the edge fit and the exact image Muse read, with its answer and reason.
 

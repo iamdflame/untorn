@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunEvent, RunResult } from "@/lib/run/types";
 import { fakeDeps, fakeScene } from "@/lib/server/__tests__/fake-run";
 import { resetLimits } from "@/lib/server/limits";
+import { resetPauseCache } from "@/lib/server/live-status";
 import { resetSessions } from "@/lib/server/sessions";
 import { memoryStore, setStore, type Store } from "@/lib/server/store";
 
@@ -44,6 +45,7 @@ beforeEach(() => {
   setStore(store);
   resetLimits();
   resetSessions();
+  resetPauseCache();
   fake.opts = {};
 });
 afterEach(() => {
@@ -130,6 +132,30 @@ describe("POST /api/runs", () => {
     expect(err.message).not.toMatch(/at .*\.ts:\d+/);
   });
 
+  it("pauses live runs when Meta's API refuses the key, fails the next run at once, and lifts the pause when one gets through", async () => {
+    const warm = async () => (await getHealth(new Request("http://localhost/api/health?warm=1"))).json();
+    fake.opts = { segment: "refused" };
+    const scene = await fakeScene();
+    const events = await readEvents(await postRun(uploadRequest(scene.photo)));
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "paused" });
+    expect(await warm()).toEqual({ ok: true, live: "paused" });
+    const full = (await (await getHealth(new Request("http://localhost/api/health"))).json()) as { live: string; pausedSince?: string };
+    expect(full.live).toBe("paused");
+    expect(full.pausedSince).toBeTruthy();
+
+    // minutes later the API accepts the key again, but a run started now fails at once, before any model call
+    fake.opts = {};
+    const quick = await postRun(uploadRequest(scene.photo, "203.0.113.8"));
+    expect(quick.status).toBe(503);
+    expect(((await quick.json()) as { error: { code: string } }).error.code).toBe("paused");
+
+    // after the fail-fast window a run tries the API again; it gets through and the pause lifts
+    vi.useFakeTimers({ now: Date.now() + 11 * 60_000, toFake: ["Date"] });
+    const later = await readEvents(await postRun(uploadRequest(scene.photo, "203.0.113.9")));
+    expect(later.at(-1)?.type).toBe("done");
+    expect(await warm()).toEqual({ ok: true, live: "ok" });
+  });
+
   it("says when no paper is found", async () => {
     fake.opts = { segment: "empty" };
     const scene = await fakeScene();
@@ -213,7 +239,7 @@ describe("ops", () => {
     const health = (await (await getHealth(new Request("http://localhost/api/health"))).json()) as { lastRun: { ok: boolean } | null; pipeline: string };
     expect(health.lastRun?.ok).toBe(false);
     expect(health.pipeline).toBe("unknown");
-    expect(await (await getHealth(new Request("http://localhost/api/health?warm=1"))).json()).toEqual({ ok: true });
+    expect(await (await getHealth(new Request("http://localhost/api/health?warm=1"))).json()).toEqual({ ok: true, live: "ok" });
   });
 
   it("cleanup deletes photos and runs older than a day, and needs the cron secret", async () => {

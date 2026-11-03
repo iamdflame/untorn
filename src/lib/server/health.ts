@@ -1,14 +1,16 @@
-// Liveness: a cron (every 3 hours) runs the fixed sample through the real pipeline and asserts the join accuracy against
+// Liveness: a cron (every 12 hours) runs the fixed sample through the real pipeline and asserts the join accuracy against
 // its answer key; GET /api/health reports the last run. Records: health/<iso time>.json, kept 14 days.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { RunError } from "@/lib/run/errors";
 import { HEALTH_SAMPLE, SAMPLES } from "@/lib/run/samples";
 import type { RunEvent } from "@/lib/run/types";
 import { scoreRun, type AnswerKey, type RunScore } from "./accuracy";
 import { randomId } from "./ids";
 import { admitRun, settleRun } from "./limits";
 import { liveDeps } from "./live";
+import { clearPause, setPause } from "./live-status";
 import { runPipeline, type PipelineDeps } from "./pipeline";
 import { readSample } from "./runs";
 import { getJson, type Store } from "./store";
@@ -57,6 +59,8 @@ export async function runHealthCheck(store: Store, deps?: PipelineDeps): Promise
         if (e.type === "stage" && e.status === "done" && e.ms !== undefined) stages[e.stage] = e.ms;
       };
       const result = await runPipeline(bytes, deps ?? liveDeps(async () => null), { runId, source: "health", sample, caption, meter }, onEvent);
+      // the models answered: live runs are not paused
+      await clearPause(store).catch(() => {});
       const score = scoreRun(result, key);
       const bar = healthBar();
       const problems = [
@@ -79,6 +83,7 @@ export async function runHealthCheck(store: Store, deps?: PipelineDeps): Promise
       await settleRun(store, ipKey, runId, meter.usd).catch(() => {});
     }
   } catch (e) {
+    if (e instanceof RunError && e.code === "paused") await setPause(store, `health ${runId}`).catch(() => {});
     const problem = e instanceof Error ? `${e.name}: ${e.message}`.slice(0, 300) : "failed";
     rec = { at: new Date().toISOString(), ok: false, sample, ms: Date.now() - t0, stages, score: null, costUsd: meter.usd, problem };
   }

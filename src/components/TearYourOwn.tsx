@@ -12,20 +12,23 @@ type Phase = { kind: "idle" } | { kind: "creating" } | { kind: "waiting"; sessio
 
 export const POLL_MS = 1500;
 
-/** `other`: a link to the sample in another language, under "Run the sample live". */
+/** `others`: links to the other samples (a real tear, another language), under "Run the sample live". */
 export function TearYourOwn({
   onPhoto,
   onFile,
   onSample,
-  other,
+  others,
   disabled,
+  paused,
   footer,
 }: {
   onPhoto: (photoId: string) => void;
   onFile: (file: File) => void;
   onSample?: () => void;
-  other?: { lead: string; label: string; href: string };
+  others?: { lead: string; label: string; href: string }[];
   disabled?: boolean;
+  /** Meta's API refused our key: live runs can't start until it accepts it again. */
+  paused?: boolean;
   footer?: React.ReactNode;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -130,6 +133,11 @@ export function TearYourOwn({
             }}
           />
           <p className="drop-msg">Or drop it here: JPEG, PNG or HEIC, up to 15&nbsp;MB.</p>
+          {paused && (
+            <p className="paused-line" role="status">
+              Live runs are paused just now: Meta&rsquo;s model API isn&rsquo;t accepting our key. The recorded runs above replay real runs, step by step.
+            </p>
+          )}
         </div>
         <div className="ways">
           <div className="way tear-phone">
@@ -170,15 +178,15 @@ export function TearYourOwn({
           {onSample && (
             <div className="way">
               <h3>No torn page to hand?</h3>
-              <p>Run the sample letter through the live pipeline now; it takes about 40 seconds.</p>
+              <p>Run this sample through the live pipeline now; it takes under a minute.</p>
               <button type="button" className="btn" onClick={onSample} disabled={disabled}>
                 Run the sample live
               </button>
-              {other && (
-                <p className="way-other">
-                  {other.lead} <a href={other.href}>{other.label}</a>
+              {others?.map((o) => (
+                <p className="way-other" key={o.href}>
+                  {o.lead} <a href={o.href}>{o.label}</a>
                 </p>
-              )}
+              ))}
             </div>
           )}
           <p className="privacy-line">Photos are deleted within 24 hours and never used for training.</p>

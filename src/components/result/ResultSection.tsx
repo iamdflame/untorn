@@ -286,7 +286,10 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
   const txt = transcript?.ok ? (view === "translation" && transcript.translation ? transcript.translation.text : transcript.text) : "";
   const txUrl = useMemo(() => (transcript?.ok ? URL.createObjectURL(new Blob([transcript.text + "\n"], { type: "text/plain" })) : null), [transcript]);
   useEffect(() => () => (txUrl ? URL.revokeObjectURL(txUrl) : undefined), [txUrl]);
-  const json = result.source === "sample" && result.photo.url?.startsWith("/samples/") ? result.photo.url.replace(/photo[^/]*$/, "result.json") : `/api/runs/${result.runId}?download=1`;
+  // a recording served with the samples (/samples/<name>/) carries its own files; a live run's are stored for a day
+  const recording = !!result.photo.url?.startsWith("/samples/");
+  const simulated = /simulated/i.test(result.caption ?? "");
+  const json = recording ? result.photo.url!.replace(/photo[^/]*$/, "result.json") : `/api/runs/${result.runId}?download=1`;
   // the archive copy: the rebuilt pages with Muse's transcript as searchable text, and how they were rebuilt
   const [pdf, setPdf] = useState<"idle" | "making" | "failed">("idle");
   const savePdf = async () => {
@@ -302,10 +305,10 @@ export function ResultSection({ result, photoSrc, J, setJ }: { result: RunResult
       const confirmed = result.joins.filter((j) => j.decidedBy !== "geometry").length;
       const day = result.createdAt ? result.createdAt.slice(0, 10) : "";
       const summary = [
-        `${result.source === "sample" ? "A simulated tear of a sample letter, rebuilt" : "Rebuilt"} by Untorn from one photo${day ? ` on ${day}` : ""}.`,
+        `${simulated ? "A simulated tear of a sample letter, rebuilt" : "Rebuilt"} by Untorn from one photo${day ? ` on ${day}` : ""}.`,
         `${result.pieces.length - setAside} pieces placed on ${pages.length === 1 ? "one page" : `${pages.length} pages`}${setAside ? `; ${setAside} set aside, never forced` : ""}.`,
         `${result.joins.length} joins: ${confirmed} confirmed by Muse reading across the tear, the rest by the shape of the torn edges.`,
-        ...(result.source === "sample" ? [] : [`The run, with every seam and its clues: ${location.origin}/r/${result.runId}`]),
+        ...(recording || result.source === "sample" ? [] : [`The run, with every seam and its clues: ${location.origin}/r/${result.runId}`]),
       ];
       const blob = await pagesPdf(pages, { title: "A page rebuilt by Untorn", summary });
       const url = URL.createObjectURL(blob);

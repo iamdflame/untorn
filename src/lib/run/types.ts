@@ -133,6 +133,7 @@ export type ErrorCode =
   | "daily-cap"
   | "busy"
   | "model-error"
+  | "paused"
   | "timeout"
   | "not-found"
   | "expired"

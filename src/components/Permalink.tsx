@@ -72,7 +72,7 @@ export function Permalink({ runId }: { runId: string }) {
   const when = result ? new Date(result.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) : "";
   const honesty = (
     <p className="honest">
-      {result ? `Replay of ${SOURCE[result.source]}, ${when} UTC${result.caption ? "; simulated tear" : ""}.` : "Loading the run…"}
+      {result ? `Replay of ${SOURCE[result.source]}, ${when} UTC${/simulated/i.test(result.caption ?? "") ? "; simulated tear" : ""}.` : "Loading the run…"}
       <Link href="/#tear">Tear your own</Link>
     </p>
   );

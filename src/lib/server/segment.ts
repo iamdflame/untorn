@@ -18,6 +18,7 @@ import { decodeMask } from "@/lib/sam/mask";
 import { UpstreamError, type RawObject } from "@/lib/sam/parse";
 import { buildBoxPointImageRequest, buildConceptImageRequest, jpegDataUrl, MAX_OBJECTS_PER_REQUEST, type PointPrompt, type SamRequestBody } from "@/lib/sam/request";
 import { hedge } from "./hedge";
+import { isAccountRefusal } from "./refusal";
 import { cropJpeg, decodePhoto, resizeJpeg, type DecodedPhoto } from "./images";
 import {
   cleanFragmentMask,
@@ -155,7 +156,7 @@ async function samImage(ctx: SamCtx, stage: string, body: SamRequestBody, timeou
     lanes: 2,
     signal: ctx.signal,
     ok: () => true,
-    finalError: (e) => e instanceof UpstreamError && e.status !== null && e.status !== 429 && e.status < 500,
+    finalError: (e) => e instanceof UpstreamError && (isAccountRefusal(e.status, e.code, e.message) || (e.status !== null && e.status !== 429 && e.status < 500)),
   });
   return h.result;
 }
@@ -178,7 +179,9 @@ async function samImageOnce(ctx: SamCtx, stage: string, body: SamRequestBody, ti
     } catch (e) {
       if (ctx.signal?.aborted) throw e;
       const status = e instanceof UpstreamError ? e.status : null;
-      const retryable = status === null || status === 429 || status >= 500;
+      // a refused key (no credit, revoked) answers the same every time: no retry
+      const refused = e instanceof UpstreamError && isAccountRefusal(e.status, e.code, e.message);
+      const retryable = !refused && (status === null || status === 429 || status >= 500);
       const msg = timer.aborted ? `timeout after ${timeoutMs} ms` : `${(e as Error).name}: ${(e as Error).message}`;
       ctx.log({ stage, ms: Date.now() - t0, attempt, ok: false, objects: 0, bytes, error: msg });
       lastErr = e;

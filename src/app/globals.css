@@ -554,6 +554,14 @@ i.bar {
   color: var(--chalk);
   margin-left: 6px;
 }
+.honest .paused-note {
+  margin-left: 6px;
+  color: var(--chalk);
+}
+.honest .linkish + a,
+.honest .paused-note + a {
+  margin-left: 16px;
+}
 .honest .live-dot {
   display: inline-block;
   width: 7px;
@@ -1024,8 +1032,9 @@ h2 {
 .r-tx {
   margin: 0;
   font: 400 12.5px/1.7 var(--mono);
-  white-space: pre;
-  overflow-x: auto;
+  /* the page's own line breaks; a line longer than the box wraps rather than hides behind a scroll */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--chalk);
   padding: 22px 24px;
   background: var(--room-3);
@@ -1278,6 +1287,9 @@ h2 {
   margin: 14px 0 0;
   font-size: 14px;
 }
+.way .way-other + .way-other {
+  margin-top: 6px;
+}
 .way .way-other a {
   color: inherit;
   text-decoration: underline;
@@ -1300,6 +1312,13 @@ h2 {
   font-family: var(--mono);
   font-weight: 500;
   letter-spacing: 0.08em;
+  color: var(--chalk);
+}
+.drop .paused-line {
+  margin: 16px 0 0;
+  max-width: 48ch;
+  font-family: var(--serif);
+  font-size: 16px;
   color: var(--chalk);
 }
 .privacy-line {
@@ -1811,7 +1830,8 @@ h2 {
     display: none;
   }
   .stagebar .honest .linkish,
-  .stagebar .honest a {
+  .stagebar .honest a,
+  .stagebar .honest .paused-note {
     display: none;
   }
   .ib {

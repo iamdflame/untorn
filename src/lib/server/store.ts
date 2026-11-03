@@ -6,7 +6,8 @@
 //   photos/<photoId>                                         an uploaded photo waiting for its run (phone handoff)
 //   sessions/<code>.json, sessions/<code>/photo.json         phone handoff sessions
 //   ledger/<day>/<ipHash>/<runId>_<micro-usd>.<s|d>           rate limit and spend cap (s: started, d: done)
-//   health/<iso time>.json                                   health runs (every 3 hours)
+//   health/<iso time>.json                                   health runs (every 12 hours)
+//   live/paused.json                                         set when Meta's API refuses our key; lifted by the next run
 
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";

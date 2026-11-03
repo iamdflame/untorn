@@ -6,12 +6,13 @@
 // - network errors, 5xx and 429 retry with jittered exponential backoff (Retry-After honoured, within the deadline);
 // - empty or unparseable output retries at once; when the reasoning used up max_output_tokens (the spike's empty k-way
 //   answers), the retry reasons one level lower with 1.5x the budget, so a runaway item cannot double the latency;
-// - 400/401/402/403/404/413 fail at once: the same request would fail again;
+// - 400/401/402/403/404/413 fail at once: the same request would fail again (so does a 429 that says the quota is gone);
 // - each attempt has its own timeout and the call has an overall deadline; the caller's AbortSignal cancels both;
 // - a call slower than its hedge delay gets a second identical request beside it; the first good answer wins.
 // Every attempt is logged with its latency, tokens and estimated cost; the totals ride on the outcome's meta.
 
 import { hedge } from "./hedge";
+import { isAccountRefusal } from "./refusal";
 import {
   choiceSchema,
   DEFAULT_PROMPT,
@@ -375,13 +376,18 @@ async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Pr
       status = res.status;
       if (!res.ok) {
         let message = `HTTP ${res.status}`;
+        let errCode: string | null = null;
         try {
           const j = (await res.json()) as ResponseJson;
           if (j.error?.message) message = j.error.message;
+          errCode = j.error?.code ?? null;
         } catch {
           // empty or non-JSON body
         }
-        const c = classifyStatus(res.status);
+        // a refused key (no credit, revoked) answers the same every time, a 429 "insufficient quota" included
+        const c: { code: MuseErrorCode; retryable: boolean } = isAccountRefusal(res.status, errCode, message)
+          ? { code: res.status === 401 || res.status === 403 ? "auth" : "billing", retryable: false }
+          : classifyStatus(res.status);
         last = { code: c.code, message, status: res.status, retryable: c.retryable };
         if (c.code === "rate_limited" || res.status === 503) waitMs = retryAfterMs(res);
       } else {

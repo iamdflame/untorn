@@ -41,6 +41,8 @@ import type { chooseContinuation, MuseOutcome, pageOrientation, readPage, transl
 import { DEFAULT_PROMPT, type SeamPromptVersion } from "./prompts";
 import type { SegmentResult } from "./segment";
 import { sharpness } from "./intake";
+import { isAccountRefusal } from "./refusal";
+import { UpstreamError } from "@/lib/sam/parse";
 
 export type PipelineDeps = {
   segment: (jpeg: Uint8Array, opts: { signal?: AbortSignal }) => Promise<Pick<SegmentResult, "fragments" | "costUsd" | "samCalls">>;
@@ -232,6 +234,7 @@ export async function runPipeline(photoBytes: Uint8Array, deps: PipelineDeps, op
       s = await deps.segment(photo.jpeg, { signal });
     } catch (e) {
       checkAbort();
+      if (e instanceof UpstreamError && isAccountRefusal(e.status, e.code, e.message)) throw new RunError("paused");
       throw new RunError("model-error", `SAM 3.1 didn't answer: ${short(e)}`);
     }
     spend(s.costUsd);

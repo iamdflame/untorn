@@ -7,7 +7,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Recovery } from "@/lib/run/errors";
-import { SAMPLES, STACKS, type Sample } from "@/lib/run/samples";
+import { DEFAULT_SAMPLE, SAMPLES, STACKS, type Sample } from "@/lib/run/samples";
 import type { RunResult } from "@/lib/run/types";
 import { Hero } from "./hero/Hero";
 import { ErrorNote, Note } from "./hero/LeadNote";
@@ -18,6 +18,8 @@ import { openPicker, TearYourOwn } from "./TearYourOwn";
 
 /** The sample in another language, offered under "Run the sample live". */
 const GERMAN_SAMPLE = "stresemann-1922";
+/** A real hand tear (a recorded live run), offered beside every simulated one. */
+const REAL_SAMPLE = "hand-torn-6";
 
 // below the fold: its code loads when it is needed
 const ResultSection = dynamic(() => import("./result/ResultSection").then((m) => m.ResultSection), { ssr: false });
@@ -39,6 +41,8 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
   const [seq, setSeq] = useState(0);
   const [J, setJ] = useState(0);
   const [liveSample, setLiveSample] = useState(false);
+  // Meta's API refused our key (no credit left, say): say so before anyone tears a page
+  const [livePaused, setLivePaused] = useState(false);
   const lastInput = useRef<LiveInput | null>(null);
   // the result is below the fold: build it once it's near, or once the page is idle
   const resultRef = useRef<HTMLDivElement>(null);
@@ -46,8 +50,11 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
 
   // warm the functions, then load the recording
   useEffect(() => {
-    fetch("/api/health?warm=1", { cache: "no-store" }).catch(() => {});
     let cancelled = false;
+    fetch("/api/health?warm=1", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ live?: string }>) : null))
+      .then((j) => !cancelled && j?.live === "paused" && setLivePaused(true))
+      .catch(() => {});
     fetch(sample.recorded)
       .then((r) => (r.ok ? (r.json() as Promise<RunResult>) : Promise.reject(new Error(String(r.status)))))
       .then((r) => !cancelled && setRecorded(r))
@@ -113,6 +120,7 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
     return () => removeEventListener("keydown", onKey);
   }, []);
 
+  const pausedNow = livePaused || state.error?.code === "paused";
   const isLive = state.mode === "live";
   const busy = isLive && (state.status === "running" || state.status === "queued");
   const usesSamplePhoto = !isLive || liveSample;
@@ -132,9 +140,14 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
   ) : (
     <p className="honest">
       {sample.honesty}
-      <button type="button" className="linkish" onClick={() => goLive({ sample: sample.name })} disabled={busy}>
-        Run it live
-      </button>
+      {pausedNow ? (
+        <span className="paused-note">Live runs are paused just now.</span>
+      ) : (
+        <button type="button" className="linkish" onClick={() => goLive({ sample: sample.name })} disabled={busy}>
+          Run it live
+        </button>
+      )}
+      {sample.name !== REAL_SAMPLE && SAMPLES[REAL_SAMPLE] && <a href={`/?sample=${REAL_SAMPLE}`}>A real tear</a>}
     </p>
   );
 
@@ -189,12 +202,13 @@ export function FirstScreen({ sample: initial }: { sample: Sample }) {
         onPhoto={onPhoto}
         onFile={onFile}
         onSample={() => goLive({ sample: sample.name })}
-        other={
-          sample.name === GERMAN_SAMPLE
-            ? { lead: "Or the first screen's English letter:", label: "a letter of 1927", href: "/" }
-            : { lead: "It reads other languages too:", label: "a German letter of 1922, read and translated", href: `/?sample=${GERMAN_SAMPLE}` }
-        }
+        others={[
+          ...(sample.name !== REAL_SAMPLE ? [{ lead: "Torn by hand:", label: "a printed page in 6 pieces, from a live run", href: `/?sample=${REAL_SAMPLE}` }] : []),
+          ...(sample.name !== GERMAN_SAMPLE ? [{ lead: "It reads other languages too:", label: "a German letter of 1922, read and translated", href: `/?sample=${GERMAN_SAMPLE}` }] : []),
+          ...(sample.name !== DEFAULT_SAMPLE ? [{ lead: "Or the first screen's letter:", label: "a letter of 1927", href: "/" }] : []),
+        ]}
         disabled={busy}
+        paused={pausedNow}
         footer={
           <footer className="foot">
             <p>

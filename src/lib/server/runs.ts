@@ -11,6 +11,7 @@ import { isPhotoId, randomId } from "./ids";
 import { normalisePhoto } from "./intake";
 import { acquireSlot, admitRun, settleRun } from "./limits";
 import { liveDeps } from "./live";
+import { clearPause, pauseAge, PAUSE_FAIL_FAST_MS, readPause, setPause } from "./live-status";
 import { runPipeline, type PipelineDeps } from "./pipeline";
 import { fileUrl, type Store } from "./store";
 
@@ -111,9 +112,11 @@ export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; r
         };
         const deps = ctx.deps ?? liveDeps(putAsset);
         await runPipeline(input.bytes, { ...deps, putAsset }, { runId, source: input.source, sample: input.sample, caption: input.caption, cameraTilt: input.tilt ?? null, signal: abort.signal, meter }, write);
+        await clearPause(store).catch(() => {});
       } catch (e) {
         const known = e instanceof RunError;
         if (!known) console.error(`[runs] ${runId} failed`, e);
+        if (known && e.code === "paused") await setPause(store, `run ${runId}`).catch(() => {});
         write({ type: "error", t: Date.now() - t0, code: known ? e.code : "internal", message: known ? e.message : ERRORS.internal.message });
       } finally {
         clearInterval(tick);
@@ -136,6 +139,9 @@ export function streamRun(input: RunInput, ctx: { store: Store; ipKey: string; r
 
 /** Admit and start: the whole of POST /api/runs after parsing. */
 export async function startRun(input: RunInput, ctx: { store: Store; ip: string; signal?: AbortSignal; deps?: PipelineDeps }): Promise<Response> {
+  // the key was refused minutes ago: say so at once rather than spend the visitor's wait (and their rate limit)
+  const pause = await readPause(ctx.store).catch(() => null);
+  if (pause && pauseAge(pause) < PAUSE_FAIL_FAST_MS) throw new RunError("paused");
   const runId = randomId();
   const { ipKey } = await admitRun(ctx.store, ctx.ip, runId);
   return streamRun(input, { store: ctx.store, ipKey, runId, signal: ctx.signal, deps: ctx.deps });

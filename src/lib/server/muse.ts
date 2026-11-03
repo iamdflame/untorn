@@ -36,7 +36,11 @@ import {
 export const META_API_BASE = "https://api.meta.ai/v1";
 export const USER_AGENT = "rejoin/0.1";
 
-export type MuseModel = "muse-spark-1.3" | "muse-wonder-1.0";
+/** "muse-spark-open" is Meta's open-weights Muse Spark, served by Baseten (OpenAI-compatible chat completions). */
+export type MuseModel = "muse-spark-1.3" | "muse-wonder-1.0" | "muse-spark-open";
+/** Where the open-weights model is served, and its id there (the hackathon's Baseten deployment by default). */
+export const OPEN_API_BASE = process.env.OPEN_API_BASE ?? "https://inference.baseten.co/v1";
+export const OPEN_MODEL_ID = process.env.OPEN_MODEL_ID ?? "meta-models/muse-spark-open-1026";
 /** The archive record's model (scripts/eval/catalog.ts measured both on the samples' transcripts). */
 export const CATALOG_MODEL: MuseModel = "muse-wonder-1.0";
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -57,6 +61,8 @@ export type Usage = { inputTokens: number; cachedTokens: number; outputTokens: n
 export const PRICES: Record<MuseModel, { input: number; cached: number; output: number }> = {
   "muse-spark-1.3": { input: 1.25, cached: 0.15, output: 4.25 },
   "muse-wonder-1.0": { input: 4.0, cached: 0.2, output: 20.0 },
+  // an estimate for the spend meter (OPEN_PRICE_IN / OPEN_PRICE_OUT override it): the host's list price, not Meta's
+  "muse-spark-open": { input: Number(process.env.OPEN_PRICE_IN ?? 0.5), cached: Number(process.env.OPEN_PRICE_IN ?? 0.5), output: Number(process.env.OPEN_PRICE_OUT ?? 4.5) },
 };
 
 export function costUsd(model: MuseModel, u: Usage): number {
@@ -220,6 +226,50 @@ function readUsage(j: ResponseJson): Usage {
   };
 }
 
+type ChatJson = {
+  id?: string;
+  error?: { message?: string; code?: string } | null;
+  choices?: { finish_reason?: string | null; message?: { content?: string | null; refusal?: string | null } }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; completion_tokens_details?: { reasoning_tokens?: number } };
+};
+
+/** The same request as a chat completion, for the open-weights host: parts as chat parts, the schema strict. */
+export function chatBody(req: Pick<StructuredRequest<unknown>, "content" | "schemaName" | "schema">, effort: ReasoningEffort, maxOutputTokens: number) {
+  return {
+    model: OPEN_MODEL_ID,
+    messages: [
+      {
+        role: "user",
+        content: req.content.map((p) => (p.type === "input_text" ? { type: "text", text: p.text } : { type: "image_url", image_url: p.detail ? { url: p.image_url, detail: p.detail } : { url: p.image_url } })),
+      },
+    ],
+    response_format: { type: "json_schema", json_schema: { name: req.schemaName, schema: req.schema, strict: true } },
+    // chat completions know low/medium/high: the two lowest levels both ask for low
+    reasoning_effort: effort === "minimal" ? "low" : effort === "xhigh" || effort === "max" ? "high" : effort,
+    max_tokens: maxOutputTokens,
+  };
+}
+
+/** A chat completion read as a Responses answer, so one attempt loop serves both hosts. */
+export function fromChat(j: ChatJson): ResponseJson {
+  const c = j.choices?.[0];
+  const u = j.usage ?? {};
+  const cut = c?.finish_reason === "length";
+  return {
+    id: j.id,
+    status: cut ? "incomplete" : "completed",
+    incomplete_details: cut ? { reason: "max_tokens" } : null,
+    error: j.error ?? null,
+    output_text: c?.message?.content ?? "",
+    usage: {
+      input_tokens: u.prompt_tokens ?? 0,
+      output_tokens: u.completion_tokens ?? 0,
+      input_tokens_details: { cached_tokens: u.prompt_tokens_details?.cached_tokens ?? 0 },
+      output_tokens_details: { reasoning_tokens: u.completion_tokens_details?.reasoning_tokens ?? 0 },
+    },
+  };
+}
+
 /** Parse model JSON, tolerating a code fence or prose around one object (constrained decoding should not need it). */
 export function parseJsonLoose(text: string): unknown {
   const t = text.trim();
@@ -317,7 +367,9 @@ async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Pr
   const sleep = opts.sleep ?? defaultSleep;
   const random = opts.random ?? Math.random;
   const log = opts.onLog ?? defaultLog;
-  const apiKey = opts.apiKey ?? process.env.MODEL_API_KEY;
+  // the open-weights model is served elsewhere, with its own key
+  const open = model === "muse-spark-open";
+  const apiKey = opts.apiKey ?? (open ? process.env.BASETEN_API_KEY : process.env.MODEL_API_KEY);
 
   const t0 = Date.now();
   let usage = ZERO;
@@ -340,7 +392,7 @@ async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Pr
   });
   const fail = (error: MuseFailure): MuseOutcome<T> => ({ ok: false, error, meta: meta() });
 
-  if (!apiKey) return fail({ code: "config", message: "MODEL_API_KEY is not set", status: null, retryable: false });
+  if (!apiKey) return fail({ code: "config", message: `${open ? "BASETEN_API_KEY" : "MODEL_API_KEY"} is not set`, status: null, retryable: false });
 
   let last: MuseFailure = { code: "timeout", message: "deadline reached before the first attempt", status: null, retryable: true };
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -351,14 +403,16 @@ async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Pr
 
     const timer = AbortSignal.timeout(Math.min(timeoutMs, remaining));
     const signal = opts.signal ? AbortSignal.any([opts.signal, timer]) : timer;
-    const body = {
-      model,
-      input: [{ type: "message", role: "user", content: req.content }],
-      text: { format: { type: "json_schema", name: req.schemaName, schema: req.schema, strict: true } },
-      reasoning: { effort },
-      max_output_tokens: maxOutputTokens,
-      store: false,
-    };
+    const body = open
+      ? chatBody(req, effort, maxOutputTokens)
+      : {
+          model,
+          input: [{ type: "message", role: "user", content: req.content }],
+          text: { format: { type: "json_schema", name: req.schemaName, schema: req.schema, strict: true } },
+          reasoning: { effort },
+          max_output_tokens: maxOutputTokens,
+          store: false,
+        };
     const ta = Date.now();
     let status: number | null = null;
     let waitMs: number | null = null;
@@ -366,7 +420,7 @@ async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Pr
     let attemptCost = 0;
     let outcome: { value: T } | null = null;
     try {
-      const res = await fetchImpl(`${opts.baseUrl ?? META_API_BASE}/responses`, {
+      const res = await fetchImpl(open ? `${opts.baseUrl ?? OPEN_API_BASE}/chat/completions` : `${opts.baseUrl ?? META_API_BASE}/responses`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -395,7 +449,8 @@ async function museCallOnce<T>(req: StructuredRequest<T>, opts: MuseOptions): Pr
         last = { code: c.code, message, status: res.status, retryable: c.retryable };
         if (c.code === "rate_limited" || res.status === 503) waitMs = retryAfterMs(res);
       } else {
-        const j = (await res.json()) as ResponseJson;
+        const raw = await res.json();
+        const j = open ? fromChat(raw as ChatJson) : (raw as ResponseJson);
         responseId = j.id ?? responseId;
         attemptUsage = readUsage(j);
         attemptCost = costUsd(model, attemptUsage);

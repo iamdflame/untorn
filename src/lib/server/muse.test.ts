@@ -125,6 +125,48 @@ describe("verifySeam", () => {
   });
 });
 
+describe("the open-weights model (Muse Spark Open, chat completions)", () => {
+  const chat = (obj: unknown, finish = "stop") =>
+    new Response(
+      JSON.stringify({
+        id: "chatcmpl_test",
+        choices: [{ finish_reason: finish, message: { content: JSON.stringify(obj) } }],
+        usage: { prompt_tokens: 300, completion_tokens: 120, completion_tokens_details: { reasoning_tokens: 80 } },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  it("sends the same question as a chat completion with a strict schema, and reads the answer back", async () => {
+    const f = fakeFetch([chat(seam)]);
+    const { o } = opts({ fetchImpl: f.impl, model: "muse-spark-open", effort: "minimal" });
+    const r = await verifySeam(img, o);
+    expect(r.ok && r.value.same_place).toBe(false);
+    const call = f.calls[0];
+    expect(call.url).toBe("https://inference.baseten.co/v1/chat/completions");
+    expect(new Headers(call.init.headers).get("authorization")).toBe("Bearer test-key");
+    expect(call.body.model).toBe("meta-models/muse-spark-open-1026");
+    expect(call.body.reasoning_effort).toBe("low");
+    expect((call.body.response_format as { json_schema: { strict: boolean } }).json_schema.strict).toBe(true);
+    const content = (call.body.messages as { content: { type: string }[] }[])[0].content;
+    expect(content.map((c) => c.type)).toEqual(["text", "image_url"]);
+    expect(r.meta.model).toBe("muse-spark-open");
+    expect(r.meta.usage).toMatchObject({ inputTokens: 300, outputTokens: 120, reasoningTokens: 80 });
+  });
+
+  it("an answer cut off at the token limit is retried with more room; no key is a plain config failure", async () => {
+    const f = fakeFetch([chat("", "length"), chat(seam)]);
+    const { o } = opts({ fetchImpl: f.impl, model: "muse-spark-open" });
+    const r = await verifySeam(img, o);
+    expect(r.ok).toBe(true);
+    expect(f.calls).toHaveLength(2);
+    const prev = process.env.BASETEN_API_KEY;
+    delete process.env.BASETEN_API_KEY;
+    const none = await verifySeam(img, { ...opts({ fetchImpl: fakeFetch([chat(seam)]).impl, model: "muse-spark-open" }).o, apiKey: undefined });
+    if (prev !== undefined) process.env.BASETEN_API_KEY = prev;
+    expect(!none.ok && none.error.code).toBe("config");
+  });
+});
+
 describe("recorded answers from the live smoke run", () => {
   const replay = (name: string) => fakeFetch([new Response(fixture(name), { status: 200 })]);
 

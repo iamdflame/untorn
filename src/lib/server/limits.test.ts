@@ -50,6 +50,22 @@ describe("admitRun", () => {
     // the 12-hourly health run is ours: it may use the whole cap too
     await expect(admitRun(store, "health", "run-h")).resolves.toBeTruthy();
   });
+
+  it("lets runs from the judges' link go on past an address's six, up to their own limit (judges may share an office's)", async () => {
+    vi.stubEnv("DAILY_SPEND_CAP_USD", "100");
+    vi.stubEnv("JUDGE_RUNS_PER_IP_PER_DAY", "8");
+    const store = memoryStore();
+    for (let i = 0; i < 6; i++) {
+      const { ipKey } = await admitRun(store, "203.0.113.30", `run-${i}`);
+      await settleRun(store, ipKey, `run-${i}`, 0.1);
+    }
+    await expect(admitRun(store, "203.0.113.30", "run-6")).rejects.toMatchObject({ code: "rate-limited" });
+    for (let i = 7; i < 9; i++) {
+      const { ipKey } = await admitRun(store, "203.0.113.30", `run-${i}`, { reserved: true });
+      await settleRun(store, ipKey, `run-${i}`, 0.1);
+    }
+    await expect(admitRun(store, "203.0.113.30", "run-9", { reserved: true })).rejects.toMatchObject({ code: "rate-limited" });
+  });
 });
 
 describe("publicShareFor", () => {

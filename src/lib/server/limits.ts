@@ -3,6 +3,8 @@
 //
 //   RUNS_PER_IP_PER_HOUR      live runs one address may start per hour (default 12: judges may share one office address)
 //   RUNS_PER_IP_PER_DAY       live runs one address may start per UTC day (default 6), so no one visitor spends the day's cap
+//   JUDGE_RUNS_PER_IP_PER_DAY the same for runs from the judges' link (default 24: judges may share one office address,
+//                             and the share of the cap kept for them still bounds what they spend)
 //   SESSIONS_PER_IP_PER_HOUR  phone codes one address may make per hour (default 30)
 //   NOTES_PER_IP_PER_HOUR     spoken provenance notes one address may send per hour (default 20)
 //   DAILY_SPEND_CAP_USD       model spend per UTC day across all runs (default: dailyCapFor, below)
@@ -42,6 +44,7 @@ export function publicShareFor(d: string): number {
 export const limits = () => ({
   runsPerIpPerHour: num("RUNS_PER_IP_PER_HOUR", 12),
   runsPerIpPerDay: num("RUNS_PER_IP_PER_DAY", 6),
+  judgeRunsPerIpPerDay: num("JUDGE_RUNS_PER_IP_PER_DAY", 24),
   sessionsPerIpPerHour: num("SESSIONS_PER_IP_PER_HOUR", 30),
   notesPerIpPerHour: num("NOTES_PER_IP_PER_HOUR", 20),
   dailyCapUsd: num("DAILY_SPEND_CAP_USD", dailyCapFor(day())),
@@ -115,7 +118,8 @@ export async function spendToday(store: Store): Promise<{ usd: number; runs: num
 /**
  * Admit a live run, or throw "rate-limited" / "daily-cap". Writes a started record that counts towards both limits
  * until settleRun replaces it with the real cost. Health runs pass ip "health" and skip the per-IP limit. `reserved`:
- * a run from the judges' link, which may use the whole cap; every other run stops at the public share.
+ * a run from the judges' link, which may use the whole cap and more of an address's day (judges may share an office's);
+ * every other run stops at the public share.
  */
 export async function admitRun(store: Store, ip: string, runId: string, { reserved = false }: { reserved?: boolean } = {}): Promise<{ ipKey: string }> {
   const L = limits();
@@ -126,7 +130,7 @@ export async function admitRun(store: Store, ip: string, runId: string, { reserv
   if (today.usd + L.estimateUsd > cap) throw new RunError("daily-cap");
   if (ipKey !== "health") {
     const mine = today.byIp.get(ipKey) ?? [];
-    if (mine.length >= L.runsPerIpPerDay)
+    if (mine.length >= (reserved ? L.judgeRunsPerIpPerDay : L.runsPerIpPerDay))
       throw new RunError("rate-limited", "That's today's live runs from this address. The recorded run still plays, and live runs open again tomorrow.");
     const recent = mine.filter((e) => Date.now() - e.at.getTime() < 3600_000);
     if (recent.length >= L.runsPerIpPerHour) throw new RunError("rate-limited");

@@ -264,6 +264,9 @@ site's code; `scripts/eval/real.ts score` and `scripts/score-sample.ts`):
   Spark gave (`open-refused`); a slow read stays with the open weights (`live.test.ts`). On the live site, 3 Nov 2026, with
   Baseten refusing: an open-weights-only run of the 1927 letter got all 13 reads from Muse Spark and came back 10 of 10
   placed correctly, transcript 0.0% character errors, in 84.9 s for $0.138 (`scripts/score-sample.ts`).
+- **On the live site, 4 Nov 2026, with Baseten answering again:** an open-weights-only run of the 1927 letter got all
+  20 reads and the transcript from Muse Spark Open, no read from Muse Spark, and came back 10 of 10 placed correctly
+  (0 misplaced; 14 of 15 joins right), transcript 1.6% character errors, in 57.7 s for $0.153 (`scripts/score-sample.ts`).
 - Two open-weights-only runs lost their seam reads to this machine's connection (two runs at once, about 30 seam
   images in flight over a slow uplink: requests failed to connect within 10 s, the limit noted for Meta's API under
   Reliability). The letter still came back 10 of 10 on its edges alone; the 6-piece page came back 5 of 6, one piece
